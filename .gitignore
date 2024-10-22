@@ -1,0 +1,8 @@
+# Ignorar todo el contenido de HackRF-c/hackrf
+/HackRF-c/hackrf/**
+
+# Excepto el directorio host/hackrf-tools/src y su contenido
+!HackRF-c/hackrf/host/
+!HackRF-c/hackrf/host/hackrf-tools/
+!HackRF-c/hackrf/host/hackrf-tools/src/
+!HackRF-c/hackrf/host/hackrf-tools/src/**
