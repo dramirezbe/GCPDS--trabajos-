@@ -1,0 +1,8 @@
+{
+    "files.associations": {
+        "*.py": "python",
+        "hackrf.h": "c",
+        "getopt.h": "c",
+        "WHF1.C": "cpp"
+    }
+}
