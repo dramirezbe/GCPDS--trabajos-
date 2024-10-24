@@ -1,0 +1,6 @@
+{
+    "files.associations": {
+        "*.py": "python",
+        "cs8_data.h": "c"
+    }
+}

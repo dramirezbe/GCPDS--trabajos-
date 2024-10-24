@@ -1,5 +1,9 @@
-#include "cs8_full.h"
+#define _GNU_SOURCE
+
 #include <stdio.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <complex.h>
 
 // Función para cargar los datos crudos desde un archivo
 uint8_t* load_raw_data(const char *file_path, size_t *file_size) {
@@ -39,36 +43,12 @@ uint8_t* load_raw_data(const char *file_path, size_t *file_size) {
 }
 
 // Función para separar los vectores I y Q
-void separate_iq(const uint8_t *raw_data, size_t num_samples, int8_t **K, int8_t **Q) {
-    *K = (int8_t *)malloc(num_samples * sizeof(int8_t));
+void separate_iq(const uint8_t *raw_data, size_t num_samples, int8_t **I, int8_t **Q) {
+    *I = (int8_t *)malloc(num_samples * sizeof(int8_t));
     *Q = (int8_t *)malloc(num_samples * sizeof(int8_t));
 
-    if (!(*K) || !(*Q)) {
-        printf("Error: Unable to allocate memory for I and Q vectors\n");
-        if (*K) free(*K);
-        if (*Q) free(*Q);
-        *K = *Q = NULL;  // Avoid dangling pointers
-        return;
-    }
-
     for (size_t i = 0; i < num_samples; i++) {
-        (*K)[i] = (int8_t)raw_data[2 * i];
+        (*I)[i] = (int8_t)raw_data[2 * i];
         (*Q)[i] = (int8_t)raw_data[2 * i + 1];
     }
-}
-
-// Función para crear el vector complejo a partir de los vectores I y Q
-float complex* do_complex_vector(const int8_t *K, const int8_t *Q, size_t num_samples) {
-    float complex *complex_vector = (float complex *)malloc(num_samples * sizeof(float complex));
-
-    if (!complex_vector) {
-        printf("Error: Unable to allocate memory for the complex vector\n");
-        return NULL;
-    }
-
-    for (size_t i = 0; i < num_samples; i++) {
-        complex_vector[i] = K[i] + Q[i] * K;  // I + jQ
-    }
-
-    return complex_vector;
 }
