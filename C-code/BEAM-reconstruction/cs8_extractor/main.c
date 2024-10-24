@@ -1,45 +1,19 @@
 #include <stdio.h>
-#include <stdint.h>
-#include <stdlib.h>
-# include "cs8_data.h"
+#include <complex.h>
+#include "cs8_full.h"
 
+int main() {
+    size_t num_samples;
+    float _Complex *complex_vector = process_raw_data("C:\\Samples-Hack-RF\\88108.cs8", &num_samples);
 
-int main(int argc, char *argv[]) {
-    const char *file_path = "C:\\Samples-Hack-RF\\88108.cs8"; // Default file path
-    if (argc > 1) {
-        file_path = argv[1]; // Allow file path to be passed as an argument
-    }
-    
-    size_t file_size;
-    uint8_t *raw_data = load_raw_data(file_path, &file_size);
-    if (!raw_data) {
-        return 1;  // Exit if file cannot be loaded
+    if (!complex_vector) {
+        return 1;  // Error handling if loading fails
     }
 
-    size_t num_samples = file_size / 2;
-    int8_t *I = NULL, *Q = NULL;
-
-    separate_iq(raw_data, num_samples, &I, &Q);
-    if (!I || !Q) {
-        free(raw_data);
-        return 1;  // Exit if memory allocation for I/Q fails
+    for (size_t i = 0; i < num_samples; i++) {
+        printf("Sample %zu: %.2f + %.2fj\n", i, crealf(complex_vector[i]), cimagf(complex_vector[i]));
     }
 
-    printf("File loaded successfully. File size: %zu bytes\n", file_size);
-    printf("I/Q data separated successfully. Number of samples: %zu\n", num_samples);
-
-    // Print the first 10 samples as a test
-    for (int i = 0; i < 10; i++) {
-        printf("Sample %d: I = %d, Q = %d\n", i, I[i], Q[i]);
-    }
-
-    printf("Waiting user..........");
-    getchar();
-
-    // Free allocated memory
-    free(raw_data);
-    free(I);
-    free(Q);
-
-    return ;
+    free(complex_vector);
+    return 0;
 }
