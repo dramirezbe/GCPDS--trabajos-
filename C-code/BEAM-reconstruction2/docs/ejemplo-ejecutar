@@ -1,7 +1,0 @@
-gcc -o test_exec main.c my_functions.c
-
-dirección: C:\GIT\GCPDS--trabajos-\C-code\BEAM-reconstruction
-
-cd /c/GIT\GCPDS--trabajos-\C-code\BEAM-reconstruction
-make clean 
-make
