@@ -1,7 +1,7 @@
 CC = gcc
 CFLAGS = -Wall -Wextra
 TARGET = main
-SRCS = main.c src/cs8_to_iq.c src/welch.c
+SRCS = uso_de_welch.c src/cs8_to_iq.c src/welch.c
 OBJS = $(SRCS:.c=.o)
 
 all: $(TARGET)
