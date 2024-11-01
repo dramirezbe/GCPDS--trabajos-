@@ -16,6 +16,22 @@ void generate_hamming_window(double* window, int segment_length) {
     }
 }
 
+void change_sign(int *x, int *y) {
+    // Cambiar la parte negativa a positiva y viceversa
+    if (*x > 0) {
+        *x = -*x; // de positivo a negativo
+    } else if (*x < 0) {
+        *x = -*x; // de negativo a positivo
+    }
+
+    if (*y > 0) {
+        *y = -*y; // de positivo a negativo
+    } else if (*y < 0) {
+        *y = -*y; // de negativo a positivo
+    }
+}
+
+
 // Función para calcular la PSD de Welch en señales complejas
 void welch_psd_complex(complex double* signal, size_t N_signal, double fs, 
                        int segment_length, double overlap, double* f_out, double* P_welch_out) {
@@ -67,11 +83,27 @@ void welch_psd_complex(complex double* signal, size_t N_signal, double fs,
         P_welch_out[i] /= K;
     }
 
-    // Generar frecuencias asociadas
+    // Generar frecuencias asociadas y reorganizar f_out y P_welch_out para centrar el espectro
     double val = fs / segment_length;
-    for (size_t i = 0; i < psd_size; i++) {
-        f_out[i] = (i - psd_size / 2) * val;
+    size_t half_size = psd_size / 2;
+    
+    // Reorganizar frecuencias y PSD
+    for (size_t i = 0; i < half_size; i++) {
+        f_out[i] = -fs / 2 + i * val;                // Frecuencias negativas
+        f_out[i + half_size] = i * val;              // Frecuencias positivas
+        double temp = P_welch_out[i];
+        P_welch_out[i] = P_welch_out[i + half_size]; // Intercambiar valores de PSD
+        P_welch_out[i + half_size] = temp;
     }
+    
+    /*
+    for (size_t i = 0; i < psd_size; i++) {
+        long double original_value = (long double)P_welch_out[i]; // Convertir a long double para mayor precisión
+        original_value *= 0.001L; // Aplicar reducción de 30 dB (equivalente a multiplicar por 0.001)
+        P_welch_out[i] = (double)original_value; // Volver a double para almacenar el valor en el array
+    }*/
+
+
 
     // Liberar memoria
     fftw_destroy_plan(plan);
