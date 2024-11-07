@@ -17,7 +17,7 @@ int main() {
 
     size_t segment_size = 1024;
     double fs = 20000000.0;
-    double overlap = 0.5;
+    double overlap = 0.5;   
 
     double psd_out[segment_size];
     double f_out[segment_size];
