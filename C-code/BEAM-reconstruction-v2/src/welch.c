@@ -7,34 +7,19 @@
 
 #include "welch.h"
 
-#define PI 3.14159265358979323846
+# define M_PI		3.14159265358979323846
 
 // Genera la ventana de Hamming
 void generate_hamming_window(double* window, int segment_length) {
     for (int n = 0; n < segment_length; n++) {
-        window[n] = 0.54 - 0.46 * cos((2.0 * PI * n) / (segment_length - 1));
+        window[n] = 0.54 - 0.46 * cos((2.0 * M_PI * n) / (segment_length - 1));
     }
 }
-
-void change_sign(int *x, int *y) {
-    // Cambiar la parte negativa a positiva y viceversa
-    if (*x > 0) {
-        *x = -*x; // de positivo a negativo
-    } else if (*x < 0) {
-        *x = -*x; // de negativo a positivo
-    }
-
-    if (*y > 0) {
-        *y = -*y; // de positivo a negativo
-    } else if (*y < 0) {
-        *y = -*y; // de negativo a positivo
-    }
-}
-
 
 // Función para calcular la PSD de Welch en señales complejas
 void welch_psd_complex(complex double* signal, size_t N_signal, double fs, 
                        int segment_length, double overlap, double* f_out, double* P_welch_out) {
+
     int step = (int)(segment_length * (1.0 - overlap));
     int K = ((N_signal - segment_length) / step) + 1;
     size_t psd_size = segment_length;
@@ -75,7 +60,6 @@ void welch_psd_complex(complex double* signal, size_t N_signal, double fs,
             double abs_X_k = cabs(X_k[i]);
             P_welch_out[i] += (abs_X_k * abs_X_k) / (fs * U);
         }
-        printf("\nCalculando...");
     }
 
     // Promediar sobre los segmentos
