@@ -4,7 +4,6 @@
 #include <stddef.h>   // Para size_t
 #include <complex.h>  // Para el tipo double complex
 
-#define PI 3.14159265358979323846
 
 // Generadores de ventanas
 void generate_hamming_window(double* window, int segment_length);
