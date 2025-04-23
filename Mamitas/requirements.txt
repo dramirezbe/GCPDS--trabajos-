@@ -1,0 +1,12 @@
+SimpleITK>2.2.1
+jupyter
+matplotlib
+ipywidgets
+ipympl
+numpy
+scipy
+pandas
+numba
+multiprocess
+tqdm
+requests
