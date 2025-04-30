@@ -61,5 +61,7 @@ Modificar el código del proyecto inicial en java/kotlin
 
 ## Conclusión: Creo que es viable reescribir el código de java/kotlin a Swift y usar una VM de macOS desde el principio con XCode, así sea inestable
 
+Links relacionados al proyecto:
 
-
+1. [github-App-Mamitas](https://github.com/fcastanoe/App-Mamitas)
+2. [kaggle-modelo y funciones](https://www.kaggle.com/code/fredycastao/mamitas-ocr-map-der-and-temp)

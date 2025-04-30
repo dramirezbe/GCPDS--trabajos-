@@ -1,0 +1,33 @@
+# ----------------React-native-Android-iOS ignores-------------------------------#
+
+# Ignorar archivos y directorios de compilación
+**/build/
+**/dist/
+**/Pods/
+**/.gradle/
+**/.expo/
+**/.expo-shared/
+**/web-build/
+
+# Caché y dependencias
+**/node_modules/
+**/yarn.lock
+**/package-lock.json
+
+# Archivos generados por el sistema o herramientas de desarrollo
+**/.idea/
+**/.vscode/
+**/*.DS_Store
+**/Thumbs.db
+
+# Caché de pruebas y cobertura
+**/coverage/
+**/jest-cache/
+**/jest-debug.log
+
+# Archivos binarios de Java/Kotlin
+**/*.class
+**/*.jar
+**/*.dex
+**/*.so
+**/*.kt.meta
