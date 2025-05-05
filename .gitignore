@@ -1,33 +1,60 @@
-# ----------------React-native-Android-iOS ignores-------------------------------#
+# ==========================
+#  Entorno virtual Python
+# ==========================
+**/kivy-venv/                 # venv personalizado
+**/venv/                      # otros entornos virtuales
+**/__pycache__/               # caches de Python
+**/*.py[cod]                  # archivos compilados de Python
+**/*$py.class                 # más caches de Python
 
-# Ignorar archivos y directorios de compilación
-**/build/
-**/dist/
-**/Pods/
-**/.gradle/
-**/.expo/
-**/.expo-shared/
-**/web-build/
+# ==========================
+#  Kivy + Buildozer
+# ==========================
+**/.buildozer/                # directorio de Buildozer
+**/.buildozer.spec            # a veces se regenera
+**/*.apk                      # salidas de Android
+**/*.aab                      # Bundle Android
 
-# Caché y dependencias
-**/node_modules/
-**/yarn.lock
-**/package-lock.json
+# ==========================
+#  Expo (managed + bare)
+# ==========================
+**/.expo/                     # directorio de Expo
+**/.expo-shared/              # metadatos compartidos
+**/dist/                      # salidas de EAS
+**/*.jks                      # claves de firma Android
+**/*.p12                      # certificados iOS
 
-# Archivos generados por el sistema o herramientas de desarrollo
-**/.idea/
-**/.vscode/
-**/*.DS_Store
-**/Thumbs.db
+# ==========================
+#  React Native puro
+# ==========================
+**/node_modules/              # dependencias npm/yarn
+**/android/                   # carpeta nativa Android
+**/ios/                       # carpeta nativa iOS
+**/*.keystore                 # claves de firma
+**/.gradle/                   # caches de Gradle
 
-# Caché de pruebas y cobertura
-**/coverage/
-**/jest-cache/
-**/jest-debug.log
+# ==========================
+#  IDEs y editores
+# ==========================
+**/.vscode/                   # configuración VSCode
+**/.idea/                     # configuración IntelliJ/Android Studio
+**/*.iml                      # módulos IntelliJ
 
-# Archivos binarios de Java/Kotlin
-**/*.class
-**/*.jar
-**/*.dex
-**/*.so
-**/*.kt.meta
+# ==========================
+#  Logs y reportes
+# ==========================
+**/npm-debug.log*             # logs npm
+**/yarn-debug.log*            # logs yarn
+**/yarn-error.log*            # errores yarn
+
+# ==========================
+#  Archivos de sistema
+# ==========================
+**/.DS_Store                  # macOS
+**/Thumbs.db                  # Windows
+
+# ==========================
+#  Misceláneos
+# ==========================
+**/*.swp                      # swap de Vim
+**/*.swo
