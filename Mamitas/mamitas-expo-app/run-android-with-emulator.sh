@@ -1,28 +1,18 @@
-#!/usr/bin/env bash
-# Nombre: run-android-with-emulator.sh
-# Descripción: Arranca el emulador con QT_QPA_PLATFORM=xcb y luego ejecuta react-native.
+#!/bin/bash
 
-# 1. Define el nombre de tu AVD
-AVD_NAME="Pixel34_AVD"
-
-# 2. Exporta la variable para Qt
+# Configurar la plataforma gráfica para el emulador
 export QT_QPA_PLATFORM=xcb
 
-# 3. Arranca el emulador en segundo plano, redirigiendo logs
-echo "Iniciando el emulador $AVD_NAME con QT_QPA_PLATFORM=$QT_QPA_PLATFORM..."
-/opt/android-sdk/emulator/emulator -avd "$AVD_NAME" -no-snapshot-load > /dev/null 2>&1 &
+# Iniciar el emulador en segundo plano
+emulator -avd Pixel34_AVD &
 
-EMULATOR_PID=$!
-echo "Emulador iniciado (PID $EMULATOR_PID). Esperando a que esté listo..."
-
-# 4. Espera a que el emulador aparezca en adb
-until adb shell getprop sys.boot_completed | grep -m 1 '1' > /dev/null; do
-  sleep 2
+# Esperar a que el emulador termine de arrancar
+adb wait-for-device
+while [ "$(adb shell getprop sys.boot_completed | tr -d '\r')" != "1" ]; do
+    echo "Esperando a que el emulador termine de arrancar..."
+    sleep 2
 done
-echo "Emulador listo."
 
-# 5. Corre React Native
-echo "Ejecutando npx react-native run-android..."
+# Ejecutar el comando de Expo para Android
 npx expo run:android
-
 
