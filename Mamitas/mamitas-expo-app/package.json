@@ -33,13 +33,16 @@
     "react": "19.0.0",
     "react-dom": "19.0.0",
     "react-native": "0.79.2",
+    "react-native-canvas": "^0.1.40",
     "react-native-fast-opencv": "^0.4.5",
+    "react-native-fast-tflite": "^1.6.1",
     "react-native-gesture-handler": "~2.24.0",
     "react-native-reanimated": "~3.17.4",
     "react-native-safe-area-context": "5.4.0",
     "react-native-screens": "~4.10.0",
     "react-native-web": "~0.20.0",
-    "react-native-webview": "13.13.5"
+    "react-native-webview": "^13.13.5",
+    "expo-image-manipulator": "~13.1.5"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
@@ -50,4 +53,3 @@
   },
   "private": true
 }
-
