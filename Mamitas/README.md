@@ -57,11 +57,38 @@ Difícil manejo de versiones e incompatibilidades
 
 Modificar el código del proyecto inicial en java/kotlin
 
+## Pasar a react-native el código de python(Lo más viable)
 
+**Requisitos:**
+opencv: cvtColor, threshold, bitwise_not, findContours, drawContours, contourArea, fillConvexPoly, getAffineTransform, wrapAffline, flip, resize, morphologyEx, imread, imwrite
 
-## Conclusión: Creo que es viable reescribir el código de java/kotlin a Swift y usar una VM de macOS desde el principio con XCode, así sea inestable
+tesseract: image_to_string
 
-Links relacionados al proyecto:
+amig_3ch: astype
+
+numpy: expand_dims, arg_max, squeeze, ones
+
+tflite: set_tensor, get_tensor
+
+**Encontrados para react-native:**
+
+- react-native-fast-opencv
+- @react-native-ml-kit/text-recognition
+
+**Pasos usados**
+
+crear un proyecto expo:
+
+```bash
+npx create-expo-app@latest my_app
+npx expo install expo-camera expo-image-picker
+npx prebuild
+
+npm install react-native-fast-opencv@latest @react-native-ml-kit/text-recognition@latest 
+./run-android-with-emulator.sh
+```
+
+# Links relacionados al proyecto:
 
 1. [github-App-Mamitas](https://github.com/fcastanoe/App-Mamitas)
 2. [kaggle-modelo y funciones](https://www.kaggle.com/code/fredycastao/mamitas-ocr-map-der-and-temp)
