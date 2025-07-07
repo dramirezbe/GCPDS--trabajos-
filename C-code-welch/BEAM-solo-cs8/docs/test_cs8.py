@@ -2,7 +2,7 @@ import numpy as np
 from scipy import signal as sig
 import matplotlib.pyplot as plt
 
-"""# Cargar el archivo .cs8
+# Cargar el archivo .cs8
 file_path = '/home/javastral/Documents/HackF/88108.cs8'
 fs = 20000000
 
@@ -50,7 +50,7 @@ axs[1].grid()
 
 # Ajustar el espacio entre subplots
 plt.tight_layout()
-plt.show()"""
+plt.show()
 
 # Cargar datos procesados
 data = np.loadtxt("psd_output.csv", delimiter=',', skiprows=1)
