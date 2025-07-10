@@ -3,6 +3,8 @@
 # ==========================
 **/kivy-venv/                 # venv personalizado
 **/venv/                      # otros entornos virtuales
+**/my-venv/
+**/anova-venv/
 **/__pycache__/               # caches de Python
 **/*.py[cod]                  # archivos compilados de Python
 **/*$py.class                 # más caches de Python
