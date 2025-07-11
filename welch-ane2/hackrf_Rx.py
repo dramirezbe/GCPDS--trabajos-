@@ -14,7 +14,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.CENTER_FREQ = 98e6
         self.VERBOSE = False
         self.NPERSEG = 4096
-        self.NOVERLAP = 0.5 * self.NPERSEG # Corrected noverlap calculation for Welch
+        self.NOVERLAP = self.NPERSEG / 2
+
 
         # --- HackRF Initialization ---
         self.hackrf = HackRF()
@@ -59,6 +60,11 @@ class MainWindow(QtWidgets.QMainWindow):
         Pxx = np.fft.fftshift(Pxx_simple)
         if self.VERBOSE:
             print("Welch Done!")
+
+        Pxx_power_sort = np.sort(Pxx)[::-1]
+        print("--------Peaks----------")
+        for i in range(3):
+            print(f"Peak {i+1}: {Pxx_power_sort[i]}")      
 
         print("Updating plot...")
 
