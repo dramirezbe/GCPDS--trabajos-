@@ -94,7 +94,7 @@ class MainWindow(QtWidgets.QMainWindow):
         #----HackRF Config----
         self.SAMPLES = 20e6 # Sample rate
         self.BW = self.SAMPLES # Bandwidth equal to sample rate
-        self.CENTER_FREQ = 98e6 # Center frequency (e.g., FM band)
+        self.CENTER_FREQ = 320e6 # Center frequency (e.g., FM band)
         self.NPERSEG = 4096 # Number of samples per Welch segment
         self.NOVERLAP = self.NPERSEG / 2 # Overlap between segments
         self.R_IMPEDANCE = 50 # Characteristic impedance in ohms
@@ -104,8 +104,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.X_INF_LIM = (self.CENTER_FREQ - self.BW / 2) / 1e6
         self.X_SUP_LIM = (self.CENTER_FREQ + self.BW / 2) / 1e6
         
-        self.Y_INF_LIM = -110 # Lower Y-axis limit (dBm/Hz)
-        self.Y_SUP_LIM = -90 # Upper Y-axis limit (dBm/Hz)
+        self.Y_INF_LIM = -104 # Lower Y-axis limit (dBm/Hz)
+        self.Y_SUP_LIM = -20 # Upper Y-axis limit (dBm/Hz)
         self.Y_SPAN = 1 # Y-axis major tick interval
 
         # --- HackRF Init ---
