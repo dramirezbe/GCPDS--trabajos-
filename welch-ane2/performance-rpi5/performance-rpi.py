@@ -170,12 +170,31 @@ def get_cpu_temperature():
         print(f"Ocurrió un error inesperado al leer la temperatura: {e}")
         return None
 
+def print_progress_bar(iteration, total, prefix = '', suffix = '', decimals = 1, length = 50, fill = '█', print_end = "\r"):
+    """
+    Call in a loop to create a terminal progress bar
+    @params:
+        iteration   - Required  : current iteration (Int)
+        total       - Required  : total iterations (Int)
+        prefix      - Optional  : prefix string (Str)
+        suffix      - Optional  : suffix string (Str)
+        decimals    - Optional  : positive number of decimals in percent complete (Int)
+        length      - Optional  : character length of bar (Int)
+        fill        - Optional  : bar fill character (Str)
+        printEnd    - Optional  : end character (e.g. "\r", "\r\n") (Str)
+    """
+    percent = ("{0:." + str(decimals) + "f}").format(100 * (iteration / float(total)))
+    filled_length = int(length * iteration // total)
+    bar = fill * filled_length + '-' * (length - filled_length)
+    print(f'\r{prefix} |{bar}| {percent}% {suffix}', end = print_end)
+    # Print New Line on Complete
+    if iteration == total: 
+        print()
 
 # --- Parámetros de recolección de datos ---
-start_time = time.time()
-duration = 5
-end_time = start_time + duration
+duration = 60 * 30 # Duración en segundos
 sampling_interval = 1 # Muestreo cada 1 segundo
+num_samples = int(duration / sampling_interval)
 
 # --- Listas para almacenar los datos ---
 timestamps = []
@@ -186,8 +205,9 @@ disk_plot_data = []
 temp_plot_data = []
 
 print(f"Comenzando la recolección de datos por {duration} segundos...")
+start_time = time.time()
 
-while time.time() < end_time:
+for i in range(num_samples):
     current_time = time.time() - start_time
     timestamps.append(current_time)
 
@@ -201,7 +221,11 @@ while time.time() < end_time:
     disk_plot_data.append(disk_usage)
     temp_plot_data.append(cpu_temp)
 
-    time_to_wait = sampling_interval - (time.time() - (start_time + len(timestamps) * sampling_interval))
+    # Actualizar la barra de progreso
+    elapsed_time = time.time() - start_time
+    print_progress_bar(i + 1, num_samples, prefix = 'Progreso:', suffix = f'Completado - Tiempo transcurrido: {elapsed_time:.1f}s', length = 50)
+    
+    time_to_wait = sampling_interval - (time.time() - (start_time + (i + 1) * sampling_interval))
     if time_to_wait > 0:
         time.sleep(time_to_wait)
 
@@ -210,7 +234,7 @@ print("Recolección de datos finalizada.")
 # --- Preparar datos para graficar ---
 
 if cpu_plot_data:
-    max_threads = max(len(threads) for threads in cpu_plot_data)
+    max_threads = max(len(threads) for threads in cpu_plot_data) if cpu_plot_data else 0
     padded_cpu_data = [
         sample + [0.0] * (max_threads - len(sample))
         for sample in cpu_plot_data
@@ -231,7 +255,7 @@ os.makedirs(output_dir, exist_ok=True)
 # --- Graficar los datos ---
 
 # Gráfica de Uso de CPU por Hilo
-if cpu_usage_per_thread_series:
+if cpu_plot_data and cpu_usage_per_thread_series:
     plt.figure(figsize=(12, 6))
     for i, thread_data in enumerate(cpu_usage_per_thread_series):
         plt.plot(timestamps, thread_data, label=f'CPU Core {i}', alpha=0.7)
