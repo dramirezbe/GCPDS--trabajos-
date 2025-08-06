@@ -80,7 +80,7 @@ void generate_window(PsdWindowType_t window_type, double* window_buffer, int win
     }
 }
 
-void welch_estimator(complex double* signal, size_t n_signal, const PsdConfig_t* config, double* f_out, double* p_out) {
+void execute_welch_psd(complex double* signal, size_t n_signal, const PsdConfig_t* config, double* f_out, double* p_out) {
     // Extract parameters from the config struct
     int nperseg = (int)config->nperseg;
     int nfft = (int)config->nfft;

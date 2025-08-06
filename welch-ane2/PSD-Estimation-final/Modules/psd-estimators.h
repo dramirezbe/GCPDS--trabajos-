@@ -48,6 +48,6 @@ typedef struct {
 
 complex double* load_cs8(const char* filename, size_t* num_samples);
 
-void execute_welch_psd(complex double* signal, double n_signal, const PsdConfig_t* config, double* f_out, double* p_out);
+void execute_welch_psd(complex double* signal, size_t n_signal, const PsdConfig_t* config, double* f_out, double* p_out);
 
 #endif //PSD_ESTIMATORS_H

@@ -43,7 +43,6 @@ cd "${PROJECT_ROOT}" || { echo "Error: Failed to change to project root director
 if [[ -d "${BUILD_DIR}" ]]; then
     echo "Existing '${BUILD_DIR}' directory found. Removing its contents for a clean build..."
     # Remove the existing build directory to ensure a clean build.
-    # This addresses the "replace the new files" requirement by starting fresh.
     rm -rf "${BUILD_DIR}"
     if [[ $? -ne 0 ]]; then
         echo "Error: Failed to remove existing '${BUILD_DIR}' directory. Please check permissions."
@@ -77,11 +76,18 @@ if [[ $? -ne 0 ]]; then
     exit 1
 fi
 
+sudo mv "${EXECUTABLE_NAME}" "${PROJECT_ROOT}/"
+if [[ $? -ne 0 ]]; then
+    echo "Error: Failed to move the executable to the project root. Please check permissions."
+    exit 1
+fi
+
 # 7. Provide success message and executable location
 echo ""
 echo "----------------------------------------------------"
 echo "Build successful! The executable '${EXECUTABLE_NAME}' is located at:"
-echo "${PROJECT_ROOT}/${BUILD_DIR}/${EXECUTABLE_NAME}"
+# MODIFIED LINE: The path now points to the project root, not the build directory.
+echo "${PROJECT_ROOT}/${EXECUTABLE_NAME}"
 echo "----------------------------------------------------"
 
 exit 0
