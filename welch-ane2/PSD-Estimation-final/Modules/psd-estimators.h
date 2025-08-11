@@ -36,7 +36,6 @@ typedef enum {
 }PsdWindowType_t;
 
 typedef struct {
-    PsdMethodType_t method;
     PsdWindowType_t window_type;
     double sample_rate;
     double center_freq;
