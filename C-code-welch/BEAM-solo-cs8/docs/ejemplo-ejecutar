@@ -1,1 +1,0 @@
-gcc -o test_exec main.c my_functions.c

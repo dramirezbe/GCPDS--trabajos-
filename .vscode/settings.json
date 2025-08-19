@@ -1,9 +1,0 @@
-{
-    "files.associations": {
-        "*.py": "python",
-        "*.tsx": "javascript",
-        "*.ts": "javascript",
-        "psd-estimators.h": "c",
-        "math.h": "c"
-    }
-}

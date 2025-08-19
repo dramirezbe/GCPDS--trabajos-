@@ -1,9 +1,0 @@
-{
-    "files.associations": {
-        "*.py": "python",
-        "fftw3.h": "c",
-        "welch.h": "c",
-        "complex.h": "c",
-        "cs8_to_iq.h": "c"
-    }
-}
