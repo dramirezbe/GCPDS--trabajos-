@@ -2,7 +2,7 @@
  * @file main.c
  * @author David Ramírez
  * @brief This program estimates from scratch the Power Spectral Density (welch, periodogram & wavelet estimatior types).
- *        Then is used as CLI to choose which method use.
+ *        It uses the HackRF device to capture IQ samples.
  */
 #include <stdio.h>
 #include <unistd.h>
@@ -14,19 +14,48 @@
 #define NPERSEG 4096
 #define NFFT_REQUEST 4096
 #define OVERLAP 0.5
-#define BW TO_MHZ(20000000) // 20 MHz
+#define BW TO_MHZ(20) // 20 MHz
+
+#define FREQ TO_MHZ(98) // 98 MHz
+
+int err_capture;
 
 int main()
 {
     // Define the method and configuration
-    char test_file_path[1024] = "/home/javastral/GIT/GCPDS--trabajos-/ANE2/hackrf_driver/Samples/output.cs8";
-    char psd_output_path[1024] = "/home/javastral/GIT/GCPDS--trabajos-/ANE2/hackrf_driver/Samples/output.csv";
+    Paths_t paths = get_paths();
+
+    char test_file_path[2048];
+    char psd_output_path[2048];
+
+    snprintf(test_file_path, sizeof(test_file_path), "%s/0.cs8", paths.samples_path);
+    snprintf(psd_output_path, sizeof(psd_output_path), "%s/output.csv", paths.samples_path);
+
+    BackendParams_t params = {
+        .bw = BW,
+        .frequency = FREQ,
+        .mode = INSTANTANEOUS_TYPE
+    };
+
+    err_capture = instantaneous_capture(&params, &paths);
+    if (err_capture) {
+        fprintf(stderr, "Instantaneous capture failed\n");
+        return 1;
+    }
+
+    signal_iq_t* signal_data = load_cs8(test_file_path);
+    if (!signal_data) {
+        fprintf(stderr, "Failed to load IQ data.\n");
+        return 1;
+    }
+    printf("Successfully loaded %zu samples from %s\n", signal_data->n_signal, test_file_path);
+
     PsdWindowType_t global_window = HAMMING_TYPE;
     PsdMethodType_t method = PERIODOGRAM_TYPE; // Change as needed
 
     PsdConfig_t psd_config = {
         .method_type = method,
-        .sample_rate = BW,
+        .sample_rate = params.bw,
         .nfft = NFFT_REQUEST,
         .nperseg = NPERSEG,
         .noverlap = (int)(NPERSEG * OVERLAP),
@@ -40,12 +69,7 @@ int main()
         }
     }
 
-    signal_iq_t* signal_data = load_cs8(test_file_path);
-    if (!signal_data) {
-        fprintf(stderr, "Failed to load IQ data.\n");
-        return 1;
-    }
-    printf("Successfully loaded %zu samples from %s\n", signal_data->n_signal, test_file_path);
+    
     
     // Assign memory for psd output arrays
     double *f = malloc(psd_config.nfft * sizeof(double));

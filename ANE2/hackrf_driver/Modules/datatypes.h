@@ -46,4 +46,24 @@ typedef struct {
     int nfft;
 }PsdConfig_t;
 
+//-----------------------  
+//BACKEND PARAMS STRUCT
+//-----------------------
+
+typedef enum {
+    INSTANTANEOUS_TYPE,
+    SWEEP_TYPE
+}HackRFCaptureMode_t;
+
+typedef struct {
+    double bw;
+    double frequency;
+    HackRFCaptureMode_t mode;
+} BackendParams_t;
+
+typedef struct {
+    char json_path[2048];
+    char samples_path[2048];
+} Paths_t;
+
 #endif // DATATYPES_H

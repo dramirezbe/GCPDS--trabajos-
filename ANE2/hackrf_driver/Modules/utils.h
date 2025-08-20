@@ -11,16 +11,18 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <unistd.h>
+#include <string.h>
 
 #include "datatypes.h"
 
-#define TO_MHZ(x) ((x) / 1000000.0)
+#define TO_MHZ(x) ((x) * 1000000.0)
 
-// La función ahora devuelve un puntero a la nueva estructura.
 signal_iq_t* load_cs8(const char* filename);
 
-//to implement
+Paths_t get_paths(void);
 
-//void get_capture(ParamsCapture_t* params);
+int instantaneous_capture(BackendParams_t* params, Paths_t* paths);
+//int sweep_capture(BackendParams_t* params, Paths_t* paths);
 
 #endif // UTILS_H

@@ -61,3 +61,54 @@ signal_iq_t* load_cs8(const char* filename) {
 
     return signal_data;
 }
+
+Paths_t get_paths(void) {
+    Paths_t paths;
+    // Get the current working directory
+    char cwd[2048];
+    if (getcwd(cwd, sizeof(cwd)) != NULL) {
+        snprintf(paths.samples_path, sizeof(paths.samples_path), "%s/Samples", cwd);
+        snprintf(paths.json_path, sizeof(paths.json_path), "%s/JSON", cwd);
+    }
+
+    printf("Sample path: %s\n", paths.samples_path);
+    printf("JSON path: %s\n", paths.json_path);
+    return paths;
+}
+
+int instantaneous_capture(BackendParams_t* params, Paths_t* paths) {
+    // Get params
+    double bw = params->bw;
+    double frequency = params->frequency;
+
+    char* samples_path = paths->samples_path;
+
+    char outfile_path[2048];
+    snprintf(outfile_path, sizeof(outfile_path), "%s/0.cs8", samples_path);
+
+    char command[2048];
+    snprintf(command, sizeof(command), "hackrf_transfer -f %f -s %f -b %f -r %s -n %d -l 0 -g 0 -a 0", frequency, bw, bw, outfile_path, (int)bw);
+
+    printf("Capturing Sample [%s]\n", command);
+
+    FILE *fp;
+    char buffer[2048];
+
+    // Execute command and capture output
+    fp = popen(command, "r");
+    if (fp == NULL) {
+        perror("Error executing command");
+        return 1;
+    }
+
+    while (fgets(buffer, sizeof(buffer), fp) != NULL) {
+        printf("%s", buffer);
+    }
+
+    pclose(fp);
+
+    printf("Capture completed\n");
+    printf("Output saved to: %s\n", outfile_path);
+    return 0;
+
+}
