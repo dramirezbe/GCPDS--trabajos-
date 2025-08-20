@@ -19,6 +19,7 @@ set(SOURCE_FILES
 set(HEADER_FILES
     Modules/psd-estimators.h
     Modules/utils.h
+    Modules/datatypes.h
 )
 
 # Create the executable from the source and header files

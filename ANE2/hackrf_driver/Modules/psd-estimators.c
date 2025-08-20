@@ -4,6 +4,7 @@
  */
 
 #include "psd-estimators.h"
+#include <alloca.h>
 
 void generate_window(PsdWindowType_t window_type, double* window_buffer, int window_length) {
     switch (window_type) {
@@ -32,11 +33,38 @@ void generate_window(PsdWindowType_t window_type, double* window_buffer, int win
     }
 }
 
-void execute_welch_psd(complex double* signal, size_t n_signal, const PsdConfig_t* config, double* f_out, double* p_out) {
-    // Extract parameters from the config struct
-    int nperseg = (int)config->nperseg;
-    int nfft = (int)config->nfft;
-    int noverlap = (int)config->noverlap;
+
+static void fftshift(double* data, int n) {
+    if (n <= 1) {
+        return;
+    }
+    int half = n / 2;
+    int remaining = n - half;
+
+    
+    double* temp_buffer = (double*)alloca(half * sizeof(double));
+    if (!temp_buffer) {
+        fprintf(stderr, "Error: Falló la asignación de memoria en la pila para fftshift.\n");
+        return;
+    }
+
+    memcpy(temp_buffer, data, half * sizeof(double));
+
+    memcpy(data, &data[half], remaining * sizeof(double));
+
+    memcpy(&data[remaining], temp_buffer, half * sizeof(double));
+}
+
+
+// --- PSD Method Implementations ---
+
+void execute_welch_psd_internal(signal_iq_t* signal_data, const PsdConfig_t* config, double* f_out, double* p_out) {
+    // Extract params
+    complex double* signal = signal_data->signal_iq;
+    size_t n_signal = signal_data->n_signal;
+    int nperseg = config->nperseg;
+    int nfft = config->nfft;
+    int noverlap = config->noverlap;
     double fs = config->sample_rate;
     PsdWindowType_t window_type = config->window_type;
 
@@ -100,28 +128,13 @@ void execute_welch_psd(complex double* signal, size_t n_signal, const PsdConfig_
         p_out[i] *= scale;
     }
 
+    fftshift(p_out, nfft);
+    
     // Generate frequency bins (from –fs/2 to +fs/2)
     double df = fs / nfft;
     for (int i = 0; i < nfft; i++) {
-        // FFT shift: move the second half of the frequencies to the beginning
-        int shifted_index = (i + nfft / 2) % nfft;
         f_out[i] = -fs / 2.0 + i * df;
-        
-        // The corresponding PSD value needs to be fetched from the shifted position
-        // To avoid creating a temporary buffer, we can do the swap in-place, but
-        // for clarity, we just re-assign. Note that p_out must be indexed correctly.
-        // The power p_out[0] corresponds to 0 Hz. p_out[1] to df, ..., p_out[nfft/2] to fs/2.
-        // The negative frequencies are in the upper half of the original FFT output.
     }
-    
-    // Simple FFT shift for the power output array
-    double temp_psd[nfft];
-    memcpy(temp_psd, p_out, nfft * sizeof(double));
-    for (int i = 0; i < nfft; i++) {
-        int shifted_index = (i + nfft/2) % nfft;
-        p_out[i] = temp_psd[shifted_index];
-    }
-
 
     printf("[welch] PSD computation complete.\n");
 
@@ -130,19 +143,22 @@ void execute_welch_psd(complex double* signal, size_t n_signal, const PsdConfig_
     fftw_free(segment);
     fftw_free(x_k_fft);
 }
-void execute_periodogram_psd(complex double* signal, size_t n_signal, const PsdConfig_t* config, double* f_out, double* p_out) {
-    // Extraer parámetros
-    int nfft_arg = (int)config->nfft;
+
+void execute_periodogram_psd_internal(signal_iq_t* signal_data, const PsdConfig_t* config, double* f_out, double* p_out) {
+    // Extract params
+    complex double* signal = signal_data->signal_iq;
+    size_t n_signal = signal_data->n_signal;
+    int nfft_arg = config->nfft;
     double fs = config->sample_rate;
     PsdWindowType_t window_type = config->window_type;
 
-    // 1. Determinar la longitud del segmento
+    // Determine segment length
     size_t segment_len = (nfft_arg > 0) ? (size_t)nfft_arg : n_signal;
     if (segment_len > n_signal) {
         segment_len = n_signal;
     }
 
-    // 2. Asignar y generar la ventana
+    // Gen window
     double* window = (double*)malloc(segment_len * sizeof(double));
     if (window == NULL) {
         fprintf(stderr, "Error: Falló la asignación de memoria para la ventana.\n");
@@ -150,41 +166,39 @@ void execute_periodogram_psd(complex double* signal, size_t n_signal, const PsdC
     }
     generate_window(window_type, window, (int)segment_len);
 
-    // FIX 1: Cálculo robusto de la siguiente potencia de 2 (sin log2)
+    // Compute FFT length
     int fft_len = 1;
     while (fft_len < segment_len) {
-        fft_len <<= 1; // Desplaza a la izquierda (equivale a multiplicar por 2)
+        fft_len <<= 1;
     }
-    if (fft_len != segment_len) {
-         fprintf(stderr, "Info: nfft (%zu) no es una potencia de 2. Rellenando a %d puntos para la FFT.\n", segment_len, fft_len);
+    if (config->nfft > segment_len) {
+      fft_len = config->nfft;
     }
-    
-    // Asignar recursos de FFTW
+
+    // Allocate FFTW resources
     complex double* fft_input_buffer = fftw_alloc_complex(fft_len);
     complex double* fft_output_buffer = fftw_alloc_complex(fft_len);
     if (!fft_input_buffer || !fft_output_buffer) {
         fprintf(stderr, "Error: Falló la asignación de memoria para los buffers de FFTW.\n");
         free(window);
-        fftw_free(fft_input_buffer); // fftw_free maneja NULLs
+        fftw_free(fft_input_buffer);
         fftw_free(fft_output_buffer);
         return;
     }
 
-    // FIX 2: Lógica de relleno más eficiente
-    // Aplicar la ventana al segmento
+    // Apply window to segment and zero-pad
     for (size_t i = 0; i < segment_len; i++) {
         fft_input_buffer[i] = signal[i] * window[i];
     }
-    // Rellenar con ceros solo la parte restante
     if (fft_len > segment_len) {
         memset(&fft_input_buffer[segment_len], 0, (fft_len - segment_len) * sizeof(complex double));
     }
 
-    // 4. Realizar la FFT
+    // 4. Execute fftw
     fftw_plan plan = fftw_plan_dft_1d(fft_len, fft_input_buffer, fft_output_buffer, FFTW_FORWARD, FFTW_ESTIMATE);
     fftw_execute(plan);
 
-    // 5. Calcular la PSD con la normalización correcta
+    // 5. Calculate PSD normalization
     double S2 = 0.0;
     for (size_t i = 0; i < segment_len; i++) {
         S2 += window[i] * window[i];
@@ -197,28 +211,47 @@ void execute_periodogram_psd(complex double* signal, size_t n_signal, const PsdC
                     cimag(fft_output_buffer[i]) * cimag(fft_output_buffer[i])) * scale;
     }
 
-    // FIX 3: Lógica de fftshift correcta para la potencia y las frecuencias
-    int half_len = fft_len / 2;
-    double temp_psd[half_len];
+    // Center the power spectrum using the utility function
+    fftshift(p_out, fft_len);
 
-    // Copiar la primera mitad (frecuencias positivas) a un buffer temporal
-    memcpy(temp_psd, p_out, half_len * sizeof(double));
-    // Mover la segunda mitad (frecuencias negativas) al principio de p_out
-    memcpy(p_out, &p_out[half_len], half_len * sizeof(double));
-    // Mover la primera mitad desde el buffer temporal a la segunda mitad de p_out
-    memcpy(&p_out[half_len], temp_psd, half_len * sizeof(double));
-
-    // Generar el vector de frecuencias ya centrado
+    // Generate frequency bins
     double df = fs / fft_len;
     for (int i = 0; i < fft_len; i++) {
         f_out[i] = -fs / 2.0 + i * df;
     }
 
-    // Limpiar recursos
+    // Clean up resources
     fftw_destroy_plan(plan);
     fftw_free(fft_input_buffer);
     fftw_free(fft_output_buffer);
     free(window);
 
     printf("[periodogram] PSD computation complete.\n");
+}
+
+// --- Unified Function ---
+
+void execute_psd(signal_iq_t* signal_data, const PsdConfig_t* config, double* f_out, double* p_out) {
+    if (signal_data == NULL || signal_data->signal_iq == NULL) {
+        fprintf(stderr, "Error: Signal data is NULL.\n");
+        return;
+    }
+    if (config == NULL) {
+        fprintf(stderr, "Error: PsdConfig_t struct is NULL.\n");
+        return;
+    }
+    switch (config->method_type) {
+        case WELCH_TYPE:
+            execute_welch_psd_internal(signal_data, config, f_out, p_out);
+            break;
+        case PERIODOGRAM_TYPE:
+            execute_periodogram_psd_internal(signal_data, config, f_out, p_out);
+            break;
+        case WAVELET_TYPE:
+            printf("Wavelet method not implemented.\n");
+            break;
+        default:
+            fprintf(stderr, "Error: Unknown PSD method type.\n");
+            break;
+    }
 }

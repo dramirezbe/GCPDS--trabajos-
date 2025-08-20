@@ -14,98 +14,88 @@
 #define NPERSEG 4096
 #define NFFT_REQUEST 4096
 #define OVERLAP 0.5
-PsdWindowType_t global_window = HAMMING_TYPE;
+#define BW TO_MHZ(20000000) // 20 MHz
 
 int main()
 {
-    PsdMethodType_t method;
-    method = WELCH_TYPE;
-    const int bw = 20000000;
+    // Define the method and configuration
+    PsdWindowType_t global_window = HAMMING_TYPE;
+    PsdConfig_t psd_config;
+    PsdMethodType_t method = PERIODOGRAM_TYPE; // Change as needed
 
-    char comp_path[1024];
-    getcwd(comp_path, sizeof(comp_path));
 
-    char Samples_folder_path[1024];
-    char test_file_path[1024];
-    char psd_output_path[1024];
+    char test_file_path[1024] = "/home/javastral/GIT/GCPDS--trabajos-/ANE2/hackrf_driver/Samples/output.cs8";
+    char psd_output_path[1024] = "/home/javastral/GIT/GCPDS--trabajos-/ANE2/hackrf_driver/Samples/output.csv";
 
-    snprintf(Samples_folder_path, sizeof(Samples_folder_path), "%s/%s", comp_path, "Samples");
-    
-    size_t N_signal_IQ = 0;
-    complex double *signal_iq = load_cs8(test_file_path, &N_signal_IQ);
-    if (!signal_iq) {
+    signal_iq_t* signal_data = load_cs8(test_file_path);
+    if (!signal_data) {
         fprintf(stderr, "Failed to load IQ data.\n");
         return 1;
     }
-    printf("Successfully loaded %zu samples from %s\n", N_signal_IQ, test_file_path);
+    printf("Successfully loaded %zu samples from %s\n", signal_data->n_signal, test_file_path);
 
-    PsdConfig_t psd_config;
-    int actual_nfft = NFFT_REQUEST; // Por defecto
-
+    // --- PPSD CONFIG init ---
+    psd_config.method_type = method;
+    psd_config.sample_rate = BW;
+    psd_config.nfft = NFFT_REQUEST;
+    
+    // Specific config
     switch(method) {
         case WELCH_TYPE:
-            psd_config = (PsdConfig_t){
-                .sample_rate = bw,
-                .nperseg = NPERSEG,
-                .nfft = NFFT_REQUEST,
-                .noverlap = (int)(NPERSEG * OVERLAP),
-                .window_type = global_window
-            };
-            actual_nfft = NFFT_REQUEST;
+            psd_config.nperseg = NPERSEG;
+            psd_config.noverlap = (int)(NPERSEG * OVERLAP);
+            psd_config.window_type = global_window;
             break;
-
         case PERIODOGRAM_TYPE:
-            psd_config = (PsdConfig_t){
-                .sample_rate = bw,
-                .nfft = NFFT_REQUEST,
-                .window_type = RECTANGULAR_TYPE 
-            };
-           
-            if ((NFFT_REQUEST > 0) && ((NFFT_REQUEST & (NFFT_REQUEST - 1)) != 0)) {
-                actual_nfft = 1 << (int)ceil(log2(NFFT_REQUEST));
-            } else {
-                actual_nfft = NFFT_REQUEST;
-            }
+            psd_config.window_type = RECTANGULAR_TYPE; 
             break;
-
         case WAVELET_TYPE:
-            printf("Wavelet method not implemented.\n");
-            free(signal_iq);
-            return 0;
-
+            // Not implemented
+            break;
         default:
-            fprintf(stderr, "Error in method type struct, PANICKING...\n");
-            free(signal_iq);
+            fprintf(stderr, "Error in PSD method selection, unsupported method.\n");
             return 1;
     }
 
-    printf("Allocating output arrays for FFT length of %d\n", actual_nfft);
+    // Assign memory to nfft
+    int actual_nfft = (method == WELCH_TYPE) ? psd_config.nfft : psd_config.nfft;
+    
+    // Assign memory for psd output arrays
     double *f = malloc(actual_nfft * sizeof(double));
     double *psd = malloc(actual_nfft * sizeof(double));
     if (!f || !psd) {
         fprintf(stderr, "Memory allocation failed for PSD arrays.\n");
-        free(signal_iq);
+        free(f);
+        free(psd);
+        free(signal_data->signal_iq);
+        free(signal_data);
+        return 1;
+    }
+
+    // Call the unified function to compute the PSD
+    execute_psd(signal_data, &psd_config, f, psd);
+
+    // Free memory
+    free(signal_data->signal_iq);
+    free(signal_data);
+
+    // Guardar los resultados en el CSV
+    FILE *csv = fopen(psd_output_path, "w");
+    if (!csv) {
+        perror("Failed to open output CSV file");
         free(f);
         free(psd);
         return 1;
     }
+    fprintf(csv, "Frequency_Hz,PSD\n");
+   
+    for (int i = 0; i < actual_nfft; i++) {
+        fprintf(csv, "%.10g,%.10g\n", f[i], psd[i]);
+    }
+    fclose(csv);
+    printf("PSD saved to %s\n", psd_output_path);
 
     
-    switch (method) {
-        case WELCH_TYPE:
-            execute_welch_psd(signal_iq, N_signal_IQ, &psd_config, f, psd);
-            break;
-        case PERIODOGRAM_TYPE:
-            
-            psd_config.nfft = actual_nfft; 
-            execute_periodogram_psd(signal_iq, N_signal_IQ, &psd_config, f, psd);
-            break;
-        default:
-            break;
-    }
-
-    // Cleanup
-    free(signal_iq);
     free(f);
     free(psd);
 

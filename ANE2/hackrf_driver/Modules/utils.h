@@ -1,7 +1,7 @@
 /**
  * @file utils.h
- * @author David Ramírez
- * @brief Utility functions and macros.
+ * @author David Ramírez Betancourth
+ * @brief Utility functions and macros
  */
 
 #ifndef UTILS_H
@@ -12,28 +12,15 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#include "psd-estimators.h"
+#include "datatypes.h"
 
 #define TO_MHZ(x) ((x) / 1000000.0)
 
-typedef struct 
-{
-    char Samples_folder_path[1024];
-    char JSON_folder_path[1024];
-    char cs8_file_path[1024];
-}PathStruct_t;
+// La función ahora devuelve un puntero a la nueva estructura.
+signal_iq_t* load_cs8(const char* filename);
 
-typedef struct {
-    PathStruct_t paths;
-    int bw;
-    float freq;
-}ParamsCapture_t;
+//to implement
 
-
-complex double* load_cs8(const char* filename, size_t* num_samples);
-
-void fill_path_struct(PathStruct_t* paths);
-
-void capture_sample(ParamsCapture_t* params);
+//void get_capture(ParamsCapture_t* params);
 
 #endif // UTILS_H
