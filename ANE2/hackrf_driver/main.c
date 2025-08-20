@@ -19,13 +19,26 @@
 int main()
 {
     // Define the method and configuration
-    PsdWindowType_t global_window = HAMMING_TYPE;
-    PsdConfig_t psd_config;
-    PsdMethodType_t method = PERIODOGRAM_TYPE; // Change as needed
-
-
     char test_file_path[1024] = "/home/javastral/GIT/GCPDS--trabajos-/ANE2/hackrf_driver/Samples/output.cs8";
     char psd_output_path[1024] = "/home/javastral/GIT/GCPDS--trabajos-/ANE2/hackrf_driver/Samples/output.csv";
+    PsdWindowType_t global_window = HAMMING_TYPE;
+    PsdMethodType_t method = PERIODOGRAM_TYPE; // Change as needed
+
+    PsdConfig_t psd_config = {
+        .method_type = method,
+        .sample_rate = BW,
+        .nfft = NFFT_REQUEST,
+        .nperseg = NPERSEG,
+        .noverlap = (int)(NPERSEG * OVERLAP),
+        .window_type = method == WELCH_TYPE ? global_window : RECTANGULAR_TYPE
+    };
+
+    //Resize nfft to power of 2
+    if (method == PERIODOGRAM_TYPE) {
+        if ((NFFT_REQUEST > 0) && ((NFFT_REQUEST & (NFFT_REQUEST - 1)) != 0)) {
+            psd_config.nfft = 1 << (int)ceil(log2(NFFT_REQUEST));
+        }
+    }
 
     signal_iq_t* signal_data = load_cs8(test_file_path);
     if (!signal_data) {
@@ -33,36 +46,10 @@ int main()
         return 1;
     }
     printf("Successfully loaded %zu samples from %s\n", signal_data->n_signal, test_file_path);
-
-    // --- PPSD CONFIG init ---
-    psd_config.method_type = method;
-    psd_config.sample_rate = BW;
-    psd_config.nfft = NFFT_REQUEST;
-    
-    // Specific config
-    switch(method) {
-        case WELCH_TYPE:
-            psd_config.nperseg = NPERSEG;
-            psd_config.noverlap = (int)(NPERSEG * OVERLAP);
-            psd_config.window_type = global_window;
-            break;
-        case PERIODOGRAM_TYPE:
-            psd_config.window_type = RECTANGULAR_TYPE; 
-            break;
-        case WAVELET_TYPE:
-            // Not implemented
-            break;
-        default:
-            fprintf(stderr, "Error in PSD method selection, unsupported method.\n");
-            return 1;
-    }
-
-    // Assign memory to nfft
-    int actual_nfft = (method == WELCH_TYPE) ? psd_config.nfft : psd_config.nfft;
     
     // Assign memory for psd output arrays
-    double *f = malloc(actual_nfft * sizeof(double));
-    double *psd = malloc(actual_nfft * sizeof(double));
+    double *f = malloc(psd_config.nfft * sizeof(double));
+    double *psd = malloc(psd_config.nfft * sizeof(double));
     if (!f || !psd) {
         fprintf(stderr, "Memory allocation failed for PSD arrays.\n");
         free(f);
@@ -88,8 +75,8 @@ int main()
         return 1;
     }
     fprintf(csv, "Frequency_Hz,PSD\n");
-   
-    for (int i = 0; i < actual_nfft; i++) {
+
+    for (int i = 0; i < psd_config.nfft; i++) {
         fprintf(csv, "%.10g,%.10g\n", f[i], psd[i]);
     }
     fclose(csv);
