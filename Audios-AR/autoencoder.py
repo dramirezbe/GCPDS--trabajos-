@@ -78,7 +78,7 @@ except Exception:
 # ===== HPO Dependencies =====
 try:
     from skopt import gp_minimize
-    from skopt.space import Real, Integer, Categorical
+    from skopt.space import Real, Integer
     from skopt.utils import use_named_args
     SKOPT_AVAILABLE = True
 except ImportError:
@@ -196,111 +196,50 @@ def prewhitening_check(x: torch.Tensor, sr: int, verbose: bool = True) -> Dict[s
 
 
 # ===== Neural Network Models =====
-class Chomp1d(torch.nn.Module):
-    """A module that removes elements from the end of a temporal dimension."""
-    def __init__(self, chomp_size):
+class Autoencoder(torch.nn.Module):
+    """A simple autoencoder with a 2D latent space for visualization."""
+    def __init__(self, input_dim: int, hidden_dim: int = 64):
         super().__init__()
-        self.chomp_size = chomp_size
-
-    def forward(self, x):
-        return x[:, :, :-self.chomp_size].contiguous() if self.chomp_size > 0 else x
-
-class TemporalBlock(torch.nn.Module):
-    """A residual block for a TCN, with causal, dilated convolutions."""
-    def __init__(self, n_inputs, n_outputs, kernel_size, stride, dilation, padding, dropout=0.2):
-        super().__init__()
-        self.net = torch.nn.Sequential(
-            torch.nn.Conv1d(n_inputs, n_outputs, kernel_size, stride=stride,
-                            padding=padding, dilation=dilation),
-            Chomp1d(padding),
+        self.encoder = torch.nn.Sequential(
+            torch.nn.Linear(input_dim, hidden_dim),
             torch.nn.ReLU(),
-            torch.nn.Dropout(dropout),
-            torch.nn.Conv1d(n_outputs, n_outputs, kernel_size, stride=stride,
-                            padding=padding, dilation=dilation),
-            Chomp1d(padding),
-            torch.nn.ReLU(),
-            torch.nn.Dropout(dropout)
+            torch.nn.Linear(hidden_dim, 2)  # 2D Latent Space
         )
-        self.downsample = torch.nn.Conv1d(n_inputs, n_outputs, 1) if n_inputs != n_outputs else None
-        self.relu = torch.nn.ReLU()
-
-    def forward(self, x):
-        res = x if self.downsample is None else self.downsample(x)
-        out = self.net(x)
-        return self.relu(out + res)
-
-class TCNModel(torch.nn.Module):
-    """A Temporal Convolutional Network for time-series forecasting."""
-    def __init__(self, num_channels: List[int], kernel_size=2, dropout=0.2):
-        super().__init__()
-        layers = []
-        for i in range(len(num_channels)):
-            dilation_size = 2 ** i
-            in_channels = 1 if i == 0 else num_channels[i-1]
-            out_channels = num_channels[i]
-            layers.append(
-                TemporalBlock(in_channels, out_channels, kernel_size, stride=1,
-                              dilation=dilation_size,
-                              padding=(kernel_size-1) * dilation_size,
-                              dropout=dropout)
-            )
-        self.network = torch.nn.Sequential(*layers)
-        self.final_fc = torch.nn.Linear(num_channels[-1], 1)
+        self.decoder = torch.nn.Sequential(
+            torch.nn.Linear(2, hidden_dim),
+            torch.nn.ReLU(),
+            torch.nn.Linear(hidden_dim, input_dim)
+        )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # x: (B, T)
-        x = x.unsqueeze(1)               # (B, 1, T)
-        out = self.network(x)            # (B, C, T)
-        last_time_step_out = out[:, :, -1]   # (B, C)
-        return self.final_fc(last_time_step_out).squeeze(-1)  # (B,)
+        """Full autoencoding pass."""
+        encoded = self.encoder(x)
+        decoded = self.decoder(encoded)
+        return decoded
+
+    def encode(self, x: torch.Tensor) -> torch.Tensor:
+        """Encodes the input into the latent space."""
+        return self.encoder(x)
 
 
-# ===== Training and Prediction =====
-@torch.no_grad()
-def _roll_predict_sequence(
-    model: torch.nn.Module,
-    last_context: torch.Tensor,
-    steps: int,
-) -> np.ndarray:
-    """
-    Roll forecasts forward for `steps` for TCN-style models.
-    """
-    model.eval()
-    # make sure we own the memory and it's contiguous (prevents view/alias surprises)
-    ctx = last_context.to(dtype=DTYPE, device=DEVICE).contiguous().clone()  # (lags,)
-    preds = np.empty(steps, dtype=np.float32)
-
-    for t in range(steps):
-        inp = ctx.unsqueeze(0)  # (1, lags)
-        y_hat = float(model(inp).item())
-        preds[t] = y_hat
-
-        # SAFE shift: avoid overlapping copy
-        ctx = torch.roll(ctx, shifts=-1)
-        ctx[-1] = y_hat
-
-    return preds
-
-#----------------------------------------
- #Precompute X_all/y_all and do the AR flip once
-def fit_sequence_model(
+# ===== Training and Feature Extraction =====
+def fit_autoencoder(
     waveform: torch.Tensor,
-    lags: int = 10,
-    samples_to_predict: int = 100,
+    window_size: int = 256,
     nn_params: Optional[Dict[str, Any]] = None,
-    epochs: int = 5,
-    batch_size: int = 8192,
-    lr: float = 1e-2,
-    weight_decay: float = 0.0,
+    epochs: int = 10,
+    batch_size: int = 2048,
+    lr: float = 1e-3,
+    weight_decay: float = 1e-5,
     grad_clip: float = 1.0,
     verbose: bool = True,
     shuffle: bool = True,
     train_dtype: torch.dtype = DTYPE,
-    validation_split: float = 0.0,
-) -> Tuple[Optional[dict], Optional[np.ndarray], Optional[float]]:
+    validation_split: float = 0.1,
+) -> Tuple[Optional[dict], Optional[float]]:
     """
-    Train TCN on overlapping windows.
-    Returns (state_dict, predictions, validation_loss).
+    Train an Autoencoder on overlapping windows of a waveform.
+    Returns (state_dict, validation_loss).
     """
     if nn_params is None:
         nn_params = {}
@@ -308,21 +247,16 @@ def fit_sequence_model(
     if waveform.ndim != 2:
         raise ValueError(f"Expected (C, N), got {tuple(waveform.shape)}")
     x = waveform[0]
-    if x.numel() <= lags + 1:
-        if verbose: print("Not enough samples for the requested lags.")
-        return None, None, None
+    if x.numel() <= window_size:
+        if verbose: print("Not enough samples for the requested window size.")
+        return None, None
 
     # ---- Build model
-    if verbose: print("Initializing TCNModel...")
+    if verbose: print("Initializing Autoencoder...")
     t_build = time.perf_counter()
-    # TCN needs specific params, extract them
-    tcn_channels = nn_params.get("channels", [16, 32])
-    if isinstance(tcn_channels, str): # Handle string representation from HPO
-        tcn_channels = json.loads(tcn_channels)
-    model = TCNModel(
-        num_channels=tcn_channels,
-        kernel_size=nn_params.get("kernel_size", 3),
-        dropout=nn_params.get("dropout_rate", 0.2),
+    model = Autoencoder(
+        input_dim=window_size,
+        hidden_dim=nn_params.get("hidden_dim", 64)
     )
     if verbose: print(f"  built in {time.perf_counter()-t_build:.3f}s")
 
@@ -330,17 +264,18 @@ def fit_sequence_model(
     model.to(device=DEVICE, dtype=train_dtype)
 
     # ---- Create windows
-    windows = x.unfold(0, lags + 1, 1)
+    windows = x.unfold(0, window_size, 1).clone()
     M = windows.shape[0]
     if M == 0:
         if verbose: print("No training windows available.")
-        return None, None, None
+        return None, None
 
-    X_all = windows[:, :lags].to(dtype=train_dtype, device=DEVICE)
-    y_all  = windows[:, -1].to(dtype=train_dtype, device=DEVICE)
+    # For an autoencoder, input is the target
+    X_all = windows.to(dtype=train_dtype, device=DEVICE)
+    y_all = windows.to(dtype=train_dtype, device=DEVICE)
 
 
-    # ---- Data Splitting for HPO/Validation ----
+    # ---- Data Splitting for Validation ----
     if validation_split > 0:
         val_size = int(M * validation_split)
         train_size = M - val_size
@@ -360,10 +295,9 @@ def fit_sequence_model(
     for ep in range(1, epochs + 1):
         epoch_loss, count = 0.0, 0
         model.train()
-        
-        # Use training data for training loop
+
         indices = torch.randperm(X_train.shape[0], device=X_train.device) if shuffle else torch.arange(X_train.shape[0], device=X_train.device)
-        
+
         for i in range(0, X_train.shape[0], effective_bs):
             batch_indices = indices[i:i+effective_bs]
             Xb, yb = X_train[batch_indices], y_train[batch_indices]
@@ -392,33 +326,27 @@ def fit_sequence_model(
         if verbose:
             print(f"Final Validation Loss: {val_loss:.6f}")
 
-    # ---- Roll-out
-    last_ctx = x[-lags:]
-    preds_future = _roll_predict_sequence(
-        model, last_context=last_ctx, steps=samples_to_predict
-    )
 
-    return model.state_dict(), preds_future, val_loss
+    return model.state_dict(), val_loss
 
 
 def process_audio_files(
     audio_files: list,
     base_path: Union[str, Path],
-    max_lags: int = 10,
-    samples_to_predict: int = 100,
+    window_size: int = 256,
     target_sr: Optional[int] = None,
     mono_mode: str = "first",
     max_duration_s: Optional[float] = None,
     verbose: bool = True,
     nn_params: Optional[Dict[str, Any]] = None,
-    nn_epochs: int = 5,
-    nn_batch_size: int = 8192,
-    nn_lr: float = 1e-2,
-    nn_weight_decay: float = 0.0,
+    nn_epochs: int = 10,
+    nn_batch_size: int = 2048,
+    nn_lr: float = 1e-3,
+    nn_weight_decay: float = 1e-5,
     nn_grad_clip: float = 1.0,
     do_prewhitening_check: bool = True,
 ) -> Dict[str, Any]:
-    """Process audio files using a TCN sequence model."""
+    """Process audio files using an Autoencoder to extract latent features."""
     if nn_params is None:
         nn_params = {}
 
@@ -426,7 +354,7 @@ def process_audio_files(
     results: Dict[str, Any] = {}
 
     if verbose:
-        print(f"\nProcessing {len(audio_files)} audio files with model_type='tcn'...")
+        print(f"\nProcessing {len(audio_files)} audio files with model_type='autoencoder'...")
 
     for i, file_name in enumerate(audio_files, 1):
         file_path = base_path / file_name
@@ -446,26 +374,44 @@ def process_audio_files(
             if do_prewhitening_check:
                 item["prewhitening"] = prewhitening_check(waveform[0], sr, verbose=verbose)
 
-            nn_state, nn_preds, _ = fit_sequence_model(
-                waveform, lags=max_lags,
-                samples_to_predict=samples_to_predict, nn_params=nn_params,
+            # Train the autoencoder for this specific file
+            nn_state, _ = fit_autoencoder(
+                waveform, window_size=window_size,
+                nn_params=nn_params,
                 epochs=nn_epochs, batch_size=nn_batch_size, lr=nn_lr,
                 weight_decay=nn_weight_decay, grad_clip=nn_grad_clip, verbose=verbose,
-                validation_split=0.0 # No validation split during final processing
+                validation_split=0.1
             )
 
+            # If training was successful, extract the mean latent representation
             if nn_state is not None:
-                flat_params = np.concatenate([v.detach().cpu().numpy().ravel() for v in nn_state.values()])
+                model = Autoencoder(input_dim=window_size, hidden_dim=nn_params.get("hidden_dim", 64))
+
+                # Clean the state_dict keys to remove the '_orig_mod.' prefix added by torch.compile
+                clean_state_dict = {
+                    (k[10:] if k.startswith('_orig_mod.') else k): v
+                    for k, v in nn_state.items()
+                }
+                model.load_state_dict(clean_state_dict)
+
+                model.to(DEVICE)
+                model.eval()
+
+                with torch.no_grad():
+                    all_windows = waveform[0].unfold(0, window_size, 1).clone()
+                    latent_vectors = model.encode(all_windows.to(DEVICE))
+                    # Get a single representative vector for the file by averaging
+                    mean_latent_vector = latent_vectors.mean(dim=0).cpu().numpy()
+
                 item["nn_model"] = {
-                    "model_type": 'tcn',
-                    "lags": max_lags,
-                    "predictions": nn_preds,
+                    "model_type": 'autoencoder',
+                    "window_size": window_size,
+                    "latent_representation": mean_latent_vector,
                     "hyperparams": nn_params,
-                    "flat_params": flat_params,
                 }
             else:
                 item["success"] = False
-                item["error"] = "TCN training failed"
+                item["error"] = "Autoencoder training failed"
 
             item["time_sec"] = time.perf_counter() - t0
             results[file_name] = item
@@ -482,28 +428,23 @@ def process_audio_files(
     return results
 
 # ===== HPO Objective Function =====
-def create_hpo_objective(waveform: torch.Tensor, lags: int, epochs: int, search_space: List) -> callable:
+def create_hpo_objective(waveform: torch.Tensor, window_size: int, epochs: int, search_space: List) -> callable:
     """
-    Creates the objective function for skopt to minimize.
+    Creates the objective function for skopt to minimize for the Autoencoder.
     This function takes a set of hyperparameters, trains a model, and returns the validation loss.
     """
     @use_named_args(search_space)
     def objective(**params):
         print(f"\n HPO Trial with params: {params}")
         nn_params_trial = {
-            "dropout_rate": params.get("dropout_rate"),
-            "channels": params.get("channels"),
-            "kernel_size": params.get("kernel_size")
+            "hidden_dim": params.get("hidden_dim"),
         }
-        
-        # Filter out None values for model-specific params
         nn_params_trial = {k: v for k, v in nn_params_trial.items() if v is not None}
 
         # Train the model with a validation split to get a score
-        _, _, val_loss = fit_sequence_model(
+        _, val_loss = fit_autoencoder(
             waveform=waveform,
-            lags=lags,
-            samples_to_predict=1, # We don't need predictions here
+            window_size=window_size,
             nn_params=nn_params_trial,
             epochs=epochs,
             batch_size=params["batch_size"],
@@ -516,11 +457,11 @@ def create_hpo_objective(waveform: torch.Tensor, lags: int, epochs: int, search_
         # Handle cases where training might fail
         if val_loss is None or not np.isfinite(val_loss):
             return 9999.0 # Return a large number for failed runs
-        
+
         print(f"  -> Validation Loss: {val_loss:.6f}")
         gc.collect() # Clean up memory between trials
         return val_loss
-        
+
     return objective
 
 # ===== Post-processing =====
@@ -531,20 +472,22 @@ def _rows_from_results(results: Dict[str, Any]) -> List[Dict[str, Any]]:
         if not item.get("success") or "nn_model" not in item:
             continue
         model_info = item["nn_model"]
+        latent_rep = model_info.get("latent_representation", np.array([np.nan, np.nan]))
         row = {
             "file_name": fname,
             "model_type": model_info.get("model_type"),
-            "lags": model_info.get("lags"),
+            "window_size": model_info.get("window_size"),
             "sample_rate": item.get("sample_rate"),
             "duration_sec": item.get("duration"),
             "time_sec": item.get("time_sec"),
+            "latent_dim_1": float(latent_rep[0]),
+            "latent_dim_2": float(latent_rep[1]),
             "hyperparams_json": json.dumps(model_info.get("hyperparams")),
-            "flat_params_json": json.dumps(model_info.get("flat_params", []).tolist()),
         }
         rows.append(row)
     return rows
 
-def save_ar_params_csv(results: Dict[str, Any], out_csv_path: Union[str, Path]) -> int:
+def save_latent_space_csv(results: Dict[str, Any], out_csv_path: Union[str, Path]) -> int:
     """Writes model parameter trace to CSV for downstream analysis."""
     rows = _rows_from_results(results)
     if not rows:
@@ -554,144 +497,77 @@ def save_ar_params_csv(results: Dict[str, Any], out_csv_path: Union[str, Path]) 
     out_csv_path = Path(out_csv_path)
     out_csv_path.parent.mkdir(parents=True, exist_ok=True)
 
-    fieldnames = ["file_name", "model_type", "lags", "sample_rate", "duration_sec", "time_sec",
-                  "hyperparams_json", "flat_params_json"]
+    fieldnames = ["file_name", "model_type", "window_size", "sample_rate", "duration_sec",
+                  "time_sec", "latent_dim_1", "latent_dim_2", "hyperparams_json"]
     with out_csv_path.open("w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(rows)
 
-    print(f"📁 Saved model parameter trace to: {out_csv_path} ({len(rows)} rows)")
+    print(f"📁 Saved latent space coordinates to: {out_csv_path} ({len(rows)} rows)")
     return len(rows)
-# ===== PCA utilities (feature building, PCA via SVD, plotting) =====
+
 def _feature_matrix_from_results(
     results: Dict[str, Any],
-    feature: str = "predictions",  # "predictions" o "flat_params"
-    target_dim: Optional[int] = None  # si usas flat_params y quieres recortar/zero-pad
 ) -> Tuple[List[str], np.ndarray]:
     """
-    Build the feature matrix X (n_files x d) from 'results'.
-    By default, it uses 'predictions' (fixed length). If you use 'flat_params', you can
-    set target_dim to zero-pad/trim and thus standardize dimensions.
+    Build the feature matrix X (n_files x 2) from the autoencoder's latent space.
     """
     names, feats = [], []
     for fname, item in results.items():
         if not item.get("success"):
             continue
         nnm = item.get("nn_model", {})
-        if feature == "predictions":
-            vec = np.asarray(nnm.get("predictions"), dtype=np.float32)
-            if vec.size == 0:
-                continue
-        elif feature == "flat_params":
-            vec = np.asarray(nnm.get("flat_params"), dtype=np.float32)
-            if vec.size == 0:
-                continue
-            if target_dim is not None:
-                if vec.size >= target_dim:
-                    vec = vec[:target_dim]
-                else:
-                    vec = np.pad(vec, (0, target_dim - vec.size))
-        else:
-            raise ValueError("feature must be 'predictions' or 'flat_params'")
+        vec = np.asarray(nnm.get("latent_representation"), dtype=np.float32)
+        if vec.shape != (2,):
+            continue
         names.append(fname)
         feats.append(vec)
+
     if not feats:
         raise RuntimeError("No features were built. Check 'results'.")
-    X = np.vstack(feats)  # (n_files, d)
+    X = np.vstack(feats)  # (n_files, 2)
     return names, X
 
 
-def _pca_svd(X: np.ndarray, k: int = 2) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+def plot_latent_space_scatter(names: List[str], Z: np.ndarray, out_png: Union[str, Path]) -> None:
     """
-    PCA by SVD (centered). Returns (Z, comps, var_exp):
-      - Z: projection in k dimensions (n_files, k)
-      - comps: eigenvectors (k, d)
-      - var_exp: variance explained by component (k,)
-    """
-    X = np.asarray(X, dtype=np.float64)
-    mu = X.mean(axis=0, keepdims=True)
-    Xc = X - mu
-    # SVD: Xc = U S Vt
-    U, S, Vt = np.linalg.svd(Xc, full_matrices=False)
-    comps = Vt[:k, :]                  # (k, d)
-    Z = (Xc @ comps.T).astype(np.float32)  # (n, k)
-    # Varianza explicada:
-    sing_vals_sq = (S ** 2)
-    var_total = sing_vals_sq.sum()
-    var_exp = sing_vals_sq[:k] / (var_total + 1e-12)
-    return Z, comps, var_exp
-
-
-def save_pca_csv(names: List[str], Z: np.ndarray, var_exp: np.ndarray, out_csv: Union[str, Path]) -> None:
-    """
-    Save a CSV with columns: file_name, pc1, pc2[, pc3], plus explained variance in header.
-    """
-    out_csv = Path(out_csv)
-    out_csv.parent.mkdir(parents=True, exist_ok=True)
-    pcs = Z.shape[1]
-    fieldnames = ["file_name"] + [f"pc{i+1}" for i in range(pcs)]
-    with out_csv.open("w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
-        writer.writeheader()
-        for fname, row in zip(names, Z):
-            writer.writerow({"file_name": fname, **{f"pc{i+1}": float(row[i]) for i in range(pcs)}})
-    print(f"📁 PCA saved in: {out_csv} | Var. explained: {', '.join([f'{v*100:.2f}% ' for v in var_exp])}")
-
-
-def plot_pca_scatter(names: List[str], Z: np.ndarray, var_exp: np.ndarray, out_png: Union[str, Path]) -> None:
-    """
-    Draw and save a 2D/3D scatter of the PCA if Matplotlib is available.
-    Does not define explicit colors.
+    Draw and save a 2D scatter plot of the latent space if Matplotlib is available.
     """
     if not MATPLOTLIB_AVAILABLE:
         print("ℹ️ Matplotlib not available: the graph is omitted.")
         return
     import matplotlib.pyplot as plt
 
+    if Z.shape[1] != 2:
+        print("Z must have 2 columns to plot.")
+        return
+
     out_png = Path(out_png)
     out_png.parent.mkdir(parents=True, exist_ok=True)
 
-    if Z.shape[1] == 2:
-        plt.figure()
-        plt.scatter(Z[:, 0], Z[:, 1])
-        for i, name in enumerate(names):
-            plt.annotate(name, (Z[i, 0], Z[i, 1]), fontsize=8)
-        plt.xlabel(f"PC1 ({var_exp[0]*100:.1f}% var)")
-        plt.ylabel(f"PC2 ({var_exp[1]*100:.1f}% var)")
-        plt.title("PCA de audios (feature: predictions)")
-        plt.tight_layout()
-        plt.savefig(out_png, dpi=150)
-        plt.close()
-        print(f"🖼️ Scatter PCA guardado en: {out_png}")
-    elif Z.shape[1] == 3:
-        from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
-        fig = plt.figure()
-        ax = fig.add_subplot(111, projection='3d')
-        ax.scatter(Z[:, 0], Z[:, 1], Z[:, 2])
-        for i, name in enumerate(names):
-            ax.text(Z[i, 0], Z[i, 1], Z[i, 2], name, fontsize=8)
-        ax.set_xlabel(f"PC1 ({var_exp[0]*100:.1f}%)")
-        ax.set_ylabel(f"PC2 ({var_exp[1]*100:.1f}%)")
-        ax.set_zlabel(f"PC3 ({var_exp[2]*100:.1f}%)")
-        ax.set_title("PCA de audios (feature: predictions)")
-        plt.tight_layout()
-        fig.savefig(out_png, dpi=150)
-        plt.close(fig)
-        print(f"🖼️ Scatter 3D PCA saved in: {out_png}")
-    else:
-        print("Z must have 2 or 3 columns to plot.")
+    plt.figure()
+    plt.scatter(Z[:, 0], Z[:, 1])
+    for i, name in enumerate(names):
+        plt.annotate(name, (Z[i, 0], Z[i, 1]), fontsize=8)
+    plt.xlabel("Latent Dimension 1")
+    plt.ylabel("Latent Dimension 2")
+    plt.title("Audio Latent Space Representation (Autoencoder)")
+    plt.grid(True, linestyle='--', alpha=0.6)
+    plt.tight_layout()
+    plt.savefig(out_png, dpi=150)
+    plt.close()
+    print(f"🖼️ Scatter plot saved to: {out_png}")
 
-# ===== Clustering utilities (KMeans on PCA coords with centroids) =====
 
+# ===== Clustering utilities (KMeans on latent coords with centroids) =====
 def run_kmeans(
-
     Z: np.ndarray, names: List[str], n_clusters: int = 2,
     out_csv: Optional[Union[str, Path]] = None,
     out_png: Optional[Union[str, Path]] = None
 ) -> Dict[str, Any]:
     """
-    Applies KMeans on PCA coords Z (n x d). Writes CSV and optional scatter with centroids.
+    Applies KMeans on latent space coords Z (n x d). Writes CSV and optional scatter with centroids.
     Robust to k > n_samples and duplicate points.
     """
     if Z.ndim != 2 or Z.shape[0] == 0:
@@ -736,31 +612,18 @@ def run_kmeans(
         print(f"📁 Clusters saved in: {out_csv}")
 
     # --- Plot with centroids (if matplotlib available) ---
-    if out_png and MATPLOTLIB_AVAILABLE:
+    if out_png and MATPLOTLIB_AVAILABLE and Z.shape[1] == 2:
         import matplotlib.pyplot as plt
-        if Z.shape[1] == 2:
-            plt.figure()
-            plt.scatter(Z[:, 0], Z[:, 1], c=labels, cmap="tab10", alpha=0.7)
-            plt.scatter(centroids[:, 0], centroids[:, 1], marker="*", c="black", s=200, label="Centroids")
-            for i, name in enumerate(names):
-                plt.annotate(name, (Z[i, 0], Z[i, 1]), fontsize=8)
-            plt.xlabel("PC1"); plt.ylabel("PC2")
-            plt.title(f"KMeans (k={k}), inertia={inertia:.2f}")
-            plt.legend(); plt.tight_layout()
-            plt.savefig(out_png, dpi=150); plt.close()
-            print(f"🖼️ Scatter clusters saved in: {out_png}")
-        elif Z.shape[1] == 3:
-            from mpl_toolkits.mplot3d import Axes3D  # noqa
-            fig = plt.figure(); ax = fig.add_subplot(111, projection='3d')
-            ax.scatter(Z[:, 0], Z[:, 1], Z[:, 2], c=labels, cmap="tab10", alpha=0.7)
-            ax.scatter(centroids[:, 0], centroids[:, 1], centroids[:, 2], marker="*", c="black", s=300, label="Centroids")
-            for i, name in enumerate(names):
-                ax.text(Z[i, 0], Z[i, 1], Z[i, 2], name, fontsize=8)
-            ax.set_xlabel("PC1"); ax.set_ylabel("PC2"); ax.set_zlabel("PC3")
-            ax.set_title(f"KMeans (k={k}), inertia={inertia:.2f}")
-            ax.legend(); plt.tight_layout()
-            fig.savefig(out_png, dpi=150); plt.close(fig)
-            print(f"🖼️ Scatter 3D clusters saved in: {out_png}")
+        plt.figure()
+        plt.scatter(Z[:, 0], Z[:, 1], c=labels, cmap="tab10", alpha=0.7)
+        plt.scatter(centroids[:, 0], centroids[:, 1], marker="*", c="black", s=200, label="Centroids")
+        for i, name in enumerate(names):
+            plt.annotate(name, (Z[i, 0], Z[i, 1]), fontsize=8)
+        plt.xlabel("Latent Dimension 1"); plt.ylabel("Latent Dimension 2")
+        plt.title(f"KMeans (k={k}), inertia={inertia:.2f}")
+        plt.legend(); plt.tight_layout()
+        plt.savefig(out_png, dpi=150); plt.close()
+        print(f"🖼️ Cluster scatter plot saved to: {out_png}")
 
     return {"labels": labels, "inertia": inertia, "centroids": centroids}
 
@@ -770,7 +633,7 @@ if __name__ == "__main__":
     start_time = time.time()
     base_path = Path("/home/javastral/GIT/GCPDS--trabajos-/Audios-AR/PresenceANEAudios")  # folder with .wav
 
-    model_to_run = 'tcn'
+    model_to_run = 'autoencoder'
 
     if not base_path.exists():
         print(f"❌ Base path does not exist: {base_path}")
@@ -781,37 +644,34 @@ if __name__ == "__main__":
         if not audio_files:
             print(f"❌ No .wav files found in {base_path}")
         else:
-            # --- HPO Configuration ---
+            # --- 1. Hyperparameter Optimization (HPO) ---
             if not SKOPT_AVAILABLE:
                 raise ImportError("scikit-optimize is required for HPO. Please install it: pip install scikit-optimize")
 
-            print("--- 1. Starting Hyperparameter Optimization (HPO) ---")
+            print("--- 1. Starting Hyperparameter Optimization (HPO) for Autoencoder ---")
             # Use the first audio file as a representative sample for HPO
             hpo_audio_file = base_path / audio_files[0]
             print(f"Using '{audio_files[0]}' for HPO.")
             hpo_waveform, _ = read_wav(hpo_audio_file, max_duration_s=10.0)
 
-            print("--- Configuring HPO for TCN Model ---")
-            base_config = {"max_lags": 128, "nn_epochs": 10}
+            base_config = {"window_size": 256, "nn_epochs_hpo": 10}
             search_space = [
-                Real(1e-4, 1e-2, "log-uniform", name='lr'),
+                Real(1e-4, 5e-3, "log-uniform", name='lr'),
                 Real(1e-6, 1e-3, "log-uniform", name='weight_decay'),
-                Integer(1024, 4096, name='batch_size'),
-                Integer(2, 3, name='kernel_size'),
-                Categorical(['[16,16]', '[16,32]'], name='channels')
+                Integer(1024, 8192, name='batch_size'),
+                Integer(32, 128, name='hidden_dim'),
             ]
 
-
-            # Create the objective function for this specific audio file and config
+            # Create the objective function
             objective_fn = create_hpo_objective(
                 waveform=hpo_waveform,
-                lags=base_config["max_lags"],
-                epochs=base_config["nn_epochs"],
+                window_size=base_config["window_size"],
+                epochs=base_config["nn_epochs_hpo"],
                 search_space=search_space
             )
 
             # Run Bayesian Optimization
-            n_hpo_calls = 5 # Number of HPO trials to run
+            n_hpo_calls = 20 # Number of HPO trials to run
             hpo_result = gp_minimize(
                 func=objective_fn,
                 dimensions=search_space,
@@ -822,38 +682,37 @@ if __name__ == "__main__":
 
             print("\n--- HPO Finished ---")
             print(f"Best validation loss: {hpo_result.fun:.6f}")
-            
+
             # Create a dictionary with the best parameters found
             best_params_raw = {dim.name: val for dim, val in zip(search_space, hpo_result.x)}
-            
+
             # Convert any numpy types to native Python types for JSON serialization
             best_params = {}
             for key, value in best_params_raw.items():
                 if isinstance(value, np.generic):
-                    best_params[key] = value.item() # Use .item() to convert numpy type to Python native
+                    best_params[key] = value.item() # Use .item() to convert
                 else:
                     best_params[key] = value
 
             print("Best parameters found:")
             print(json.dumps(best_params, indent=2))
 
+
             # --- 2. Build Final Configuration from HPO Results ---
             print("\n--- 2. Configuring Final Model with Best Hyperparameters ---")
             final_nn_config = {
-                "max_lags": base_config["max_lags"],
+                "window_size": base_config["window_size"],
                 "nn_params": {
-                    "channels": best_params.get("channels"),
-                    "kernel_size": best_params.get("kernel_size"),
-                    "dropout_rate": best_params.get("dropout_rate"),
+                    "hidden_dim": best_params.get("hidden_dim"),
                 },
-                "nn_epochs": base_config["nn_epochs"],
+                "nn_epochs": 10, # Use more epochs for the final run
                 "nn_batch_size": best_params["batch_size"],
                 "nn_lr": best_params["lr"],
                 "nn_weight_decay": best_params["weight_decay"],
             }
             # Clean up None values from the params dict
             final_nn_config["nn_params"] = {k: v for k, v in final_nn_config["nn_params"].items() if v is not None}
-            
+
             # --- 3. Execute main pipeline with optimized config ---
             print("\n--- 3. Processing All Audio Files with Optimized Configuration ---")
             results = process_audio_files(
@@ -863,34 +722,28 @@ if __name__ == "__main__":
                 **final_nn_config
             )
 
-            # --- 4. Post-processing (PCA, Clustering, etc.) ---
+            # --- 4. Post-processing (Clustering, Visualization) ---
             print("\n--- 4. Running Post-processing ---")
             out_dir = base_path / "model_outputs"
             out_dir.mkdir(parents=True, exist_ok=True)
 
-            params_csv = out_dir / f"{model_to_run}_params_trace.csv"
-            save_ar_params_csv(results, params_csv)
+            params_csv = out_dir / f"{model_to_run}_latent_space.csv"
+            save_latent_space_csv(results, params_csv)
 
             try:
-                names, X = _feature_matrix_from_results(results, feature="predictions")
+                names, Z = _feature_matrix_from_results(results)
 
-                # PCA 2D
-                Z2, comps2, var_exp2 = _pca_svd(X, k=2)
-                save_pca_csv(names, Z2, var_exp2, out_dir / f"{model_to_run}_pca_predictions_2d.csv")
-                plot_pca_scatter(names, Z2, var_exp2, out_dir / f"{model_to_run}_pca_predictions_2d.png")
+                # Visualize the 2D latent space directly
+                plot_latent_space_scatter(names, Z, out_dir / f"{model_to_run}_latent_space_2d.png")
 
-                # PCA 3D
-                Z3, comps3, var_exp3 = _pca_svd(X, k=3)
-                save_pca_csv(names, Z3, var_exp3, out_dir / f"{model_to_run}_pca_predictions_3d.csv")
-                plot_pca_scatter(names, Z3, var_exp3, out_dir / f"{model_to_run}_pca_predictions_3d.png")
-
-                # KMeans clustering
+                # KMeans clustering on the 2D latent space
                 try:
-                    if Z2.shape[0] >= 2:
-                         max_k = min(4, Z2.shape[0], np.unique(Z2, axis=0).shape[0])
+                    if Z.shape[0] >= 2:
+                         # Automatically determine max number of clusters
+                         max_k = min(4, Z.shape[0], np.unique(Z, axis=0).shape[0])
                          if max_k >= 2:
                              for k in range(2, max_k + 1):
-                                 run_kmeans(Z2, names, n_clusters=k,
+                                 run_kmeans(Z, names, n_clusters=k,
                                             out_csv=out_dir / f"{model_to_run}_clusters_k{k}.csv",
                                             out_png=out_dir / f"{model_to_run}_clusters_k{k}.png")
                          else:
@@ -902,7 +755,7 @@ if __name__ == "__main__":
                     print(f"⚠️ Clustering failed: {e}")
 
             except Exception as e:
-                print(f"⚠️ PCA or Clustering failed: {e}")
+                print(f"⚠️ Feature extraction or visualization failed: {e}")
 
     elapsed_time = time.time() - start_time
     print(f"\n⏳ Total execution time: {elapsed_time:.2f} seconds")

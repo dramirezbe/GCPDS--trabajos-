@@ -43,8 +43,8 @@ def _maybe_compile(m: torch.nn.Module) -> torch.nn.Module:
 
 
 # ===== Global numerical policy (single source of truth) =====
-DEVICE = torch.device("cuda")
-DTYPE = torch.float32           # << more fast in CPU than float64
+DEVICE = torch.device("cpu")
+DTYPE = torch.float32           # << más rápido en CPU que float64
 CDTYPE = torch.complex64
 
 # ===== Optional Dependencies =====
@@ -74,16 +74,6 @@ try:
     from scipy import signal as sps
 except Exception:
     sps = None
-
-# ===== HPO Dependencies =====
-try:
-    from skopt import gp_minimize
-    from skopt.space import Real, Integer, Categorical
-    from skopt.utils import use_named_args
-    SKOPT_AVAILABLE = True
-except ImportError:
-    SKOPT_AVAILABLE = False
-
 
 warnings.filterwarnings("ignore", category=UserWarning, module="statsmodels")
 
@@ -150,7 +140,7 @@ def read_wav(
     p = Path(file_path)
     if not p.exists():
         raise FileNotFoundError(f"Audio file not found: '{p}'")
-
+    
     if sf:
         data, sr = sf.read(str(p), dtype="float32", always_2d=True)  # np.float32
         waveform = torch.from_numpy(data.T)  # (C, N)
@@ -160,7 +150,7 @@ def read_wav(
     if max_duration_s is not None:
         max_samples = int(sr * max_duration_s)
         waveform = waveform[..., :max_samples]
-
+    
     # Convert to mono
     if waveform.size(0) > 1:
         if mono_mode == "first":
@@ -331,6 +321,166 @@ def _roll_predict_sequence(
 
     return preds
 
+
+# def fit_sequence_model(
+#     waveform: torch.Tensor,
+#     model_type: str = 'arnn',
+#     lags: int = 10,
+#     samples_to_predict: int = 100,
+#     nn_params: Dict[str, Any] = {},
+#     epochs: int = 5,
+#     batch_size: int = 8192,
+#     lr: float = 1e-2,
+#     weight_decay: float = 0.0,
+#     grad_clip: float = 1.0,
+#     verbose: bool = True,
+#     shuffle: bool = True,
+#     train_dtype: torch.dtype = DTYPE,
+# ) -> Tuple[Optional[dict], Optional[np.ndarray]]:
+#     """Trains a sequence model (ARNN or TCN) on overlapping windows.
+#        For ARNN with hidden_size <= 0, uses a closed-form OLS/ridge fit (no training loop)."""
+#     if waveform.ndim != 2:
+#         raise ValueError(f"Expected (C, N), got {tuple(waveform.shape)}")
+#     x = waveform[0]
+#     if x.numel() <= lags + 1:
+#         if verbose: print("Not enough samples for the requested lags.")
+#         return None, None
+
+#     # ---- Build model
+#     model: torch.nn.Module
+#     if model_type.lower() == 'tcn':
+#         if verbose: print("Initializing TCNModel...")
+#         t_build = time.perf_counter()
+#         model = TCNModel(
+#             num_channels=nn_params.get("channels", [16, 32]),
+#             kernel_size=nn_params.get("kernel_size", 3),
+#             dropout=nn_params.get("dropout_rate", 0.2),
+#         )
+#         if verbose: print(f"  built in {time.perf_counter()-t_build:.3f}s")
+#     elif model_type.lower() == 'arnn':
+#         if verbose: print("Initializing ARNN...")
+#         t_build = time.perf_counter()
+#         # normalize bias flag name
+#         bias_flag = nn_params.get("bias", nn_params.get("include_bias", True))
+#         model = ARNN(
+#             lags=lags,
+#             hidden_size=nn_params.get("hidden_size", 32),
+#             num_hidden_layers=nn_params.get("num_hidden_layers", 1),
+#             activation_fn=nn_params.get("activation_fn", "relu"),
+#             dropout_rate=nn_params.get("dropout_rate", 0.1),
+#             bias=bias_flag,
+#         )
+#         if verbose: print(f"  built in {time.perf_counter()-t_build:.3f}s")
+#     else:
+#         raise ValueError(f"Unknown model_type: '{model_type}'")
+    
+#     # ---- Move once to device/dtype
+#     t_to = time.perf_counter()
+#     model.to(device=DEVICE, dtype=train_dtype)
+#     if verbose: print(f"  moved to device/dtype in {time.perf_counter()-t_to:.3f}s")
+
+#     # ---- Create windows
+#     t_unfold = time.perf_counter()
+#     windows = x.unfold(0, lags + 1, 1)   # (M, lags+1)
+#     if verbose: print(f"  unfolded windows in {time.perf_counter()-t_unfold:.3f}s")
+#     M = windows.shape[0]
+#     if M == 0:
+#         if verbose: print("No training windows available.")
+#         return None, None
+
+#     # ---- Fast path: ARNN linear case -> closed-form solve
+#     if model_type.lower() == 'arnn' and nn_params.get("hidden_size", 32) <= 0:
+#         if verbose: print("Using closed-form linear AR (OLS/Ridge).")
+#         # Design matrix with ARNN convention (reverse lag order)
+#         X_all = windows[:, :lags]
+#         X_all = torch.flip(X_all, dims=[1]).to(dtype=train_dtype, device=DEVICE)  # (M, lags)
+#         y_all = windows[:, -1].to(dtype=train_dtype, device=DEVICE)               # (M,)
+
+#         # Append bias column if the linear layer has bias
+#         linear = model.net  # nn.Linear(lags, 1, bias=bias_flag)
+#         has_bias = (isinstance(linear, torch.nn.Linear) and linear.bias is not None)
+#         if has_bias:
+#             ones = torch.ones((M, 1), dtype=train_dtype, device=DEVICE)
+#             X_design = torch.cat([X_all, ones], dim=1)   # (M, lags+1)
+#         else:
+#             X_design = X_all                              # (M, lags)
+
+#         # Solve (X^T X + lambda I) w = X^T y
+#         lam = float(nn_params.get("ridge_lambda", 1e-6))
+#         Xt = X_design.transpose(0, 1)                     # (p, M)
+#         XtX = Xt @ X_design                               # (p, p)
+#         if lam > 0:
+#             p = XtX.shape[0]
+#             XtX = XtX + lam * torch.eye(p, dtype=train_dtype, device=DEVICE)
+#         Xty = Xt @ y_all                                  # (p,)
+
+#         try:
+#             w = torch.linalg.solve(XtX, Xty)              # (p,)
+#         except RuntimeError:
+#             # Fallback to pinv if XtX is singular
+#             w = torch.linalg.pinv(X_design) @ y_all       # (p,)
+
+#         # Assign into the linear layer
+#         if has_bias:
+#             w_no_bias = w[:-1]
+#             b = w[-1]
+#             linear.weight.data.copy_(w_no_bias.view(1, -1))
+#             linear.bias.data.copy_(b.view_as(linear.bias))
+#         else:
+#             linear.weight.data.copy_(w.view(1, -1))
+
+#         # ---- Roll-out with the fitted linear AR
+#         last_ctx = x[-lags:]
+#         preds_future = _roll_predict_sequence(model, last_context=last_ctx, steps=samples_to_predict)
+#         return model.state_dict(), preds_future
+
+#     # ---- Otherwise: standard training loop (ARNN with hidden layers or TCN)
+#     opt = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
+#     loss_fn = torch.nn.MSELoss()
+
+#     # Probe first forward
+#     if verbose and M > 0:
+#         Xprobe = windows[:min(64, M), :lags]
+#         Xprobe_in = torch.flip(Xprobe, dims=[1]) if model_type.lower() == 'arnn' else Xprobe
+#         t_fwd = time.perf_counter()
+#         _ = model(Xprobe_in)
+#         if verbose: print(f"  first forward in {time.perf_counter()-t_fwd:.3f}s")
+
+#     # Precompute full tensors once to reduce per-batch work
+#     X_all = windows[:, :lags]
+#     if model_type.lower() == 'arnn':
+#         X_all = torch.flip(X_all, dims=[1])
+#     y_all = windows[:, -1]
+
+#     for ep in range(1, epochs + 1):
+#         epoch_loss, count = 0.0, 0
+#         model.train()
+#         indices = torch.randperm(M) if shuffle else torch.arange(M)
+#         effective_bs = min(batch_size, M)
+#         for i in range(0, M, effective_bs):
+#             batch_indices = indices[i:i+effective_bs]
+#             Xb = X_all[batch_indices]
+#             yb = y_all[batch_indices]
+
+#             opt.zero_grad(set_to_none=True)
+#             yhat = model(Xb)
+#             loss = loss_fn(yhat, yb)
+#             loss.backward()
+#             if grad_clip > 0:
+#                 torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
+#             opt.step()
+
+#             epoch_loss += loss.item() * Xb.size(0)
+#             count += Xb.size(0)
+#         if verbose:
+#             print(f"Epoch {ep}/{epochs}, Loss: {epoch_loss / max(count, 1):.6f}")
+
+#     # ---- Roll-out
+#     last_ctx = x[-lags:]
+#     preds_future = _roll_predict_sequence(model, last_context=last_ctx, steps=samples_to_predict)
+#     return model.state_dict(), preds_future
+
+
 #----------------------------------------
  #Precompute X_all/y_all and do the AR flip once
 def fit_sequence_model(
@@ -347,13 +497,9 @@ def fit_sequence_model(
     verbose: bool = True,
     shuffle: bool = True,
     train_dtype: torch.dtype = DTYPE,
-    validation_split: float = 0.0,
-) -> Tuple[Optional[dict], Optional[np.ndarray], Optional[float]]:
-    """
-    Train ARNN/TCN on overlapping windows.
-    Returns (state_dict, predictions, validation_loss).
-    Uses closed-form fit when ARNN is linear (hidden_size <= 0).
-    """
+) -> Tuple[Optional[dict], Optional[np.ndarray]]:
+    """Train ARNN/TCN on overlapping windows.
+       Uses closed-form fit when ARNN is linear (hidden_size <= 0)."""
     if nn_params is None:
         nn_params = {}
 
@@ -362,7 +508,7 @@ def fit_sequence_model(
     x = waveform[0]
     if x.numel() <= lags + 1:
         if verbose: print("Not enough samples for the requested lags.")
-        return None, None, None
+        return None, None
 
     mtype = model_type.lower()
 
@@ -370,12 +516,8 @@ def fit_sequence_model(
     if mtype == 'tcn':
         if verbose: print("Initializing TCNModel...")
         t_build = time.perf_counter()
-        # TCN needs specific params, extract them
-        tcn_channels = nn_params.get("channels", [16, 32])
-        if isinstance(tcn_channels, str): # Handle string representation from HPO
-            tcn_channels = json.loads(tcn_channels)
         model = TCNModel(
-            num_channels=tcn_channels,
+            num_channels=nn_params.get("channels", [16, 32]),
             kernel_size=nn_params.get("kernel_size", 3),
             dropout=nn_params.get("dropout_rate", 0.2),
         )
@@ -396,58 +538,88 @@ def fit_sequence_model(
     else:
         raise ValueError(f"Unknown model_type: '{model_type}'")
 
+    # ---- Safe optional compile (no Windows inductor crash)
     model = _maybe_compile(model)
+
+    # ---- Move once to device/dtype
+    t_to = time.perf_counter()
     model.to(device=DEVICE, dtype=train_dtype)
+    if verbose: print(f"  moved to device/dtype in {time.perf_counter()-t_to:.3f}s")
 
     # ---- Create windows
-    windows = x.unfold(0, lags + 1, 1)
+    t_unfold = time.perf_counter()
+    windows = x.unfold(0, lags + 1, 1)   # (M, lags+1)
+    if verbose: print(f"  unfolded windows in {time.perf_counter()-t_unfold:.3f}s")
     M = windows.shape[0]
     if M == 0:
         if verbose: print("No training windows available.")
-        return None, None, None
+        return None, None
 
-    X_base = windows[:, :lags]
-    y_all  = windows[:, -1].to(dtype=train_dtype, device=DEVICE)
+    # ---- Precompute once: base features/targets, then AR flip once if needed
+    X_base = windows[:, :lags]                                              # (M, lags)
+    y_all  = windows[:, -1].to(dtype=train_dtype, device=DEVICE)            # (M,)
     if mtype == 'arnn':
         X_all = torch.flip(X_base, dims=[1]).to(dtype=train_dtype, device=DEVICE)
     else:
         X_all = X_base.to(dtype=train_dtype, device=DEVICE)
 
-    # ---- Fast path: ARNN linear case (no HPO for this, usually)
+    # ---- Fast path: ARNN linear case -> closed-form solve (uses precomputed X_all/y_all)
     if mtype == 'arnn' and nn_params.get("hidden_size", 32) <= 0:
-        # This part remains mostly unchanged as it's not trained with SGD
-        # ... (code for closed-form linear AR)
+        if verbose: print("Using closed-form linear AR (OLS/Ridge).")
+        linear = model.net  # nn.Linear(lags, 1, bias=bias_flag)
+        has_bias = (isinstance(linear, torch.nn.Linear) and linear.bias is not None)
+
+        X_design = X_all if not has_bias else torch.cat(
+            [X_all, torch.ones((M, 1), dtype=train_dtype, device=DEVICE)], dim=1
+        )
+
+        lam = float(nn_params.get("ridge_lambda", 1e-6))
+        Xt = X_design.transpose(0, 1)
+        XtX = Xt @ X_design
+        if lam > 0:
+            p = XtX.shape[0]
+            XtX = XtX + lam * torch.eye(p, dtype=train_dtype, device=DEVICE)
+        Xty = Xt @ y_all
+
+        try:
+            w = torch.linalg.solve(XtX, Xty)
+        except RuntimeError:
+            w = torch.linalg.pinv(X_design) @ y_all
+
+        if has_bias:
+            linear.weight.data.copy_(w[:-1].view(1, -1))
+            linear.bias.data.copy_(w[-1].view_as(linear.bias))
+        else:
+            linear.weight.data.copy_(w.view(1, -1))
+
         last_ctx = x[-lags:]
-        preds_future = _roll_predict_sequence(model, last_context=last_ctx, steps=samples_to_predict, flip_input=(mtype=='arnn'))
-        return model.state_dict(), preds_future, 0.0 # No validation loss for closed-form
+        preds_future = _roll_predict_sequence(
+            model, last_context=last_ctx, steps=samples_to_predict, flip_input=(mtype == 'arnn')
+        )
+        return model.state_dict(), preds_future
 
-    # ---- Data Splitting for HPO/Validation ----
-    if validation_split > 0:
-        val_size = int(M * validation_split)
-        train_size = M - val_size
-        indices = torch.randperm(M, device=X_all.device) if shuffle else torch.arange(M, device=X_all.device)
-        train_indices, val_indices = indices[:train_size], indices[train_size:]
-        X_train, y_train = X_all[train_indices], y_all[train_indices]
-        X_val, y_val = X_all[val_indices], y_all[val_indices]
-    else:
-        X_train, y_train = X_all, y_all
-        X_val, y_val = None, None # No validation set
-
-    # ---- Standard training loop ----
+    # ---- Otherwise: standard training loop (ARNN deep / TCN)
     opt = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
     loss_fn = torch.nn.MSELoss()
 
-    effective_bs = min(batch_size, X_train.shape[0])
+    # Probe first forward (no grad) using precomputed X_all
+    if verbose and M > 0:
+        t_fwd = time.perf_counter()
+        with torch.no_grad():
+            _ = model(X_all[:min(64, M)])
+        if verbose: print(f"  first forward in {time.perf_counter()-t_fwd:.3f}s")
+
+    # Train with larger batches & fewer loops
+    effective_bs = min(batch_size, M)
     for ep in range(1, epochs + 1):
         epoch_loss, count = 0.0, 0
         model.train()
-        
-        # Use training data for training loop
-        indices = torch.randperm(X_train.shape[0], device=X_train.device) if shuffle else torch.arange(X_train.shape[0], device=X_train.device)
-        
-        for i in range(0, X_train.shape[0], effective_bs):
+        indices = torch.randperm(M, device=X_all.device) if shuffle \
+                  else torch.arange(M, device=X_all.device)
+        for i in range(0, M, effective_bs):
             batch_indices = indices[i:i+effective_bs]
-            Xb, yb = X_train[batch_indices], y_train[batch_indices]
+            Xb = X_all[batch_indices]
+            yb = y_all[batch_indices]
 
             opt.zero_grad(set_to_none=True)
             yhat = model(Xb)
@@ -461,17 +633,7 @@ def fit_sequence_model(
             epoch_loss += loss.item() * bs
             count += bs
         if verbose:
-            print(f"Epoch {ep}/{epochs}, Train Loss: {epoch_loss / max(count, 1):.6f}")
-
-    # ---- Validation Loss Calculation ----
-    val_loss = None
-    if X_val is not None and y_val is not None:
-        model.eval()
-        with torch.no_grad():
-            y_val_hat = model(X_val)
-            val_loss = loss_fn(y_val_hat, y_val).item()
-        if verbose:
-            print(f"Final Validation Loss: {val_loss:.6f}")
+            print(f"Epoch {ep}/{epochs}, Loss: {epoch_loss / max(count, 1):.6f}")
 
     # ---- Roll-out
     last_ctx = x[-lags:]
@@ -479,9 +641,88 @@ def fit_sequence_model(
         model, last_context=last_ctx, steps=samples_to_predict, flip_input=(mtype == 'arnn')
     )
 
-    return model.state_dict(), preds_future, val_loss
+    return model.state_dict(), preds_future
 
 
+
+
+# ===== Orchestrator =====
+# def process_audio_files(
+#     audio_files: list,
+#     base_path: Union[str, Path],
+#     model_type: str = 'arnn',
+#     max_lags: int = 10,
+#     samples_to_predict: int = 100,
+#     target_sr: Optional[int] = None,
+#     mono_mode: str = "first",
+#     max_duration_s: Optional[float] = None,
+#     verbose: bool = True,
+#     nn_params: Dict[str, Any] = {},
+#     nn_epochs: int = 5,
+#     nn_batch_size: int = 8192,
+#     nn_lr: float = 1e-2,
+#     nn_weight_decay: float = 0.0,
+#     nn_grad_clip: float = 1.0,
+#     do_prewhitening_check: bool = True,
+# ) -> Dict[str, Any]:
+#     """Processes audio files using a configurable sequence model ('arnn' or 'tcn')."""
+#     base_path = Path(base_path)
+#     results: Dict[str, Any] = {}
+
+#     if verbose:
+#         print(f"\nProcessing {len(audio_files)} audio files with model_type='{model_type}'...")
+
+#     for i, file_name in enumerate(audio_files, 1):
+#         file_path = base_path / file_name
+#         if verbose:
+#             print(f"\n[{i}/{len(audio_files)}] {file_name}")
+
+#         if not file_path.is_file():
+#             if verbose: print(f"↪️  Skipping missing file: {file_path}")
+#             results[file_name] = {"success": False, "error": f"File not found: {file_path}"}
+#             continue
+
+#         t0 = time.perf_counter()
+#         try:
+#             waveform, sr = read_wav(file_path, target_sr=target_sr, max_duration_s=max_duration_s, mono_mode=mono_mode)
+#             item: Dict[str, Any] = {"success": True, "sample_rate": sr, "duration": waveform.shape[1] / sr}
+            
+#             if do_prewhitening_check:
+#                 item["prewhitening"] = prewhitening_check(waveform[0], sr, verbose=verbose)
+
+#             nn_state, nn_preds = fit_sequence_model(
+#                 waveform, model_type=model_type, lags=max_lags,
+#                 samples_to_predict=samples_to_predict, nn_params=nn_params,
+#                 epochs=nn_epochs, batch_size=nn_batch_size, lr=nn_lr,
+#                 weight_decay=nn_weight_decay, grad_clip=nn_grad_clip, verbose=verbose
+#             )
+
+#             if nn_state is not None:
+#                 flat_params = np.concatenate([v.detach().cpu().numpy().ravel() for v in nn_state.values()])
+#                 item["nn_model"] = {
+#                     "model_type": model_type,
+#                     "lags": max_lags,
+#                     "predictions": nn_preds,
+#                     "hyperparams": nn_params,
+#                     "flat_params": flat_params,
+#                 }
+#             else:
+#                 item["success"] = False
+#                 item["error"] = f"{model_type.upper()} training failed"
+
+#             item["time_sec"] = time.perf_counter() - t0
+#             results[file_name] = item
+#             if verbose: print(f"✓ Done: {file_name} | time={item['time_sec']:.2f}s")
+
+#         except Exception as e:
+#             results[file_name] = {"success": False, "error": str(e), "time_sec": time.perf_counter() - t0}
+#             if verbose: print(f"✗ Failed: {file_name}: {e}")
+#         finally:
+#             gc.collect()
+
+#     successful = sum(1 for r in results.values() if r.get("success", False))
+#     if verbose: print(f"\n📊 Summary: {successful}/{len(audio_files)} files processed successfully.")
+#     return results
 def process_audio_files(
     audio_files: list,
     base_path: Union[str, Path],
@@ -524,16 +765,15 @@ def process_audio_files(
         try:
             waveform, sr = read_wav(file_path, target_sr=target_sr, max_duration_s=max_duration_s, mono_mode=mono_mode)
             item: Dict[str, Any] = {"success": True, "sample_rate": sr, "duration": waveform.shape[1] / sr}
-
+            
             if do_prewhitening_check:
                 item["prewhitening"] = prewhitening_check(waveform[0], sr, verbose=verbose)
 
-            nn_state, nn_preds, _ = fit_sequence_model(
+            nn_state, nn_preds = fit_sequence_model(
                 waveform, model_type=model_type, lags=max_lags,
                 samples_to_predict=samples_to_predict, nn_params=nn_params,
                 epochs=nn_epochs, batch_size=nn_batch_size, lr=nn_lr,
-                weight_decay=nn_weight_decay, grad_clip=nn_grad_clip, verbose=verbose,
-                validation_split=0.0 # No validation split during final processing
+                weight_decay=nn_weight_decay, grad_clip=nn_grad_clip, verbose=verbose
             )
 
             if nn_state is not None:
@@ -563,51 +803,6 @@ def process_audio_files(
     if verbose: print(f"\n📊 Summary: {successful}/{len(audio_files)} files processed successfully.")
     return results
 
-# ===== HPO Objective Function =====
-def create_hpo_objective(waveform: torch.Tensor, model_type: str, lags: int, epochs: int, search_space: List) -> callable:
-    """
-    Creates the objective function for skopt to minimize.
-    This function takes a set of hyperparameters, trains a model, and returns the validation loss.
-    """
-    @use_named_args(search_space)
-    def objective(**params):
-        print(f"\n HPO Trial with params: {params}")
-        nn_params_trial = {
-            "hidden_size": params.get("hidden_size"),
-            "num_hidden_layers": params.get("num_hidden_layers"),
-            "activation_fn": params.get("activation_fn"),
-            "dropout_rate": params.get("dropout_rate"),
-            "channels": params.get("channels"),
-            "kernel_size": params.get("kernel_size")
-        }
-        
-        # Filter out None values for model-specific params
-        nn_params_trial = {k: v for k, v in nn_params_trial.items() if v is not None}
-
-        # Train the model with a validation split to get a score
-        _, _, val_loss = fit_sequence_model(
-            waveform=waveform,
-            model_type=model_type,
-            lags=lags,
-            samples_to_predict=1, # We don't need predictions here
-            nn_params=nn_params_trial,
-            epochs=epochs,
-            batch_size=params["batch_size"],
-            lr=params["lr"],
-            weight_decay=params["weight_decay"],
-            verbose=False, # Keep HPO loop clean
-            validation_split=0.20 # Use 20% of data for validation
-        )
-
-        # Handle cases where training might fail
-        if val_loss is None or not np.isfinite(val_loss):
-            return 9999.0 # Return a large number for failed runs
-        
-        print(f"  -> Validation Loss: {val_loss:.6f}")
-        gc.collect() # Clean up memory between trials
-        return val_loss
-        
-    return objective
 
 # ===== Post-processing =====
 def _rows_from_results(results: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -636,17 +831,17 @@ def save_ar_params_csv(results: Dict[str, Any], out_csv_path: Union[str, Path]) 
     if not rows:
         print("⚠️  No model parameters to save.")
         return 0
-
+    
     out_csv_path = Path(out_csv_path)
     out_csv_path.parent.mkdir(parents=True, exist_ok=True)
-
+    
     fieldnames = ["file_name", "model_type", "lags", "sample_rate", "duration_sec", "time_sec",
                   "hyperparams_json", "flat_params_json"]
     with out_csv_path.open("w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(rows)
-
+        
     print(f"📁 Saved model parameter trace to: {out_csv_path} ({len(rows)} rows)")
     return len(rows)
 # ===== PCA utilities (feature building, PCA via SVD, plotting) =====
@@ -656,9 +851,9 @@ def _feature_matrix_from_results(
     target_dim: Optional[int] = None  # si usas flat_params y quieres recortar/zero-pad
 ) -> Tuple[List[str], np.ndarray]:
     """
-    Build the feature matrix X (n_files x d) from 'results'.
-    By default, it uses 'predictions' (fixed length). If you use 'flat_params', you can
-    set target_dim to zero-pad/trim and thus standardize dimensions.
+    Construye la matriz de características X (n_files x d) a partir de 'results'.
+    Por defecto usa 'predictions' (longitud fija). Si usas 'flat_params', puedes
+    fijar target_dim para zero-pad/recortar y así uniformar dimensiones.
     """
     names, feats = [], []
     for fname, item in results.items():
@@ -683,17 +878,17 @@ def _feature_matrix_from_results(
         names.append(fname)
         feats.append(vec)
     if not feats:
-        raise RuntimeError("No features were built. Check 'results'.")
+        raise RuntimeError("No se construyó ninguna característica. Revisa 'results'.")
     X = np.vstack(feats)  # (n_files, d)
     return names, X
 
 
 def _pca_svd(X: np.ndarray, k: int = 2) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
-    PCA by SVD (centered). Returns (Z, comps, var_exp):
-      - Z: projection in k dimensions (n_files, k)
-      - comps: eigenvectors (k, d)
-      - var_exp: variance explained by component (k,)
+    PCA mediante SVD (centrado). Devuelve (Z, comps, var_exp):
+      - Z: proyección en k dimensiones (n_files, k)
+      - comps: vectores propios (k, d)
+      - var_exp: varianza explicada por componente (k,)
     """
     X = np.asarray(X, dtype=np.float64)
     mu = X.mean(axis=0, keepdims=True)
@@ -711,7 +906,7 @@ def _pca_svd(X: np.ndarray, k: int = 2) -> Tuple[np.ndarray, np.ndarray, np.ndar
 
 def save_pca_csv(names: List[str], Z: np.ndarray, var_exp: np.ndarray, out_csv: Union[str, Path]) -> None:
     """
-    Save a CSV with columns: file_name, pc1, pc2[, pc3], plus explained variance in header.
+    Guarda un CSV con columnas: file_name, pc1, pc2[, pc3], más varianza explicada en encabezado.
     """
     out_csv = Path(out_csv)
     out_csv.parent.mkdir(parents=True, exist_ok=True)
@@ -722,16 +917,16 @@ def save_pca_csv(names: List[str], Z: np.ndarray, var_exp: np.ndarray, out_csv: 
         writer.writeheader()
         for fname, row in zip(names, Z):
             writer.writerow({"file_name": fname, **{f"pc{i+1}": float(row[i]) for i in range(pcs)}})
-    print(f"📁 PCA saved in: {out_csv} | Var. explained: {', '.join([f'{v*100:.2f}% ' for v in var_exp])}")
+    print(f"📁 PCA guardado en: {out_csv} | Var. explicada: {', '.join([f'{v*100:.2f}% ' for v in var_exp])}")
 
 
 def plot_pca_scatter(names: List[str], Z: np.ndarray, var_exp: np.ndarray, out_png: Union[str, Path]) -> None:
     """
-    Draw and save a 2D/3D scatter of the PCA if Matplotlib is available.
-    Does not define explicit colors.
+    Dibuja y guarda un scatter 2D/3D de la PCA si Matplotlib está disponible.
+    No define colores explícitos.
     """
     if not MATPLOTLIB_AVAILABLE:
-        print("ℹ️ Matplotlib not available: the graph is omitted.")
+        print("ℹ️ Matplotlib no disponible: se omite el gráfico.")
         return
     import matplotlib.pyplot as plt
 
@@ -764,9 +959,9 @@ def plot_pca_scatter(names: List[str], Z: np.ndarray, var_exp: np.ndarray, out_p
         plt.tight_layout()
         fig.savefig(out_png, dpi=150)
         plt.close(fig)
-        print(f"🖼️ Scatter 3D PCA saved in: {out_png}")
+        print(f"🖼️ Scatter 3D PCA guardado en: {out_png}")
     else:
-        print("Z must have 2 or 3 columns to plot.")
+        print("Z debe tener 2 o 3 columnas para graficar.")
 
 # ===== Clustering utilities (KMeans on PCA coords) =====
 # ===== Clustering utilities (KMeans on PCA coords with centroids) =====
@@ -820,7 +1015,7 @@ def run_kmeans(
             writer.writerow(["file_name", "cluster"])
             for name, lab in zip(names, labels):
                 writer.writerow([name, int(lab)])
-        print(f"📁 Clusters saved in: {out_csv}")
+        print(f"📁 Clusters guardados en: {out_csv}")
 
     # --- Plot with centroids (if matplotlib available) ---
     if out_png and MATPLOTLIB_AVAILABLE:
@@ -828,26 +1023,26 @@ def run_kmeans(
         if Z.shape[1] == 2:
             plt.figure()
             plt.scatter(Z[:, 0], Z[:, 1], c=labels, cmap="tab10", alpha=0.7)
-            plt.scatter(centroids[:, 0], centroids[:, 1], marker="*", c="black", s=200, label="Centroids")
+            plt.scatter(centroids[:, 0], centroids[:, 1], marker="*", c="black", s=200, label="Centroides")
             for i, name in enumerate(names):
                 plt.annotate(name, (Z[i, 0], Z[i, 1]), fontsize=8)
             plt.xlabel("PC1"); plt.ylabel("PC2")
             plt.title(f"KMeans (k={k}), inertia={inertia:.2f}")
             plt.legend(); plt.tight_layout()
             plt.savefig(out_png, dpi=150); plt.close()
-            print(f"🖼️ Scatter clusters saved in: {out_png}")
+            print(f"🖼️ Scatter clusters guardado en: {out_png}")
         elif Z.shape[1] == 3:
             from mpl_toolkits.mplot3d import Axes3D  # noqa
             fig = plt.figure(); ax = fig.add_subplot(111, projection='3d')
             ax.scatter(Z[:, 0], Z[:, 1], Z[:, 2], c=labels, cmap="tab10", alpha=0.7)
-            ax.scatter(centroids[:, 0], centroids[:, 1], centroids[:, 2], marker="*", c="black", s=300, label="Centroids")
+            ax.scatter(centroids[:, 0], centroids[:, 1], centroids[:, 2], marker="*", c="black", s=300, label="Centroides")
             for i, name in enumerate(names):
                 ax.text(Z[i, 0], Z[i, 1], Z[i, 2], name, fontsize=8)
             ax.set_xlabel("PC1"); ax.set_ylabel("PC2"); ax.set_zlabel("PC3")
             ax.set_title(f"KMeans (k={k}), inertia={inertia:.2f}")
             ax.legend(); plt.tight_layout()
             fig.savefig(out_png, dpi=150); plt.close(fig)
-            print(f"🖼️ Scatter 3D clusters saved in: {out_png}")
+            print(f"🖼️ Scatter 3D clusters guardado en: {out_png}")
 
     return {"labels": labels, "inertia": inertia, "centroids": centroids}
 
@@ -855,159 +1050,113 @@ def run_kmeans(
 # ===== Main Execution Block =====
 if __name__ == "__main__":
     start_time = time.time()
-    base_path = Path("/home/javastral/GIT/GCPDS--trabajos-/Audios-AR/PresenceANEAudios")  # folder with .wav
-
-    # --- Choose model: 'tcn' or 'arnn' ---
-    model_to_run = 'arnn'
-
+    base_path = Path("CommRad_Dataset/COBRAMR-678")  # carpeta con .wav
+    
+    # --- Elegir modelo: 'tcn' o 'arnn' ---
+    model_to_run = 'tcn'
+    
     if not base_path.exists():
         print(f"❌ Base path does not exist: {base_path}")
         print("Please create the directory and add some .wav files.")
     else:
-        audio_files = [p.name for p in base_path.glob("*.wav")]
-
+        # Toma hasta 5 audios para una corrida rápida (ajusta si deseas)
+        audio_files = [p.name for p in base_path.glob("*.wav")][:5]
+        
         if not audio_files:
             print(f"❌ No .wav files found in {base_path}")
         else:
-            # --- HPO Configuration ---
-            if not SKOPT_AVAILABLE:
-                raise ImportError("scikit-optimize is required for HPO. Please install it: pip install scikit-optimize")
-
-            print("--- 1. Starting Hyperparameter Optimization (HPO) ---")
-            # Use the first audio file as a representative sample for HPO
-            hpo_audio_file = base_path / audio_files[0]
-            print(f"Using '{audio_files[0]}' for HPO.")
-            hpo_waveform, _ = read_wav(hpo_audio_file, max_duration_s=10.0)
-
-            search_space = None
-            base_config = {}
-
+            # --- Configuración según modelo ---
             if model_to_run == 'tcn':
-                print("--- Configuring HPO for TCN Model ---")
-                base_config = {"model_type": 'tcn', "max_lags": 128, "nn_epochs": 10}
-                search_space = [
-                    Real(1e-5, 1e-2, "log-uniform", name='lr'),
-                    Real(1e-6, 1e-2, "log-uniform", name='weight_decay'),
-                    Integer(256, 4096, name='batch_size'),
-                    Real(0.0, 0.5, name='dropout_rate'),
-                    Integer(2, 4, name='kernel_size'),
-                    # Search space for channels is tricky. Using categorical strings.
-                    Categorical(['[16,16]', '[16,32]', '[32,32]', '[16,32,64]'], name='channels')
-                ]
-
+                print("--- Configuring TCN Model (light) ---")
+                nn_config = {
+                    "model_type": 'tcn',
+                    "max_lags": 128,   # baja a 64 si quieres aún más rápido
+                    "nn_params": {
+                        "channels": [16, 32],
+                        "kernel_size": 3,
+                        "dropout_rate": 0.1,
+                    },
+                    "nn_epochs": 5,
+                    "nn_batch_size": 512,
+                    "nn_lr": 1e-3
+                }
             elif model_to_run == 'arnn':
-                print("--- Configuring HPO for Deep ARNN Model ---")
-                base_config = {"model_type": 'arnn', "max_lags": 40, "nn_epochs": 15}
-                search_space = [
-                    Real(1e-5, 1e-2, "log-uniform", name='lr'),
-                    Real(1e-6, 1e-2, "log-uniform", name='weight_decay'),
-                    Integer(1024, 8192, name='batch_size'),
-                    Integer(32, 256, name='hidden_size'),
-                    Integer(1, 4, name='num_hidden_layers'),
-                    Real(0.0, 0.5, name='dropout_rate'),
-                    Categorical(['relu', 'gelu', 'silu'], name='activation_fn')
-                ]
+                print("--- Configuring Deep ARNN Model ---")
+                nn_config = {
+                    "model_type": 'arnn',
+                    "max_lags": 40,
+                    "nn_params": {
+                        "hidden_size": 128,
+                        "num_hidden_layers": 3,
+                        "activation_fn": 'gelu',
+                        "dropout_rate": 0.15,
+                    },
+                    "nn_epochs": 10,
+                    "nn_batch_size": 4096,
+                    "nn_lr": 1e-3
+                }
             else:
-                raise ValueError("model_to_run must be 'tcn' or 'arnn'")
-
-            # Create the objective function for this specific audio file and config
-            objective_fn = create_hpo_objective(
-                waveform=hpo_waveform,
-                model_type=base_config["model_type"],
-                lags=base_config["max_lags"],
-                epochs=base_config["nn_epochs"],
-                search_space=search_space
-            )
-
-            # Run Bayesian Optimization
-            n_hpo_calls = 30 # Number of HPO trials to run
-            hpo_result = gp_minimize(
-                func=objective_fn,
-                dimensions=search_space,
-                n_calls=n_hpo_calls,
-                random_state=42,
-                n_initial_points=10
-            )
-
-            print("\n--- HPO Finished ---")
-            print(f"Best validation loss: {hpo_result.fun:.6f}")
-            best_params = {dim.name: val for dim, val in zip(search_space, hpo_result.x)}
-            print("Best parameters found:")
-            print(json.dumps(best_params, indent=2))
-
-            # --- 2. Build Final Configuration from HPO Results ---
-            print("\n--- 2. Configuring Final Model with Best Hyperparameters ---")
-            final_nn_config = {
-                "model_type": base_config["model_type"],
-                "max_lags": base_config["max_lags"],
-                "nn_params": {
-                    # ARNN params
-                    "hidden_size": best_params.get("hidden_size"),
-                    "num_hidden_layers": best_params.get("num_hidden_layers"),
-                    "activation_fn": best_params.get("activation_fn"),
-                    # TCN params
-                    "channels": best_params.get("channels"),
-                    "kernel_size": best_params.get("kernel_size"),
-                    # Common params
-                    "dropout_rate": best_params.get("dropout_rate"),
-                },
-                "nn_epochs": base_config["nn_epochs"],
-                "nn_batch_size": best_params["batch_size"],
-                "nn_lr": best_params["lr"],
-                "nn_weight_decay": best_params["weight_decay"],
-            }
-            # Clean up None values from the params dict
-            final_nn_config["nn_params"] = {k: v for k, v in final_nn_config["nn_params"].items() if v is not None}
+                raise ValueError("model_to_run debe ser 'tcn' o 'arnn'")
             
-            # --- 3. Execute main pipeline with optimized config ---
-            print("\n--- 3. Processing All Audio Files with Optimized Configuration ---")
+            # --- Ejecutar pipeline principal ---
             results = process_audio_files(
                 audio_files,
                 base_path=base_path,
-                max_duration_s=10.0,   # trim to 10s per file
-                **final_nn_config
+                max_duration_s=10.0,   # recorta a 10s por archivo
+                **nn_config
             )
 
-            # --- 4. Post-processing (PCA, Clustering, etc.) ---
-            print("\n--- 4. Running Post-processing ---")
+            # --- Directorio de salida ---
             out_dir = base_path / "model_outputs"
             out_dir.mkdir(parents=True, exist_ok=True)
 
+            # --- Guardar traza de parámetros del modelo ---
             params_csv = out_dir / f"{model_to_run}_params_trace.csv"
             save_ar_params_csv(results, params_csv)
+            
 
+            # --- PCA usando predicciones como embedding ---
             try:
+                # Construir matriz de características (n_archivos x samples_to_predict)
                 names, X = _feature_matrix_from_results(results, feature="predictions")
 
                 # PCA 2D
                 Z2, comps2, var_exp2 = _pca_svd(X, k=2)
-                save_pca_csv(names, Z2, var_exp2, out_dir / f"{model_to_run}_pca_predictions_2d.csv")
+                pca_csv2 = out_dir / f"{model_to_run}_pca_predictions_2d.csv"
+                save_pca_csv(names, Z2, var_exp2, pca_csv2)
                 plot_pca_scatter(names, Z2, var_exp2, out_dir / f"{model_to_run}_pca_predictions_2d.png")
 
-                # PCA 3D
+                # PCA 3D (opcional)
                 Z3, comps3, var_exp3 = _pca_svd(X, k=3)
-                save_pca_csv(names, Z3, var_exp3, out_dir / f"{model_to_run}_pca_predictions_3d.csv")
+                pca_csv3 = out_dir / f"{model_to_run}_pca_predictions_3d.csv"
+                save_pca_csv(names, Z3, var_exp3, pca_csv3)
                 plot_pca_scatter(names, Z3, var_exp3, out_dir / f"{model_to_run}_pca_predictions_3d.png")
 
-                # KMeans clustering
+                # --- Clustering KMeans sobre la proyección 2D (k seguro) ---
                 try:
-                    if Z2.shape[0] >= 2:
-                         max_k = min(4, Z2.shape[0], np.unique(Z2, axis=0).shape[0])
-                         if max_k >= 2:
-                             for k in range(2, max_k + 1):
-                                 run_kmeans(Z2, names, n_clusters=k,
-                                            out_csv=out_dir / f"{model_to_run}_clusters_k{k}.csv",
-                                            out_png=out_dir / f"{model_to_run}_clusters_k{k}.png")
-                         else:
-                            print("⚠️ Less than 2 distinct points for clustering.")
+                    n_samples = Z2.shape[0]
+                    if n_samples < 2:
+                        print("⚠️ No hay suficientes muestras para clustering (se requieren ≥ 2).")
                     else:
-                        print("⚠️ Not enough samples for clustering (requires ≥ 2).")
-
+                        # límite superior por muestras y por puntos distintos
+                        n_distinct = np.unique(Z2, axis=0).shape[0]
+                        if n_distinct < 2:
+                            print("⚠️ Menos de 2 puntos distintos en Z2: no es posible clusterizar.")
+                        else:
+                            max_k = min(4, n_samples, n_distinct)
+                            for k in range(2, max_k + 1):
+                                out_csv_k = out_dir / f"{model_to_run}_clusters_k{k}.csv"
+                                out_png_k = out_dir / f"{model_to_run}_clusters_k{k}.png"
+                                if not SKLEARN_AVAILABLE:
+                                    raise RuntimeError("scikit-learn not available; install scikit-learn to run KMeans.")
+                                run_kmeans(Z2, names, n_clusters=k, out_csv=out_csv_k, out_png=out_png_k)
                 except Exception as e:
-                    print(f"⚠️ Clustering failed: {e}")
+                    print(f"⚠️ Clustering falló: {e}")
+
 
             except Exception as e:
-                print(f"⚠️ PCA or Clustering failed: {e}")
+                print(f"⚠️ PCA falló: {e}")
 
     elapsed_time = time.time() - start_time
     print(f"\n⏳ Total execution time: {elapsed_time:.2f} seconds")
+
