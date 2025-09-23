@@ -1,0 +1,7 @@
+/home/javastral/GIT/GCPDS--trabajos-/ANE2/my-fastapi-app/build/CMakeFiles/ANE2-rpi-fog.dir
+/home/javastral/GIT/GCPDS--trabajos-/ANE2/my-fastapi-app/build/CMakeFiles/edit_cache.dir
+/home/javastral/GIT/GCPDS--trabajos-/ANE2/my-fastapi-app/build/CMakeFiles/rebuild_cache.dir
+/home/javastral/GIT/GCPDS--trabajos-/ANE2/my-fastapi-app/build/CMakeFiles/list_install_components.dir
+/home/javastral/GIT/GCPDS--trabajos-/ANE2/my-fastapi-app/build/CMakeFiles/install.dir
+/home/javastral/GIT/GCPDS--trabajos-/ANE2/my-fastapi-app/build/CMakeFiles/install/local.dir
+/home/javastral/GIT/GCPDS--trabajos-/ANE2/my-fastapi-app/build/CMakeFiles/install/strip.dir
