@@ -10,7 +10,10 @@
 
 import time
 import os
-from libs import ProcessingMonitor
+from libs import (
+    ProcessingMonitor,
+    socket_handler as soc
+)
 
 # --- Constants ---
 
@@ -29,6 +32,8 @@ def print(*args, **kwargs):
     __builtins__.print("[Backend]", *args, **kwargs)
 
 if __name__ == "__main__":
+    server_socket = None
+    soc.clean_socket(SOCKET_PATH)
     
     # Initialize the monitor with the paths to the executable and the socket.
     monitor = ProcessingMonitor(

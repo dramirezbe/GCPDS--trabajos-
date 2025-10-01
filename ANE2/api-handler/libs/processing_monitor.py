@@ -9,6 +9,7 @@ import os
 import subprocess
 import atexit
 import threading
+from .socket_handler import clean_socket
 
 class ProcessingMonitor:
     """!
@@ -166,11 +167,6 @@ class ProcessingMonitor:
             self.process.wait()
             self._log("C process terminated.")
         
-        if self.socket_path and os.path.exists(self.socket_path):
-            try:
-                os.unlink(self.socket_path)
-                self._log(f"Socket {self.socket_path} deleted.")
-            except OSError as e:
-                self._log(f"Error deleting the socket: {e}")
+        clean_socket(self.socket_path)
         
         self._log("Cleanup complete.")
