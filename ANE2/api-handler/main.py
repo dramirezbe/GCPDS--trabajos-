@@ -1,54 +1,46 @@
-import schedule
+import socket
 import time
 import json
-from Modules import status_rpi
+import os
 
-def check_system_status():
-    """
-    This is the job function that schedule will run.
-    It calls the module to get the status and then prints it.
-    """
-    print("Checking system status...")
-    
-    # Get the JSON string from our module.
-    status_json = status_rpi.get_rpi_status()
-    
-    if status_json:
-        try:
-            # You can optionally parse the JSON into a Python dictionary
-            # to work with the data more easily.
-            status_data = json.loads(status_json)
-            print("Successfully retrieved status:")
-            print(f"  - CPU Temp: {status_data.get('cpu_temp')}°C")
-            print(f"  - RAM Used: {status_data.get('ram_used')}%")
-            print(f"  - Disk Free: {status_data.get('disk_free')}")
-            print("-" * 20)
-        except json.JSONDecodeError:
-            print("Error: Received invalid JSON from C library.")
-            print(f"Raw string: {status_json}")
-    else:
-        print("Failed to retrieve system status.")
+SOCKET_PATH = "/tmp/test_socket"
 
-# --- Scheduling the Task ---
-print("Starting status monitoring application.")
-
-# Schedule the 'check_system_status' job to run every 5 minutes.
-# You have many options, like .seconds, .minutes, .hours, .days, etc.
-schedule.every(5).minutes.do(check_system_status)
-
-# For testing, you might want to run it more frequently:
-# schedule.every(10).seconds.do(check_system_status)
-
-# --- Main Loop ---
-# This loop runs forever, checking if a scheduled task is due to run.
+# Borrar socket previo si existe
 try:
-    # Run the job once immediately at the start.
-    check_system_status()
-    
-    while True:
-        # This function checks if any jobs are pending and runs them.
-        schedule.run_pending()
-        # Sleep for a short duration to prevent the CPU from running at 100%.
-        time.sleep(1)
-except KeyboardInterrupt:
-    print("\nProgram stopped by user.")
+    os.unlink(SOCKET_PATH)
+except FileNotFoundError:
+    pass
+
+# Crear socket servidor
+server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+server.bind(SOCKET_PATH)
+server.listen(1)
+
+print("Servidor Python esperando conexión...")
+conn, _ = server.accept()
+print("Cliente C conectado.")
+
+while True:
+    # Crear un JSON simple
+    payload = {"command": "get_status", "timestamp": time.time()}
+    json_str = json.dumps(payload)
+
+    # Enviar al cliente
+    conn.sendall(json_str.encode() + b"\n")
+    print(">> Enviado a C:", json_str)
+
+    # Recibir respuesta del cliente
+    data = conn.recv(1024).decode().strip()
+    if not data:
+        break
+
+    try:
+        response = json.loads(data)
+        print("<< Respuesta de C:", response)
+    except json.JSONDecodeError:
+        print("Error: no es JSON válido:", data)
+
+    time.sleep(10)
+
+conn.close()
+server.close()

@@ -1,0 +1,3 @@
+/home/javastral/GIT/GCPDS--trabajos-/ANE2/api-handler/Processing/build/CMakeFiles/myapp.dir
+/home/javastral/GIT/GCPDS--trabajos-/ANE2/api-handler/Processing/build/CMakeFiles/edit_cache.dir
+/home/javastral/GIT/GCPDS--trabajos-/ANE2/api-handler/Processing/build/CMakeFiles/rebuild_cache.dir
