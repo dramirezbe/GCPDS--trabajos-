@@ -1,46 +1,53 @@
-import socket
+"""!
+@file main.py
+@brief Main entry point for the backend application.
+@details As the primary launcher, this script initializes and starts the ProcessingMonitor
+         to manage a C-based signal processing module via Unix sockets (IPC).
+         This module forms the core of a backend system designed to consume and
+         process requests from an external REST API.
+@author GCPDS
+"""
+
 import time
-import json
 import os
+from libs import ProcessingMonitor
 
-SOCKET_PATH = "/tmp/test_socket"
+# --- Constants ---
 
-# Borrar socket previo si existe
-try:
-    os.unlink(SOCKET_PATH)
-except FileNotFoundError:
-    pass
+# Defines the absolute path to the C processing module executable.
+PROCESSING_PATH = os.path.join(os.getcwd(), "Processing", "build", "processing_module")
 
-# Crear socket servidor
-server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-server.bind(SOCKET_PATH)
-server.listen(1)
+# Defines the path for the Unix domain socket used for Inter-Process Communication (IPC).
+SOCKET_PATH = "/tmp/exchange_processing"
 
-print("Servidor Python esperando conexión...")
-conn, _ = server.accept()
-print("Cliente C conectado.")
+def print(*args, **kwargs):
+    """!
+    @brief Overrides the built-in print function for this script's scope.
+    @details This override automatically prepends the '[Backend]' decorator to all
+             messages printed from this script, ensuring a consistent log format.
+    """
+    __builtins__.print("[Backend]", *args, **kwargs)
 
-while True:
-    # Crear un JSON simple
-    payload = {"command": "get_status", "timestamp": time.time()}
-    json_str = json.dumps(payload)
+if __name__ == "__main__":
+    
+    # Initialize the monitor with the paths to the executable and the socket.
+    monitor = ProcessingMonitor(
+        executable_path=PROCESSING_PATH,
+        socket_path=SOCKET_PATH
+    )
+    monitor.start()
 
-    # Enviar al cliente
-    conn.sendall(json_str.encode() + b"\n")
-    print(">> Enviado a C:", json_str)
 
-    # Recibir respuesta del cliente
-    data = conn.recv(1024).decode().strip()
-    if not data:
-        break
-
+    #---------------Here the socket------------------
     try:
-        response = json.loads(data)
-        print("<< Respuesta de C:", response)
-    except json.JSONDecodeError:
-        print("Error: no es JSON válido:", data)
+        while True:
+            time.sleep(1)
+            print("Alive")
 
-    time.sleep(10)
-
-conn.close()
-server.close()
+    except KeyboardInterrupt:
+        # This block catches the Ctrl+C signal for a graceful shutdown.
+        print("\n[MainApp] Keyboard interrupt detected. Exiting cleanly...")
+    except Exception as e:
+        print(f"[MainApp] An unexpected error occurred in the main loop: {e}")
+    finally:
+        monitor.stop()

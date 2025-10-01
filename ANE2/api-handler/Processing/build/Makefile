@@ -117,24 +117,24 @@ depend:
 .PHONY : depend
 
 #=============================================================================
-# Target rules for targets named myapp
+# Target rules for targets named processing_module
 
 # Build rule for target.
-myapp: cmake_check_build_system
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 myapp
-.PHONY : myapp
+processing_module: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 processing_module
+.PHONY : processing_module
 
 # fast build rule for target.
-myapp/fast:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/myapp.dir/build.make CMakeFiles/myapp.dir/build
-.PHONY : myapp/fast
+processing_module/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/processing_module.dir/build.make CMakeFiles/processing_module.dir/build
+.PHONY : processing_module/fast
 
 main.o: main.c.o
 .PHONY : main.o
 
 # target to build an object file
 main.c.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/myapp.dir/build.make CMakeFiles/myapp.dir/main.c.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/processing_module.dir/build.make CMakeFiles/processing_module.dir/main.c.o
 .PHONY : main.c.o
 
 main.i: main.c.i
@@ -142,7 +142,7 @@ main.i: main.c.i
 
 # target to preprocess a source file
 main.c.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/myapp.dir/build.make CMakeFiles/myapp.dir/main.c.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/processing_module.dir/build.make CMakeFiles/processing_module.dir/main.c.i
 .PHONY : main.c.i
 
 main.s: main.c.s
@@ -150,7 +150,7 @@ main.s: main.c.s
 
 # target to generate assembly for a file
 main.c.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/myapp.dir/build.make CMakeFiles/myapp.dir/main.c.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/processing_module.dir/build.make CMakeFiles/processing_module.dir/main.c.s
 .PHONY : main.c.s
 
 utils/cJSON.o: utils/cJSON.c.o
@@ -158,7 +158,7 @@ utils/cJSON.o: utils/cJSON.c.o
 
 # target to build an object file
 utils/cJSON.c.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/myapp.dir/build.make CMakeFiles/myapp.dir/utils/cJSON.c.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/processing_module.dir/build.make CMakeFiles/processing_module.dir/utils/cJSON.c.o
 .PHONY : utils/cJSON.c.o
 
 utils/cJSON.i: utils/cJSON.c.i
@@ -166,7 +166,7 @@ utils/cJSON.i: utils/cJSON.c.i
 
 # target to preprocess a source file
 utils/cJSON.c.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/myapp.dir/build.make CMakeFiles/myapp.dir/utils/cJSON.c.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/processing_module.dir/build.make CMakeFiles/processing_module.dir/utils/cJSON.c.i
 .PHONY : utils/cJSON.c.i
 
 utils/cJSON.s: utils/cJSON.c.s
@@ -174,7 +174,7 @@ utils/cJSON.s: utils/cJSON.c.s
 
 # target to generate assembly for a file
 utils/cJSON.c.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/myapp.dir/build.make CMakeFiles/myapp.dir/utils/cJSON.c.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/processing_module.dir/build.make CMakeFiles/processing_module.dir/utils/cJSON.c.s
 .PHONY : utils/cJSON.c.s
 
 # Help Target
@@ -185,7 +185,7 @@ help:
 	@echo "... depend"
 	@echo "... edit_cache"
 	@echo "... rebuild_cache"
-	@echo "... myapp"
+	@echo "... processing_module"
 	@echo "... main.o"
 	@echo "... main.i"
 	@echo "... main.s"

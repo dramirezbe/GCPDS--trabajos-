@@ -1,1 +1,0 @@
-/usr/bin/cc CMakeFiles/myapp.dir/main.c.o CMakeFiles/myapp.dir/utils/cJSON.c.o -o myapp 
