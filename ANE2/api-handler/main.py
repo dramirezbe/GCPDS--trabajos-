@@ -60,6 +60,19 @@ def parse_response(response):
             if audio_data is not None:
                 logger.info(f"Received demodulated audio data of length: {len(audio_data)}")
                 return {"audio_data": audio_data}
+        case "system_status": # Percentage in interval [0, 100]
+            cpu = response_data.get("cpu") #Array for core usage
+            disk = response_data.get("disk")
+            ram = response_data.get("ram")
+            swap = response_data.get("swap")
+            temperature = response_data.get("temperature")
+            if cpu is not None and disk is not None and ram is not None and swap is not None and temperature is not None:
+                logger.info("Received system status data.")
+                return {"cpu": cpu, "disk": disk, "ram": ram, "swap": swap, "temperature": temperature}
+            else:
+                logger.error("Incomplete data received for 'system_status' service.")
+                return None
+
         case _:
             logger.warning(f"Unknown service in response: {response_data}")
             return None
@@ -100,7 +113,7 @@ if __name__ == "__main__":
 
 
                 # 1. Define and send the job to the client
-                send_json_dict({"service": SERVICE_DUMMY, "timeService": TIME_SERVICE_DUMMY}, connection)
+                send_json_dict({"service": SERVICE_DUMMY, "fi": 88e6, "ff": 108e6, "rbw":4096, "time_task": TIME_SERVICE_DUMMY}, connection)
 
                 # 2. Wait for and receive the response from the client
                 response = connection.recv(4096)
