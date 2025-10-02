@@ -1,14 +1,11 @@
-"""
+"""!
 @file socket_handler.py
 @brief Utility functions for creating and cleaning up UNIX domain sockets.
 """
 
 import socket
 import os
-
-def print(*args, **kwargs):
-    """Overrides the built-in print for consistent log formatting."""
-    __builtins__.print("[SocketHandler]", *args, **kwargs)
+from .logger_config import backend_logger as logger
 
 def clean_socket(socket_path):
     """
@@ -18,9 +15,9 @@ def clean_socket(socket_path):
     if os.path.exists(socket_path):
         try:
             os.remove(socket_path)
-            print(f"Removed stale socket file: {socket_path}")
+            logger.info(f"Removed stale socket file: {socket_path}")
         except OSError as e:
-            print(f"Error removing socket file {socket_path}: {e}")
+            logger.error(f"Error removing socket file {socket_path}: {e}")
 
 def create_socket(socket_path):
     """
@@ -31,15 +28,13 @@ def create_socket(socket_path):
     @raises Exception if socket creation or binding fails.
     """
     try:
-        # Create the Unix domain socket
         server_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         
-        # Bind the socket to the path
-        print(f"Binding socket to {socket_path}...")
+        logger.info(f"Binding socket to {socket_path}...")
         server_socket.bind(socket_path)
-        print("Socket bound successfully.")
+        logger.info("Socket bound successfully.")
         return server_socket
     except Exception as e:
-        print(f"Failed to create or bind socket at {socket_path}: {e}")
+        logger.error(f"Failed to create or bind socket at {socket_path}: {e}")
         # Re-raise the exception to be handled by the main application
         raise

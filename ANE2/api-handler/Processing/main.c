@@ -1,236 +1,188 @@
-/**
- * @file main.c
- * @brief Módulo de procesamiento de señales en C (Versión con envío de datos).
- * @details Este programa se conecta a un socket, espera una petición JSON,
- *          simula el procesamiento de la tarea (con prints) y envía un
- *          nuevo JSON con datos "dummy" como resultado.
- * @author GCPDS
- */
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 #include <sys/socket.h>
 #include <sys/un.h>
-#include "cJSON.h" 
+#include <unistd.h>
+#include "cJSON.h" // The cJSON header
 
-// La ruta para el socket Unix debe coincidir con el script del servidor Python.
-#define SOCKET_PATH "/tmp/exchange_processing"
-#define BUFFER_SIZE 1024
+// --- Constants ---
+#define SOCKET_PATH "/tmp/processing_unix_socket"
+#define BUFFER_SIZE 4096
 
-// --- Definiciones de Tipos ---
+// --- Function Prototypes ---
+int connect_to_socket(const char *socket_path);
+void process_job(int client_socket, const char *job_buffer);
+void handle_acquire_service(int client_socket);
+void handle_demodulate_service(int client_socket);
+void send_json_response(int client_socket, cJSON *response_json);
 
-typedef enum {
-    UNKNOWN_SERVICE = -1,
-    DEMODULATION,
-    ACQUIRING
-} ServiceType_t;
-
-typedef struct {
-    ServiceType_t service_type;
-    char time_task[50]; // si está vacío, la acción es instantánea
-} Petition_t;
-
-// --- Prototipos de Funciones ---
-
-int create_and_connect_socket(const char* socket_path);
-void close_connection(int server_fd);
-int exist_petition(int server_fd, char* buffer, size_t buffer_size);
-int parse_petition(const char* message, Petition_t* petition);
-void execute_service_simulation(const Petition_t* petition);
-int send_processed_data(int server_fd, const Petition_t* petition);
-
-// --- Aplicación Principal ---
+/**
+ * @brief Main entry point for the C client.
+ *
+ * Controls the main superloop, handling connection, job reception,
+ * and dispatching the job to the appropriate processing function.
+ */
 int main() {
-    Petition_t petition;
-    char buffer[BUFFER_SIZE];
+    // Disable stdout buffering to ensure printf calls are immediately visible,
+    // which is useful when the stdout is piped (like by the Python monitor).
+    setvbuf(stdout, NULL, _IONBF, 0);
 
-    // 1. Crear el socket y conectarse al servidor
-    int server_fd = create_and_connect_socket(SOCKET_PATH);
-    if (server_fd == -1) {
-        exit(EXIT_FAILURE);
-    }
-    printf("Conexión exitosa.\n");
 
-    // 2. Bucle de comunicación principal
+    sleep(2); // Give some time for the server to start
+    // The main "superloop" to ensure the client is always running.
     while (1) {
-        // Esperar y leer la petición del servidor
-        if (exist_petition(server_fd, buffer, sizeof(buffer)) <= 0) {
-            break; // Salir si no hay mensaje o la conexión se cierra
+        int client_socket = connect_to_socket(SOCKET_PATH);
+        if (client_socket < 0) {
+            sleep(2); // Wait before retrying connection
+            continue;
         }
 
-        // Analizar la petición
-        if (parse_petition(buffer, &petition) == 0) {
-            // Simular la ejecución del servicio con prints
-            execute_service_simulation(&petition);
-            
-            // Enviar los datos dummy procesados de vuelta al servidor
-            if (send_processed_data(server_fd, &petition) != 0) {
-                break; // Salir si hay un error al enviar
-            }
+        char buffer[BUFFER_SIZE];
+        ssize_t num_bytes = recv(client_socket, buffer, BUFFER_SIZE - 1, 0);
+
+        if (num_bytes > 0) {
+            buffer[num_bytes] = '\0'; // Null-terminate the received string
+            process_job(client_socket, buffer);
         } else {
-            fprintf(stderr, "La petición no pudo ser procesada debido a un error de formato.\n");
+            if (num_bytes == 0) {
+                printf("Server closed the connection.\n");
+            } else {
+                perror("recv error");
+            }
         }
-    }
 
-    // 3. Cerrar la conexión
-    close_connection(server_fd);
+        printf("Closing connection.\n\n");
+        close(client_socket);
+        sleep(1); // Brief pause before the loop repeats
+    }
 
     return 0;
 }
 
 /**
- * @brief Simula la ejecución de la acción con prints en la consola.
- * @param petition Puntero a la estructura de la petición con los datos.
+ * @brief Creates and connects a UNIX domain socket.
+ * @param socket_path The file path of the UNIX socket.
+ * @return The socket file descriptor on success, or -1 on failure.
  */
-void execute_service_simulation(const Petition_t* petition) {
-    int is_scheduled = (strlen(petition->time_task) > 0);
-
-    switch (petition->service_type) {
-        case DEMODULATION:
-            printf(">> SIMULACIÓN: Realizando DEMODULACIÓN.\n");
-            if (is_scheduled) printf("   -> Tarea programada para: %s\n", petition->time_task);
-            else printf("   -> Tarea de ejecución instantánea.\n");
-            break;
-        case ACQUIRING:
-            printf(">> SIMULACIÓN: Realizando ADQUISICIÓN Y PSD.\n");
-            if (is_scheduled) printf("   -> Tarea programada para: %s\n", petition->time_task);
-            else printf("   -> Tarea de ejecución instantánea.\n");
-            break;
-        default:
-            printf(">> SIMULACIÓN: Servicio desconocido. No se hace nada.\n");
-            break;
-    }
-}
-
-/**
- * @brief Crea y envía un JSON con datos dummy basados en el servicio solicitado.
- * @param server_fd El descriptor de archivo del socket.
- * @param petition La petición que determina qué tipo de datos generar.
- * @return 0 en caso de éxito, -1 en caso de error.
- */
-int send_processed_data(int server_fd, const Petition_t* petition) {
-    cJSON* root = cJSON_CreateObject();
-    if (root == NULL) {
-        fprintf(stderr, "No se pudo crear el objeto cJSON raíz.\n");
-        return -1;
-    }
-
-    cJSON_AddStringToObject(root, "source", "C_Client_Processed_Data");
-
-    switch (petition->service_type) {
-        case DEMODULATION: {
-            cJSON_AddStringToObject(root, "dataType", "audio_samples");
-            float dummy_samples[] = {0.15, -0.22, 0.51, 0.33, -0.10, -0.45};
-            cJSON* data_array = cJSON_CreateFloatArray(dummy_samples, 6);
-            cJSON_AddItemToObject(root, "data", data_array);
-            break;
-        }
-        case ACQUIRING: {
-            cJSON_AddStringToObject(root, "dataType", "psd_data");
-            float freqs[] = {100.0, 200.0, 300.0, 400.0};
-            float powers[] = {-85.5, -92.1, -110.7, -89.3};
-            
-            cJSON* data_obj = cJSON_CreateObject();
-            cJSON_AddItemToObject(data_obj, "frequencies_hz", cJSON_CreateFloatArray(freqs, 4));
-            cJSON_AddItemToObject(data_obj, "power_dbm", cJSON_CreateFloatArray(powers, 4));
-            cJSON_AddItemToObject(root, "data", data_obj);
-            break;
-        }
-        default:
-            cJSON_AddStringToObject(root, "status", "error");
-            cJSON_AddStringToObject(root, "details", "Servicio desconocido, no se generaron datos.");
-            break;
-    }
-
-    char* response_string = cJSON_PrintUnformatted(root);
-    cJSON_Delete(root);
-
-    if (response_string == NULL) {
-        fprintf(stderr, "No se pudo imprimir cJSON a cadena.\n");
-        return -1;
-    }
-
-    int result = 0;
-    if (write(server_fd, response_string, strlen(response_string)) < 0) {
-        perror("error de escritura al enviar datos procesados");
-        result = -1;
-    } else {
-        printf("Datos dummy enviados: %s\n", response_string);
-    }
-    
-    free(response_string);
-    return result;
-}
-
-
-// --- (Las siguientes funciones no han cambiado) ---
-
-int create_and_connect_socket(const char* socket_path) {
+int connect_to_socket(const char *socket_path) {
+    int sock_fd;
     struct sockaddr_un server_addr;
-    int client_fd;
-    if ((client_fd = socket(AF_UNIX, SOCK_STREAM, 0)) == -1) {
-        perror("error de socket");
+
+    if ((sock_fd = socket(AF_UNIX, SOCK_STREAM, 0)) == -1) {
+        perror("socket error");
         return -1;
     }
+
     memset(&server_addr, 0, sizeof(struct sockaddr_un));
     server_addr.sun_family = AF_UNIX;
     strncpy(server_addr.sun_path, socket_path, sizeof(server_addr.sun_path) - 1);
-    printf("Conectando al servidor Python en %s...\n", socket_path);
-    if (connect(client_fd, (struct sockaddr*)&server_addr, sizeof(struct sockaddr_un)) == -1) {
-        perror("error de conexión, asegúrate de que el servidor esté en ejecución");
-        close(client_fd);
+
+    printf("Attempting to connect to server at %s...\n", socket_path);
+    if (connect(sock_fd, (struct sockaddr *)&server_addr, sizeof(struct sockaddr_un)) == -1) {
+        perror("connect error");
+        close(sock_fd);
         return -1;
     }
-    return client_fd;
+
+    printf("Connected to server. Waiting for a job...\n");
+    return sock_fd;
 }
 
-int exist_petition(int server_fd, char* buffer, size_t buffer_size) {
-    printf("\nEsperando petición del servidor...\n");
-    memset(buffer, 0, buffer_size);
-    ssize_t bytes_read = read(server_fd, buffer, buffer_size - 1);
-    if (bytes_read < 0) {
-        perror("error de lectura");
-    } else if (bytes_read == 0) {
-        printf("El servidor cerró la conexión.\n");
-    }
-    return bytes_read;
-}
+/**
+ * @brief Parses the job string and calls the appropriate handler.
+ * @param client_socket The active client socket descriptor.
+ * @param job_buffer A null-terminated string containing the JSON job.
+ */
+void process_job(int client_socket, const char *job_buffer) {
+    printf("Received job: %s\n", job_buffer);
 
-int parse_petition(const char* message, Petition_t* petition) {
-    printf("Petición recibida: %s\n", message);
-    petition->service_type = UNKNOWN_SERVICE;
-    strcpy(petition->time_task, "");
-    cJSON* root = cJSON_Parse(message);
-    if (root == NULL) {
-        fprintf(stderr, "Error: No se pudo analizar el JSON recibido.\n");
-        return -1;
+    cJSON *incoming_json = cJSON_Parse(job_buffer);
+    if (incoming_json == NULL) {
+        fprintf(stderr, "Error: Could not parse incoming JSON.\n");
+        return;
     }
-    const cJSON* service_item = cJSON_GetObjectItem(root, "service");
+
+    cJSON *service_item = cJSON_GetObjectItemCaseSensitive(incoming_json, "service");
+    cJSON *time_item = cJSON_GetObjectItemCaseSensitive(incoming_json, "timeService");
+
     if (!cJSON_IsString(service_item) || (service_item->valuestring == NULL)) {
-        fprintf(stderr, "Error: El campo 'service' no existe o no es una cadena.\n");
-        cJSON_Delete(root);
-        return -1;
+        fprintf(stderr, "Error: JSON job is missing 'service' string field.\n");
+        cJSON_Delete(incoming_json);
+        return;
     }
-    if (strcmp(service_item->valuestring, "demodulation") == 0) {
-        petition->service_type = DEMODULATION;
-    } else if (strcmp(service_item->valuestring, "acquiring") == 0) {
-        petition->service_type = ACQUIRING;
+
+    const char *service_type = service_item->valuestring;
+    int delay_seconds = cJSON_IsNumber(time_item) ? time_item->valueint : 1;
+
+    printf("Job is '%s'. Simulating work for %d seconds...\n", service_type, delay_seconds);
+    sleep(delay_seconds);
+    printf("Work finished. Generating response data...\n");
+
+    // --- LOGIC SWITCH BASED ON SERVICE TYPE ---
+    if (strcmp(service_type, "acquire") == 0) {
+        handle_acquire_service(client_socket);
+    } else if (strcmp(service_type, "demodulate") == 0) {
+        handle_demodulate_service(client_socket);
     } else {
-        fprintf(stderr, "Error: Tipo de servicio desconocido: %s\n", service_item->valuestring);
-        cJSON_Delete(root);
-        return -1;
+        printf("Warning: Received unknown service type '%s'. No response will be sent.\n", service_type);
     }
-    const cJSON* time_item = cJSON_GetObjectItem(root, "time_task");
-    if (cJSON_IsString(time_item) && (time_item->valuestring != NULL)) {
-        strncpy(petition->time_task, time_item->valuestring, sizeof(petition->time_task) - 1);
-    }
-    cJSON_Delete(root);
-    return 0;
+
+    cJSON_Delete(incoming_json); // Clean up the parsed JSON object
 }
 
-void close_connection(int server_fd) {
-    printf("Cerrando conexión.\n");
-    close(server_fd);
+/**
+ * @brief Handles the "acquire" service: creates and sends dummy Pxx data.
+ * @param client_socket The active client socket descriptor.
+ */
+void handle_acquire_service(int client_socket) {
+    double pxx_data[] = {0.1, 0.5, 1.2, 2.5, 1.3, 0.4, 0.2, 3.1, 4.5, 2.1};
+
+    cJSON *response_json = cJSON_CreateObject();
+    if (response_json == NULL) return;
+
+    cJSON_AddStringToObject(response_json, "service", "acquire");
+    cJSON_AddItemToObject(response_json, "Pxx", cJSON_CreateDoubleArray(pxx_data, sizeof(pxx_data) / sizeof(double)));
+    cJSON_AddNumberToObject(response_json, "fmin", 100.5);
+    cJSON_AddNumberToObject(response_json, "fmax", 500.8);
+
+    send_json_response(client_socket, response_json);
+}
+
+/**
+ * @brief Handles the "demodulate" service: creates and sends dummy audio data.
+ * @param client_socket The active client socket descriptor.
+ */
+void handle_demodulate_service(int client_socket) {
+    int audio_dummy_data[] = {10, 25, -15, 40, 100, 120, 50, -30, -90, -110, -60};
+
+    cJSON *response_json = cJSON_CreateObject();
+    if (response_json == NULL) return;
+
+    cJSON_AddStringToObject(response_json, "service", "demodulate");
+    cJSON_AddItemToObject(response_json, "audio_data", cJSON_CreateIntArray(audio_dummy_data, sizeof(audio_dummy_data) / sizeof(int)));
+
+    send_json_response(client_socket, response_json);
+}
+
+/**
+ * @brief Converts a cJSON object to a string and sends it over the socket.
+ *
+ * This function handles the full lifecycle: print, send, and free memory.
+ * @param client_socket The active client socket descriptor.
+ * @param response_json The cJSON object to send. The function will delete this object.
+ */
+void send_json_response(int client_socket, cJSON *response_json) {
+    if (response_json == NULL) return;
+
+    char *response_string = cJSON_PrintUnformatted(response_json);
+    if (response_string == NULL) {
+        fprintf(stderr, "Failed to print JSON to string.\n");
+    } else {
+        printf("Sending response: %s\n", response_string);
+        send(client_socket, response_string, strlen(response_string), 0);
+        free(response_string); // Free the string allocated by cJSON
+    }
+
+    cJSON_Delete(response_json); // Free the cJSON object itself
 }
