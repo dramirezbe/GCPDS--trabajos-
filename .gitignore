@@ -1,62 +1,97 @@
-# ==========================
-#  Entorno virtual Python
-# ==========================
-**/kivy-venv/                 # venv personalizado
-**/venv/                      # otros entornos virtuales
-**/my-venv/
-**/anova-venv/
-**/__pycache__/               # caches de Python
-**/*.py[cod]                  # archivos compilados de Python
-**/*$py.class                 # más caches de Python
+# =================================
+#  Python
+# =================================
+# Entorno virtual y dependencias
+**/venv/
 
-# ==========================
-#  Kivy + Buildozer
-# ==========================
-**/.buildozer/                # directorio de Buildozer
-**/.buildozer.spec            # a veces se regenera
-**/*.apk                      # salidas de Android
-**/*.aab                      # Bundle Android
+# Caches y archivos compilados
+**/__pycache__/
+**/*.py[cod]
+**/*$py.class
 
-# ==========================
-#  Expo (managed + bare)
-# ==========================
-**/.expo/                     # directorio de Expo
-**/.expo-shared/              # metadatos compartidos
-**/dist/                      # salidas de EAS
-**/*.jks                      # claves de firma Android
-**/*.p12                      # certificados iOS
+# =================================
+#  Kivy & Buildozer
+# =================================
+# Directorio de trabajo y especificaciones
+**/.buildozer/
+.buildozer.spec
 
-# ==========================
-#  React Native puro
-# ==========================
-**/node_modules/              # dependencias npm/yarn
-**/android/                   # carpeta nativa Android
-**/ios/                       # carpeta nativa iOS
-**/*.keystore                 # claves de firma
-**/.gradle/                   # caches de Gradle
+# Salidas de compilación de Android
+**/*.apk
+**/*.aab
 
-# ==========================
-#  IDEs y editores
-# ==========================
-**/.vscode/                   # configuración VSCode
-**/.idea/                     # configuración IntelliJ/Android Studio
-**/*.iml                      # módulos IntelliJ
+# =================================
+#  Expo / React Native
+# =================================
+# Dependencias
+**/node_modules/
 
-# ==========================
-#  Logs y reportes
-# ==========================
-**/npm-debug.log*             # logs npm
-**/yarn-debug.log*            # logs yarn
-**/yarn-error.log*            # errores yarn
+# Directorios de Expo y Metro Bundler
+**/.expo/
+**/.expo-shared/
+.metro-health-check*
 
-# ==========================
-#  Archivos de sistema
-# ==========================
-**/.DS_Store                  # macOS
-**/Thumbs.db                  # Windows
+# Directorios de build y salida
+**/dist/
+**/web-build/
 
-# ==========================
-#  Misceláneos
-# ==========================
-**/*.swp                      # swap de Vim
+# Carpetas de proyectos nativos (si se generan)
+**/android/
+**/ios/
+**/.kotlin/
+**/.gradle/
+
+# Tipos y archivos generados
+**/expo-env.d.ts
+
+# Logs de depuración
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# =================================
+#  Claves de Firma y Certificados (¡NUNCA SUBIR!)
+# Aplicable a Kivy, Expo, y desarrollo nativo
+# =================================
+**/*.jks
+**/*.keystore
+**/*.p8
+**/*.p12
+**/*.key
+**/*.mobileprovision
+**/*.pem
+
+# =================================
+#  Configuración de IDEs y Editores
+# =================================
+# VSCode
+**/.vscode/
+
+# IntelliJ / Android Studio
+**/.idea/
+**/*.iml
+
+# Vim
+**/*.swp
 **/*.swo
+
+# =================================
+#  Archivos Generales y del Sistema Operativo
+# =================================
+# Variables de entorno
+.env
+.env.*
+!.env.example
+
+# Directorios de build genéricos
+**/build/
+
+# Archivos de sistema operativo
+**/.DS_Store
+**/Thumbs.db
+
+# Archivos de respaldo
+*.orig.*
+
+# TypeScript build cache
+**/*.tsbuildinfo
