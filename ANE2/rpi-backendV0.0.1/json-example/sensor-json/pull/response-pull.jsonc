@@ -1,0 +1,10 @@
+{
+  "device": "",
+  "sensor_state": {},
+  "gps": {
+    "lat": 5.0741,
+    "lng": -75.5169
+  },
+  //In ms time response - time request
+  "delta_t": 467054056
+}

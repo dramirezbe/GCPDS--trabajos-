@@ -1,0 +1,27 @@
+{
+    // Frecuencia inicial para operación inmediata (Hz).
+    "start_freq_hz": 88000000,
+
+    // Frecuencia final para operación inmediata (Hz).
+    "end_freq_hz": 108000000,
+
+    // Resolución espectral (Hz).
+    "resolution_hz": 10000,
+
+    // Puerto físico de antena activo durante la operación.
+    "antenna_port": 1,
+
+    // Bloque opcional de demodulación.
+    // Si no hay demodulación activa, este bloque se envía como `null`.
+    "demodulation": {
+      // Tipo de demodulación.
+      // 'AM' = Amplitud Modulada, 'FM' = Frecuencia Modulada.
+      "type": "FM",
+
+      // Ancho de banda del canal demodulado (Hz).
+      "bandwidth_hz": 12500,
+
+      // Frecuencia central del canal demodulado (Hz).
+      "center_freq_hz": 95500000
+    }
+}

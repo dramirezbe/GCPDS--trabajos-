@@ -1,0 +1,78 @@
+{
+  // Lista de campañas activas o programadas. 
+  // Puede estar vacía ([]) pero siempre se envía. Cada elemento representa una campaña independiente.
+  "campaigns": [
+    {
+      // Identificador único de la campaña (enlace con Campaign.id en base de datos).
+      "campaign_id": 123,
+
+      // Estado actual de la campaña:
+      // 'scheduled' = programada para inicio futuro
+      // 'active' = en ejecución
+      // 'finished' = completada exitosamente
+      // 'canceled' = detenida manualmente
+      // 'error' = finalizada por fallo
+      "status": "scheduled",
+
+      // Frecuencia inicial de análisis espectral (Hz).
+      "start_freq_hz": 88000000,
+
+      // Frecuencia final de análisis espectral (Hz).
+      "end_freq_hz": 108000000,
+
+      // Resolución espectral o RBW (Resolution Bandwidth) en Hz.
+      "resolution_hz": 10000,
+
+      // Factor de submuestreo IQ:
+      // 0 = sin captura IQ, >0 = decimación (1 de cada N muestras se guarda).
+      "iq": 0,
+
+      // Puerto físico de antena conectado.
+      "antenna_port": 1,
+
+      // Intervalo entre mediciones consecutivas, en segundos.
+      "acquisition_period_s": 30,
+
+      // Ventana de tiempo programada para la campaña.
+      "timeframe": {
+        // Timestamp Unix (ms) de inicio programado.
+        "start": 1758435092721,
+
+        // Timestamp Unix (ms) de finalización programada.
+        "end": 1758442292721
+      }
+    }
+
+    // ...pueden existir varias campañas o la lista puede ser vacía []
+  ],
+
+  // Configuración de medición inmediata (real-time).
+  // Si no hay operación en curso, este campo se envía como `null`.
+  "real_time": {
+    // Frecuencia inicial para operación inmediata (Hz).
+    "start_freq_hz": 88000000,
+
+    // Frecuencia final para operación inmediata (Hz).
+    "end_freq_hz": 108000000,
+
+    // Resolución espectral (Hz).
+    "resolution_hz": 10000,
+
+    // Puerto físico de antena activo durante la operación.
+    "antenna_port": 1,
+
+    // Bloque opcional de demodulación.
+    // Si no hay demodulación activa, este bloque se envía como `null`.
+    "demodulation": {
+      // Tipo de demodulación.
+      // 'AM' = Amplitud Modulada, 'FM' = Frecuencia Modulada.
+      "type": "FM",
+
+      // Ancho de banda del canal demodulado (Hz).
+      "bandwidth_hz": 12500,
+
+      // Frecuencia central del canal demodulado (Hz).
+      "center_freq_hz": 95500000
+    }
+  }
+}
