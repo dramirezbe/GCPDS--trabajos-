@@ -1,9 +1,7 @@
+//PUSH json
 {
-  // Datos de densidad espectral de potencia (PSD) codificados en texto.
-  // Contiene hasta 20,000 muestras. El formato puede ser Base64, JSON-stringified,
-  // o similar, dependiendo de la implementación. Representa la potencia medida por
-  // frecuencia en el espectro.
-  "psd": "BASE64_ENCODED_PSD_STRING",
+  //Array de datos float64
+  "Pxx": [0.54, 0.43, 1.56],
 
   // Marca de tiempo Unix (en milisegundos) del momento en que se realizó la adquisición.
   // Se recomienda sincronizar con un reloj NTP para coherencia temporal.

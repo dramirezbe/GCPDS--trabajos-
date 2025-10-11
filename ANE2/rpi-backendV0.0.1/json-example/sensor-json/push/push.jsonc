@@ -1,0 +1,11 @@
+// Push json
+{
+    //Array float64 de datos Densidad Espectral de Potencia en dBm/Hz
+    "Pxx": [-0.54, -0.43, -1.56],
+    //En hz
+    "start_freq_hz": 1000,
+    "end_freq_hz": 2000,
+    // Marca de tiempo Unix (en milisegundos) del momento en que se realizó la adquisición.
+    // Se recomienda sincronizar con un reloj NTP para coherencia temporal.
+    "timestamp": 1758435092721
+}

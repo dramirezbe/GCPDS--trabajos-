@@ -1,27 +1,24 @@
+// Request pull
 {
-    // Frecuencia inicial para operación inmediata (Hz).
-    "start_freq_hz": 88000000,
+  // MAc dispositivo
+  "device": "08-BD-DE-E4-F7-CD",
+  "metrics": {
+    //En porcentaje
 
-    // Frecuencia final para operación inmediata (Hz).
-    "end_freq_hz": 108000000,
-
-    // Resolución espectral (Hz).
-    "resolution_hz": 10000,
-
-    // Puerto físico de antena activo durante la operación.
-    "antenna_port": 1,
-
-    // Bloque opcional de demodulación.
-    // Si no hay demodulación activa, este bloque se envía como `null`.
-    "demodulation": {
-      // Tipo de demodulación.
-      // 'AM' = Amplitud Modulada, 'FM' = Frecuencia Modulada.
-      "type": "FM",
-
-      // Ancho de banda del canal demodulado (Hz).
-      "bandwidth_hz": 12500,
-
-      // Frecuencia central del canal demodulado (Hz).
-      "center_freq_hz": 95500000
-    }
+    //Porcentaje de uso por hilo
+    "cpu": [57, 10, 11, 23],
+    "ram": 70,
+    "swap": 10,
+    "disk": 90,
+    //Temperatura en grados celcius
+    "temp_c": 50
+  },
+  "gps": {
+    "lat": 5.0741,
+    "lng": -75.5169,
+    //Altitud en metros
+    "alt_m": 2500
+  },
+  //En ms tiempo_respuesta-tiempo_request (ultima vez)
+  "delta_t": 467054056
 }
