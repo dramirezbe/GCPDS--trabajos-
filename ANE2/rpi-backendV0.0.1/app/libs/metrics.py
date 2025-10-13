@@ -5,6 +5,8 @@
 
 import ctypes
 import sys
+import asyncio
+from typing import Optional, Tuple
 
 def init_metrics_lib(metrics_path):
     """
@@ -37,7 +39,7 @@ def get_metrics_system(metrics_lib):
     """
     c_ptr = metrics_lib.get_system_info()
     if not c_ptr:
-        return ""
+        return None
 
     try:
         raw_bytes = ctypes.string_at(c_ptr)  # reads until '\0'
@@ -51,6 +53,22 @@ def get_metrics_system(metrics_lib):
             print("Warning: failed to free C string pointer", file=sys.stderr)
 
     return py_string
+
+async def request_metrics(metrics_lib) -> Optional[dict]:
+    """Requests metrics from the already-loaded C library in a non-blocking way."""
+    def sync_get_metrics():
+        raw_metrics = get_metrics_system(metrics_lib)
+        if not raw_metrics:
+            print("Shared library error(metrics.so): null data returned", file=sys.stderr)
+            return None
+        try:
+            return metrics_to_json(raw_metrics)
+        except ValueError as e:
+            print(f"Failed parsing metrics from shared lib: {e}", file=sys.stderr)
+            return None
+
+    return await asyncio.to_thread(sync_get_metrics)
+
 
 def metrics_to_json(metrics_string):
     """

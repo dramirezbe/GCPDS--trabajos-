@@ -1,4 +1,4 @@
-//Response pull
+//Response alive post
 {
     // Frecuencia inicial para operación inmediata (Hz).
     "start_freq_hz": 88000000,
