@@ -1,11 +1,10 @@
 """!
-@file metrics.py
+@file libs/metrics.py
 @brief metrics shared library module
 """
 
 import ctypes
 import sys
-import json
 
 def init_metrics_lib(metrics_path):
     """
@@ -16,7 +15,7 @@ def init_metrics_lib(metrics_path):
     try:
         lib = ctypes.CDLL(metrics_path)
     except OSError as e:
-        print(f"Error loading shared library: {e}", file=sys.stderr)
+        print(f"Error loading shared library(metrics.so): {e}", file=sys.stderr)
         raise
 
     # Return raw pointer from get_system_info to avoid ctypes magic.

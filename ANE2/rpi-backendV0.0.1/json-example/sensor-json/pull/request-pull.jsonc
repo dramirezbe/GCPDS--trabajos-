@@ -17,7 +17,7 @@
     "lat": 5.0741,
     "lng": -75.5169,
     //Altitud en metros
-    "alt_m": 2500
+    "alt": 2500
   },
   //En ms tiempo_respuesta-tiempo_request (ultima vez)
   "delta_t": 467054056
