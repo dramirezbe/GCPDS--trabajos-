@@ -27,7 +27,10 @@ Windows configurations) ``add_signal_handler`` may raise ``NotImplementedError``
 from __future__ import annotations
 import asyncio
 import signal
-from typing import Callable, Coroutine
+import asyncio
+import subprocess
+import sys
+from typing import Callable, Coroutine, Any, Dict, List, Optional
 
 # type: worker_coro is a callable that receives an asyncio.Event and returns a coroutine
 WorkerCoroType = Callable[[asyncio.Event], Coroutine[None, None, None]]
@@ -165,3 +168,88 @@ async def run_until_stopped(worker_coro: WorkerCoroType) -> None:
             await worker
         except asyncio.CancelledError:
             pass
+
+def append_job_tail(jobs_tail: List[Dict[str, Any]], job: Optional[Dict[str, Any]], max_tail: int = 10) -> None:
+    """Append job payload to tail, keep bounded length."""
+    if not job:
+        return
+    jobs_tail.append(job)
+    if len(jobs_tail) > max_tail:
+        jobs_tail.pop(0)
+
+
+def fill_final_alive_json(metrics: Dict[str, Any], gps: Dict[str, float], delta_t_ms: int) -> Dict[str, Any]:
+    """Compose the alive JSON payload."""
+    return {
+        "device": metrics["device"],
+        "metrics": metrics["metrics"],
+        "gps": gps,
+        "delta_t": int(delta_t_ms),
+    }
+
+
+
+async def run_shell_command(command: list[str]) -> tuple[str, str, int]:
+    """
+    Runs a shell command in a separate thread to avoid blocking asyncio event loop.
+
+    Args:
+        command: A list of strings representing the command and its arguments.
+
+    Returns:
+        A tuple containing stdout, stderr, and the return code.
+    """
+    try:
+        # subprocess.run is a blocking I/O call, so we run it in a separate thread
+        # to prevent it from blocking the asyncio event loop.
+        process = await asyncio.to_thread(
+            subprocess.run,
+            command,
+            capture_output=True,
+            text=True,
+            check=False  # We will check the return code manually
+        )
+        return (process.stdout, process.stderr, process.returncode)
+    except FileNotFoundError:
+        # This error occurs if a command (like 'sudo' or 'timedatectl') isn't found.
+        return ("", f"Command not found: {command[0]}", 127)
+    except Exception as e:
+        return ("", f"An unexpected error occurred: {e}", 1)
+
+
+async def force_ntp_update_async():
+    """
+    Asynchronously forces a system time update by restarting the systemd-timesyncd service.
+    """
+    print("Forcing NTP time update asynchronously...")
+    
+    # --- Step 1: Restart the time synchronization service ---
+    restart_command = ['sudo', 'systemctl', 'restart', 'systemd-timesyncd']
+    print(f"Executing: {' '.join(restart_command)}")
+    
+    stdout, stderr, returncode = await run_shell_command(restart_command)
+
+    if returncode != 0:
+        print(f"Error restarting the time sync service. Return code: {returncode}", file=sys.stderr)
+        print(f"Stderr:\n{stderr}", file=sys.stderr)
+        return
+    
+    print("Time sync service restart command issued successfully.")
+
+    # --- Step 2: Wait for the synchronization to take effect ---
+    print("Waiting for 5 seconds for the sync to complete...")
+    await asyncio.sleep(5)  # Use asyncio.sleep for a non-blocking wait.
+
+    # --- Step 3: Check the status of the time synchronization ---
+    status_command = ['timedatectl', 'status']
+    print(f"\nVerifying synchronization status with: {' '.join(status_command)}")
+
+    stdout, stderr, returncode = await run_shell_command(status_command)
+
+    if returncode == 0:
+        print("--- Time and Date Status ---")
+        print(stdout)
+        print("--------------------------")
+    else:
+        print(f"Error checking timedatectl status. Return code: {returncode}", file=sys.stderr)
+        print(f"Stderr:\n{stderr}", file=sys.stderr)

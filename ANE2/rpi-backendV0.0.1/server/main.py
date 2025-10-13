@@ -88,11 +88,7 @@ async def post_alive(payload: AliveRequest):
         end_freq_hz=108_000_000,
         resolution_hz=10_000,
         antenna_port=1,
-        demodulation=DemodulationModel(
-            type="FM",
-            bandwidth_hz=12_500,
-            center_freq_hz=95_500_000
-        )
+        demodulation=None
     )
 
     return response

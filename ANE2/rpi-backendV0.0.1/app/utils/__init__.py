@@ -18,11 +18,14 @@ Exported symbols
 """
 
 from .timers import TimeHelper
-from .app_handler import setup_posix_signal_handlers, sleep_or_stop, run_until_stopped
+from .app_handler import setup_posix_signal_handlers, sleep_or_stop, run_until_stopped, append_job_tail, fill_final_alive_json, force_ntp_update_async
 
 __all__ = [
     "TimeHelper",
     "setup_posix_signal_handlers",
     "sleep_or_stop",
     "run_until_stopped",
+    "append_job_tail",
+    "fill_final_alive_json",
+    "force_ntp_update_async",
 ]
