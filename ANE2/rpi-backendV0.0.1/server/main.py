@@ -41,6 +41,12 @@ class AliveRequest(BaseModel):
     gps: GPSModel
     delta_t: NonNegInt = Field(..., description="Previous RTT in milliseconds (integer)")
 
+class PxxModel(BaseModel):
+    start_freq_hz: int
+    end_freq_hz: int
+    resolution_hz: int
+    pxx: List[float]
+
 # --- Pydantic models for response ---
 
 class DemodulationModel(BaseModel):

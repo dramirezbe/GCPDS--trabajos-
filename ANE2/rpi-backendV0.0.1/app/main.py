@@ -143,7 +143,7 @@ async def do_jobs(jobs_tail, acquire_lib, client: httpx.AsyncClient) -> JobState
         "end_freq_hz": end_freq_hz,
         "resolution_hz": resolution_hz,
         "antenna_port": antenna_port,
-        "timestamp_ns": timestamp
+        "timestamp": timestamp
     }
 
     try:
