@@ -1,0 +1,18 @@
+//PUSH json
+{
+  //Array de datos float64
+  "Pxx": [0.54, 0.43, 1.56],
+
+  // Marca de tiempo Unix (en milisegundos) del momento en que se realizó la adquisición.
+  // Se recomienda sincronizar con un reloj NTP para coherencia temporal.
+  "timestamp": 1758435092721,
+
+  // Coordenadas GPS del punto de medición (sistema WGS84).
+  "gps": {
+    // Latitud en grados decimales.
+    "lat": 5.0741,
+
+    // Longitud en grados decimales.
+    "lng": -75.5169
+  }
+}

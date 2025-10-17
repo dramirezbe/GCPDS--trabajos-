@@ -1,0 +1,26 @@
+// Request alive post
+{
+  // MAc dispositivo
+  "device": "08-BD-DE-E4-F7-CD",
+  "metrics": {
+    //En porcentaje
+
+    //Porcentaje de uso por hilo
+    "cpu": [57, 10, 11, 23],
+    "ram": 70,
+    "swap": 10,
+    "disk": 90,
+    //Temperatura en grados celcius
+    "temp_c": 50
+  },
+  "gps": {
+    "lat": 5.0741,
+    "lng": -75.5169,
+    //Altitud en metros
+    "alt": 2500
+  },
+  //En ms tiempo_respuesta-tiempo_request (ultima vez)
+  "delta_t": 467054056,
+  //En ns unix
+  "timestamp": 467054056
+}

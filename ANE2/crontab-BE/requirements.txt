@@ -1,0 +1,7 @@
+DateTime==5.5
+logger==1.4
+ntplib==0.4.0
+pathlib==1.0.1
+python-crontab==3.3.0
+pytz==2025.2
+zope.interface==8.0.1
