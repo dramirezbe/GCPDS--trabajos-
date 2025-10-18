@@ -15,6 +15,7 @@ Notes:
 
 import logging
 import inspect
+import pathlib
 from typing import Optional
 
 # -----------------------
@@ -40,6 +41,12 @@ DATA_URL = "/data"
 #: Retry delay between attempts (seconds).
 RETRY_DELAY_SECONDS = 10
 
+#libs defines
+SCRIPT_DIR = pathlib.Path(__file__).parent.resolve()
+PROJECT_ROOT = SCRIPT_DIR.parent.resolve()
+METRICS_PATH = str((PROJECT_ROOT / "libs_C" / "metrics.so").resolve())
+ACQUIRE_PATH = str((PROJECT_ROOT / "libs_C" / "acquire.so").resolve())
+
 __all__ = [
     # Configuration
     "LOG_LEVEL",
@@ -51,6 +58,10 @@ __all__ = [
     "JOBS_URL",
     "DATA_URL",
     "RETRY_DELAY_SECONDS",
+    "SCRIPT_DIR",
+    "PROJECT_ROOT",
+    "METRICS_PATH",
+    "ACQUIRE_PATH",
     # Logging functions
     "get_logger",
     "configure_logging",

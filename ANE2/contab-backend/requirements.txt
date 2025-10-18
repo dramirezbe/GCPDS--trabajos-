@@ -1,0 +1,2 @@
+pathlib==1.0.1
+python-crontab==3.3.0

@@ -1,3 +1,4 @@
+// GET jobs
 {
   // Lista de campañas activas o programadas. 
   // Puede estar vacía ([]) pero siempre se envía. Cada elemento representa una campaña independiente.
@@ -22,10 +23,6 @@
 
       // Resolución espectral o RBW (Resolution Bandwidth) en Hz.
       "resolution_hz": 10000,
-
-      // Factor de submuestreo IQ:
-      // 0 = sin captura IQ, >0 = decimación (1 de cada N muestras se guarda).
-      "iq": 0,
 
       // Puerto físico de antena conectado.
       "antenna_port": 1,
