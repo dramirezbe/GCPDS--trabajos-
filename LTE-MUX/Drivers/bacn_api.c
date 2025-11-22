@@ -13,6 +13,9 @@
 /* Definición global de GPSInfo (antes era extern en tu código). */
 GPSCommand GPSInfo;
 
+extern bool GPS_run; /* definida en Drivers/bacn_GPS.c */
+extern bool LTE_run; /* definida en Drivers/bacn_LTE.c */
+
 /* Mutex exportado para que bacn_GPS.c pueda usarlo al actualizar GPSInfo */
 pthread_mutex_t gps_mutex = PTHREAD_MUTEX_INITIALIZER;
 
