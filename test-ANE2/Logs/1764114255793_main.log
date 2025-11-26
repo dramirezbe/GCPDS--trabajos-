@@ -1,0 +1,2 @@
+25-Nov-25(18:44:15)[MAIN]INFO      Log file: 1764114255793_main.log
+25-Nov-25(18:44:15)[MAIN]INFO      Connection failed: HTTPConnectionPool(host='localhost', port=5000): Max retries exceeded with url: /socket.io/?transport=polling&EIO=4&t=1764114255.7940285 (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x70a58bf57e00>: Failed to establish a new connection: [Errno 111] Connection refused'))

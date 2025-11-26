@@ -1,0 +1,21 @@
+25-Nov-25(19:21:38)[MAIN]INFO      Log file: 1764116498753_main.log
+25-Nov-25(19:21:38)[MAIN]INFO      Attempting to connect to http://localhost:5000...
+25-Nov-25(19:21:38)[MAIN]INFO      ACQUIRING WITH
+25-Nov-25(19:21:38)[MAIN]INFO      -------------
+25-Nov-25(19:21:38)[MAIN]INFO      >>> CONNECTED to Master Server
+25-Nov-25(19:21:38)[MAIN]INFO      Start Freq: 88000000
+25-Nov-25(19:21:38)[MAIN]INFO      End Freq: 108000000
+25-Nov-25(19:21:38)[MAIN]INFO      Resolution: 10000
+25-Nov-25(19:21:38)[MAIN]INFO      Span: 20000000
+25-Nov-25(19:21:38)[MAIN]INFO      Sample Rate: 20000000
+25-Nov-25(19:21:38)[MAIN]INFO      Window: hamming
+25-Nov-25(19:21:38)[MAIN]INFO      Overlap: 0.5
+25-Nov-25(19:21:38)[MAIN]INFO      lna_gain: 0
+25-Nov-25(19:21:38)[MAIN]INFO      vga_gain: 0
+25-Nov-25(19:21:38)[MAIN]INFO      antenna_amp: False
+25-Nov-25(19:21:38)[MAIN]INFO      Port: 1
+25-Nov-25(19:21:38)[MAIN]INFO      -------------
+25-Nov-25(19:21:41)[MAIN]INFO      >>> Sending Results to Server
+25-Nov-25(19:21:41)[MAIN]INFO      [ACK] {'status': 'saved', 'file': '2025-11-25_19-21-41_88000000_108000000.csv'}. Waiting for next job...
+25-Nov-25(19:21:47)[MAIN]INFO      xxx DISCONNECTED from Master Server
+25-Nov-25(19:21:47)[MAIN]INFO      User stopped script.
