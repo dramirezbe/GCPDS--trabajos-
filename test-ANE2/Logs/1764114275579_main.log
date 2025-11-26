@@ -1,8 +1,0 @@
-25-Nov-25(18:44:35)[MAIN]INFO      Log file: 1764114275579_main.log
-25-Nov-25(18:44:35)[MAIN]INFO      Configuring with: {'start_freq_hz': 88000000, 'end_freq_hz': 108000000, 'resolution_hz': 10000, 'antenna_port': 1, 'sample_rate_hz': 20000000}
-25-Nov-25(18:44:35)[MAIN]INFO      Simulating hardware acquisition...
-25-Nov-25(18:44:35)[MAIN]INFO      Sensor connected to server
-25-Nov-25(18:44:36)[MAIN]INFO      Sending JSON payload to server... {payload}
-25-Nov-25(18:44:36)[MAIN]INFO      [Server Response] {'status': 'saved', 'file': '2025-11-25_18-44-36_88000000_108000000.csv'}
-25-Nov-25(18:44:36)[MAIN]INFO      Cycle complete. Disconnecting.
-25-Nov-25(18:44:36)[MAIN]INFO      Disconnected from server.

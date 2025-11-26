@@ -1,26 +1,26 @@
 //GET realtime endpoint (defalult always capture spectrum)
 {
-    // Initial frequency for immediate operation (Hz).
-    "start_freq_hz": 88000000,
+    /// Central spectral analysis frequency (Hz).
+    "center_freq_hz": 9800000,
 
-    // Final frequency for immediate operation (Hz).
-    "end_freq_hz": 108000000,
+    // Spectral resolution or RBW (Resolution Bandwidth) in Hz.
+    "rbw_hz": 10000,
 
-    // Spectral resolution (Hz).
-    "resolution_hz": 10000,
+    "sample_rate_hz": 20000000,
 
-    // Active physical antenna port during the operation.
-    "antenna_port": 1,
+    //int span<=sample_rate
+    "span": 20000000,
 
-    //-----default stats--------(send this also)
+    //string (dBm, dBmV, dBuV, V, W)
+    "scale": "dbm",
+
+    //-----default stats--------
     "window": "hamming",
     //float
     "overlap": 0.5,
     //int
-    "sample_rate_hz": 20000000,
-    //int
+    
     "lna_gain": 0,
-    //int
     "vga_gain": 0,
     //bool
     "antenna_amp": false

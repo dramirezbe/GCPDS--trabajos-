@@ -5,6 +5,7 @@ import datetime
 import numpy as np
 from flask import Flask, request
 from flask_socketio import SocketIO, emit
+import matplotlib.pyplot as plt
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'secret!'
@@ -21,8 +22,9 @@ sensor_config = {
     "sample_rate_hz": 20000000,
     "lna_gain": 0,
     "vga_gain": 0,
-    "antenna_amp": False,
-    "span_hz": 20000000 
+    "antenna_amp": True,
+    "span_hz": 20000000,
+    "scale": "dBm"
 }
 
 OUTPUT_DIR = "sensor_captures"
@@ -52,20 +54,16 @@ def handle_sensor_reading(data):
             return
 
         ts_human = datetime.datetime.fromtimestamp(timestamp_unix).strftime('%Y-%m-%d_%H-%M-%S')
-        filename = f"{ts_human}_{start_freq}_{end_freq}.csv"
-        filepath = os.path.join(OUTPUT_DIR, filename)
+        filename = f"{ts_human}_{start_freq}_{end_freq}.png"
 
-        freqs = np.linspace(start_freq, end_freq, len(pxx_values))
+        plt.plot(pxx_values)
+        plt.xlabel('Frequency (Hz)')
+        plt.ylabel('Power (dB)')
+        plt.title(f"Power Spectral Density - {ts_human}")
+        plt.savefig(f"{OUTPUT_DIR}/{filename}")
+        plt.close()
 
-        with open(filepath, mode='w', newline='') as file:
-            writer = csv.writer(file)
-            writer.writerow(["Frequency_Hz", "Power_dB"])
-            for f, p in zip(freqs, pxx_values):
-                writer.writerow([f, p])
-
-        print(f"Saved: {filepath}")
-        
-        emit('server_ack', {'status': 'saved', 'file': filename})
+        emit('server_ack', {'status': 'saved'})
         
         # === CONTINUOUS LOOP LOGIC ===
         # If you want the slave to immediately start the next scan:
