@@ -1,0 +1,27 @@
+//GET realtime endpoint (defalult always capture spectrum)
+{
+    /// Central spectral analysis frequency (Hz).
+    "center_freq_hz": 9800000,
+
+    // Spectral resolution or RBW (Resolution Bandwidth) in Hz.
+    "rbw_hz": 10000,
+
+    "sample_rate_hz": 20000000,
+
+    //int span<=sample_rate
+    "span": 20000000,
+
+    //string (dBm, dBmV, dBuV, V, W)
+    "scale": "dbm",
+
+    //-----default stats--------
+    "window": "hamming",
+    //float
+    "overlap": 0.5,
+    //int
+    
+    "lna_gain": 0,
+    "vga_gain": 0,
+    //bool
+    "antenna_amp": false
+}
