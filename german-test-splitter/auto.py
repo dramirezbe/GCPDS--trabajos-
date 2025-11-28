@@ -114,22 +114,37 @@ def main():
         np.savetxt(csv_name, data_stack, delimiter=',', header='Freq_Hz,N9000B_dBm,Sensor_dB', comments='')
         print(f"💾 CSV guardado: {csv_name}")
 
-        # 6. Guardar PNG (Superpuestos)
-        png_name = os.path.join(OUTPUT_DIR, f'plot_{int(center_freq)}.png')
-        
+        # 6. Guardar PNGs separados (N9000B y Sensor)
+        # N9000B only
+        png_n9000 = os.path.join(OUTPUT_DIR, f'plot_n9000b_{int(center_freq)}.png')
         plt.figure(figsize=(10, 6))
-        plt.plot(n9000_x, n9000_y, label='N9000B', color='blue', linewidth=1)
-        plt.plot(n9000_x, sensor_y_interp, label='Sensor (Interpolado)', color='orange', alpha=0.8, linewidth=1)
-        
-        plt.title(f"Comparativa de Espectro - Central: {center_freq/1e6} MHz")
+        plt.plot(n9000_x, n9000_y, label='N9000B', linewidth=1)
+        plt.title(f"N9000B - Espectro - Central: {center_freq/1e6} MHz")
         plt.xlabel("Frecuencia (Hz)")
         plt.ylabel("Amplitud (dBm)")
         plt.legend()
         plt.grid(True, which='both', linestyle='--', alpha=0.7)
-        
-        plt.savefig(png_name)
-        plt.close() # Importante cerrar para liberar memoria
-        print(f"🖼️ PNG guardado: {png_name}")
+        plt.tight_layout()
+        plt.savefig(png_n9000)
+        plt.close()
+        print(f"🖼️ PNG guardado: {png_n9000}")
+
+        # Sensor only (si hay datos)
+        png_sensor = os.path.join(OUTPUT_DIR, f'plot_sensor_{int(center_freq)}.png')
+        if sensor_y_raw.size == 0:
+            print(f"⚠️ Sensor no devolvió datos para {center_freq/1e6} MHz — no se guarda el plot del sensor.")
+        else:
+            plt.figure(figsize=(10, 6))
+            plt.plot(n9000_x, sensor_y_interp, label='Sensor (Interpolado)', linewidth=1)
+            plt.title(f"Sensor - Espectro - Central: {center_freq/1e6} MHz")
+            plt.xlabel("Frecuencia (Hz)")
+            plt.ylabel("Amplitud (dB or dBm)")
+            plt.legend()
+            plt.grid(True, which='both', linestyle='--', alpha=0.7)
+            plt.tight_layout()
+            plt.savefig(png_sensor)
+            plt.close()
+            print(f"🖼️ PNG guardado: {png_sensor}")
 
     inst.close()
     print("\nProceso finalizado exitosamente.")
