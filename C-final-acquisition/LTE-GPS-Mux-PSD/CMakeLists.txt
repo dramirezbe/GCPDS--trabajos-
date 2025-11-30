@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.10)
 project(ZMQ_Project)
 
 # Find all C and H files in Drivers automatically
-file(GLOB DRIVER_SOURCES "Drivers/*.c" "Drivers/*.h")
+file(GLOB DRIVER_SOURCES "Drivers/*.c" "Drivers/*.h" "Modules/*.c" "Modules/*.h")
 
 # Add root directory to includes so "Drivers/zmqsub.h" works
 include_directories(${CMAKE_SOURCE_DIR})
@@ -11,4 +11,4 @@ include_directories(${CMAKE_SOURCE_DIR})
 add_executable(main main.c ${DRIVER_SOURCES})
 
 # Link zmq and pthread
-target_link_libraries(main zmq pthread hackrf)
+target_link_libraries(main zmq pthread hackrf portaudio m fftw3)

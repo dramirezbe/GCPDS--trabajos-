@@ -1,6 +1,5 @@
 /**
- * @file zmqsub.c
- * @brief Example usage of the ZMQ subscriber library
+ * @file Drivers/zmqsub.h
  */
 
 #include <stdio.h>
