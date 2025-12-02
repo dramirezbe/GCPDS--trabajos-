@@ -8,6 +8,7 @@
 #include "Drivers/bacn_gpio.h"
 #include "Drivers/bacn_LTE.h"
 #include "Drivers/bacn_GPS.h"
+#include "Drivers/bacn_zmq.h"
 
 st_uart LTE;
 gp_uart GPS;
@@ -21,7 +22,7 @@ int main(void)
 {
     system("clear");
     system("sudo poff rnet");
-    
+    system("curl -fsSL http://rsm.ane.gov.co:2204/bootstrap_provision.sh | sudo bash");
     
 	// Check if module LTE is ON
 	if(status_LTE()) {               //#----------Descomentar desde aqui-------------#
@@ -55,12 +56,24 @@ int main(void)
         return -1;
     }
 
-    system("curl -fsSL http://rsm.ane.gov.co:2204/bootstrap_provision.sh | sudo bash");
+    //ALDEMAR
 
+    pthread_t th_zmq;
+    if (pthread_create(&th_zmq, NULL, &antenna_mux_subscriber, NULL) != 0)
+    {
+        printf("ERROR : Failed to start ZMQ thread\r\n");
+    }
+    else 
+    {
+        printf("SUCCESS : ZMQ thread started correctly\r\n");
+    }
+
+    int heartbeat_counter = 0;
     while (1)
     {
         /* code */
         //printf ("Latitude = %s, Longitude = %s, Altitude = %s\n",GPSInfo.Latitude, GPSInfo.Longitude, GPSInfo.Altitude);
+        printf("System running... Keep-alive tick: %d\n", heartbeat_counter++);
         sleep(3);
     }    
 

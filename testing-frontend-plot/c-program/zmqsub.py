@@ -11,12 +11,6 @@ import time
 logging.basicConfig(level=logging.INFO, format='[PY-SERVER] %(message)s')
 logger = logging.getLogger(__name__)
 
-# --- CONFIGURATION ---
-# Address where Python BINDS (Sends Commands)
-IPC_CMD_ADDR = "ipc:///tmp/zmq_feed"
-# Address where Python CONNECTS (Receives Data from C)
-IPC_DATA_ADDR = "ipc:///tmp/zmq_data"
-
 class ZmqPub:
     def __init__(self, address=IPC_CMD_ADDR, verbose=True, log=logger):
         self.verbose = verbose
