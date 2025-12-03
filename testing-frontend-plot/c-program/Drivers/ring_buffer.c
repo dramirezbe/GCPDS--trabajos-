@@ -9,7 +9,8 @@
 #define MIN(a,b) ((a)<(b)?(a):(b))
 
 void rb_init(ring_buffer_t *rb, size_t size) {
-    rb->buffer = malloc(size);
+    // USE CALLOC: Allocates memory and automatically sets it to 0
+    rb->buffer = calloc(1, size); 
     rb->size = size;
     rb->head = 0;
     rb->tail = 0;
@@ -17,8 +18,24 @@ void rb_init(ring_buffer_t *rb, size_t size) {
 }
 
 void rb_free(ring_buffer_t *rb) {
-    free(rb->buffer);
+    if (rb->buffer) {
+        // REQUESTED: Put to 0 (Secure Erase) before freeing
+        memset(rb->buffer, 0, rb->size); 
+        free(rb->buffer);
+        rb->buffer = NULL;
+    }
     pthread_mutex_destroy(&rb->lock);
+}
+
+// NEW: Helper to zero-out without freeing (if you optimize later)
+void rb_reset(ring_buffer_t *rb) {
+    pthread_mutex_lock(&rb->lock);
+    if (rb->buffer) {
+        memset(rb->buffer, 0, rb->size);
+    }
+    rb->head = 0;
+    rb->tail = 0;
+    pthread_mutex_unlock(&rb->lock);
 }
 
 size_t rb_write(ring_buffer_t *rb, const void *data, size_t len) {
@@ -32,10 +49,7 @@ size_t rb_write(ring_buffer_t *rb, const void *data, size_t len) {
         return 0;
     }
 
-    size_t write_idx = rb->head & (rb->size - 1); // Assumes power of 2 size usually, but here using modulo logic
-    // Simplified strictly for example (assumes size is sufficient for logic)
-    
-    // Circular logic for standard malloc implementation
+    // Circular logic using modulo
     size_t head_idx = rb->head % rb->size;
     size_t chunk1 = MIN(to_write, rb->size - head_idx);
     size_t chunk2 = to_write - chunk1;

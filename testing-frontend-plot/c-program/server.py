@@ -88,7 +88,7 @@ async def run_server():
 
             try:
                 # 1. Get Data from C-Engine (Usually Full Bandwidth/Sample Rate)
-                raw_data = await asyncio.wait_for(sub.wait_msg(), timeout=15.0)
+                raw_data = await asyncio.wait_for(sub.wait_msg(), timeout=3)
                 
                 # 2. Format into Dictionary
                 data_dict = fetch_data(raw_data)
