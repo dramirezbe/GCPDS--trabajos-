@@ -109,8 +109,8 @@ void publish_results(double* freq_array, double* psd_array, int length) {
     char *json_string = cJSON_PrintUnformatted(root); // Unformatted = smaller payload, no newlines
 
     // 5. Send via ZMQ
-    // We use a topic name "psd_data" so the Python subscriber can filter for it
-    zpub_publish(publisher, "psd_data", json_string);
+    // We use a topic name "data" so the Python subscriber can filter for it
+    zpub_publish(publisher, "data", json_string);
     
     printf("[ZMQ] Published results (%d bins, %zu bytes)\n", length, strlen(json_string));
 

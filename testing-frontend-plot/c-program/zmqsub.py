@@ -6,13 +6,14 @@ import asyncio
 import numpy as np
 import matplotlib.pyplot as plt
 import time
+import cfg
 
 # Configure Logging
 logging.basicConfig(level=logging.INFO, format='[PY-SERVER] %(message)s')
 logger = logging.getLogger(__name__)
 
 class ZmqPub:
-    def __init__(self, address=IPC_CMD_ADDR, verbose=True, log=logger):
+    def __init__(self, address=cfg.IPC_CMD_ADDR, verbose=True, log=logger):
         self.verbose = verbose
         self._log = log
         self.context = zmq.Context()
@@ -37,7 +38,7 @@ class ZmqPub:
         self.context.term()
 
 class ZmqSub:
-    def __init__(self, topic: str, address=IPC_DATA_ADDR, verbose=True, log=logger):
+    def __init__(self, topic: str, address=cfg.IPC_DATA_ADDR, verbose=True, log=logger):
         self.verbose = verbose
         self.topic = topic
         self._log = log
@@ -108,10 +109,10 @@ def save_plot(data, filename="psd_output.png"):
 async def run_server():
     # 1. Initialize Channels
     # Command Channel (Outbound)
-    pub = ZmqPub(address=IPC_CMD_ADDR)
+    pub = ZmqPub(address=cfg.IPC_CMD_ADDR)
     
     # Data Channel (Inbound) - Topic MUST match C code ("psd_data")
-    sub = ZmqSub(topic="psd_data", address=IPC_DATA_ADDR)
+    sub = ZmqSub(topic="psd_data", address=cfg.IPC_DATA_ADDR)
 
     # Allow ZMQ connections to settle
     await asyncio.sleep(0.5)
