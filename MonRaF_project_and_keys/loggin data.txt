@@ -1,0 +1,17 @@
+Server ANEPI
+IP:  ane1-pi
+Port: 21104
+Pass: AChuBRahuSp=R-0Ro
+
+Wireless LAN
+SSID: ANEPI
+Pass: @ne2024PI
+
+login node red
+USER: anepi
+PASS: @nepi2024
+passphrase espectro
+
+
+instruction example to compile in C
+gcc -Wall -o hackrf_info hackrf_info.c -lhackrf
