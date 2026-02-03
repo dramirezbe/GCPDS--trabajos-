@@ -1,0 +1,53 @@
+# Core LaTeX build files
+*.aux
+*.log
+*.out
+*.toc
+*.lof
+*.lot
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+*.synctex(busy)
+*.nav
+*.snm
+*.vrb
+*.bcf
+*.blg
+*.run.xml
+*.idx
+*.ilg
+*.ind
+*.glo
+*.gls
+*.glg
+
+# Bibliography / citations
+*.bbl
+
+# Temporary and editor backup files
+*.tmp
+*.bak
+*.swp
+*.swo
+*~
+
+# Latexmk / arara
+.latexmk/
+.arara/
+
+# Beamer / presentations
+*.ptb
+
+# Minted / pygments
+_minted*
+*.pyg
+
+# TikZ externalization
+*tikzDictionary
+*.dpth
+*.md5
+
+# Build directories (common names)
+build/
+out/
