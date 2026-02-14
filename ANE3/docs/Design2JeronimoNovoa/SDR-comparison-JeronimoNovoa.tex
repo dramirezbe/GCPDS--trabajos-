@@ -1,0 +1,127 @@
+\documentclass[11pt]{article}
+
+% Language and typography
+\usepackage[english]{babel}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+
+% Page format and links
+\usepackage[margin=1in]{geometry}
+\usepackage[hidelinks]{hyperref}
+
+% Mathematics and figures
+\usepackage{amsmath, amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+
+% Note: To restore standard indentation, we removed:
+% \setlength{\parindent}{0pt}
+% \setlength{\parskip}{0.75\baselineskip}
+
+\title{Spectral Monitoring: Comparative Analysis of SDR Platforms}
+\author{Jerónimo Novoa Giraldo}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\section{Comparison of Considered SDR Platforms}
+
+Four common Software-Defined Radio (SDR) platforms were evaluated for spectral monitoring tasks: RTL-SDR, HackRF One, Pluto 7020-SDR, and USRP N210. The comparison focuses on their suitability for different requirement levels—from basic occupancy detection to advanced algorithm validation—considering factors such as frequency stability, dynamic range, RF architecture, and the cost-performance ratio.
+
+\paragraph{RTL-SDR (V3/V4).}
+The RTL-SDR represents the entry-level standard for low-cost spectral monitoring. Based originally on DVB-T TV tuners (typically the R820T2 tuner combined with the RTL2832U controller), it utilizes a superheterodyne architecture. While it enables reception over a wide frequency range, its performance is strictly limited by its 8-bit ADC, resulting in a theoretical dynamic range of approximately 48 dB (often lower in practice). It lacks transmit capabilities (TX) and has narrow instantaneous bandwidth ($\approx 2.4$ MHz). It is suitable for exploratory campaigns and basic occupancy estimation but is prone to imaging artifacts and desensitization in the presence of strong adjacent signals.\\
+\emph{Average Price:} \$30--\$50 USD.\\
+\emph{Typical Use:} Basic occupancy detection, hobbyist exploration, and wide-area sensor networks where individual node cost must be minimized.
+
+\paragraph{HackRF One.}
+The HackRF One is a half-duplex transceiver widely used in research due to its massive frequency coverage (1 MHz to 6 GHz) and open-source hardware design. Its RF architecture is unique, utilizing a mixer (RFFC5072) and a transceiver IC (MAX2837) to achieve baseband conversion. However, like the RTL-SDR, it relies on an 8-bit ADC, which limits its dynamic range. Its primary architectural drawback is the lack of RF front-end filtering; it is essentially a "wide open" receiver, making it highly susceptible to aliasing and intermodulation distortion in RF-dense environments unless external band-pass filters are used.\\
+\emph{Average Price:} \$300--\$400 USD.\\
+\emph{Typical Use:} Security research, protocol replay attacks, and algorithm prototyping where high precision is not critical.
+
+\paragraph{ADALM-PLUTO (PlutoSDR).}
+The PlutoSDR marks a significant architectural shift by utilizing a highly integrated RFIC (Analog Devices AD9363/9364). Unlike the previous options, it features a 12-bit ADC/DAC, providing a theoretical dynamic range improvement of roughly 24 dB over the RTL-SDR and HackRF. It operates in full-duplex mode and includes an on-board FPGA (Zynq Z-7010) and an ARM processor, allowing for some stand-alone operation. Its Direct Conversion (Zero-IF) architecture simplifies the signal path but requires DC offset calibration and IQ imbalance correction, which are handled automatically by the driver. It offers the best balance between cost and RF fidelity.\\
+\emph{Average Price:} \$200--\$350 USD.\\
+\emph{Typical Use:} Advanced detection, educational labs, and LTE/GSM standalone base station simulation.
+
+\paragraph{USRP N210.}
+The USRP N210 belongs to the professional tier of SDRs. It separates the RF front-end (modular daughterboards like WBX or SBX) from the digital processing logic. It features a high-speed 14-bit ADC (100 MS/s), offering superior Spurious-Free Dynamic Range (SFDR) (>85 dB). Unlike the USB-based devices above, the N210 uses a Gigabit Ethernet interface, providing stable streaming of up to 50 MS/s (16-bit IQ) or higher with wire-format compression. Its architecture supports strict synchronization via external references (MIMO cable, GPSDO), making it the standard for coherent multi-channel systems and rigorous metrology.\\
+\emph{Average Price:} \$2,000--\$4,000 USD (depending on daughterboard).\\
+\emph{Typical Use:} Telecommunications reference equipment, coherent radar systems, and regulatory validation.
+
+\section{Analysis of RF Architectures and Signal Chain Differences}
+
+The fundamental difference between these platforms lies not just in cost, but in the topology of their Radio Frequency (RF) front-ends and digitization stages. These architectural choices dictate the quality of the captured IQ data.
+
+\subsection{ADC Bit-Depth and Dynamic Range}
+The limitation of the Analog-to-Digital Converter (ADC) is the primary bottleneck in spectral monitoring. The theoretical Signal-to-Noise Ratio (SNR) of an ideal ADC is given by:
+\begin{equation}
+    \text{SNR}_{\text{dB}} \approx 6.02 \cdot N + 1.76
+\end{equation}
+where $N$ is the number of bits.
+
+\begin{itemize}
+    \item \textbf{RTL-SDR / HackRF (8-bit):} The theoretical SNR maxes out at $\approx 50$ dB. In practice, the Effective Number of Bits (ENOB) is lower ($\sim$7 bits). Strong signals can easily saturate the receiver, causing "clipping," while weak signals disappear into the quantization noise floor.
+    \item \textbf{PlutoSDR (12-bit):} Provides $\approx 74$ dB of dynamic range. This allows the receiver to detect weak signals in the presence of stronger blockers without saturation, a critical feature for monitoring crowded bands (e.g., ISM bands).
+    \item \textbf{USRP N210 (14-bit):} Provides $\approx 86$ dB. This high linearity is essential for waveform analysis where amplitude fidelity is required (e.g., high-order QAM demodulation).
+\end{itemize}
+
+\subsection{Frequency Conversion Architectures}
+The method used to translate RF signals to baseband IQ data varies significantly:
+
+\textbf{Superheterodyne (RTL-SDR):} Uses an Intermediate Frequency (IF). The signal is down-converted to a non-zero IF (e.g., 3.57 MHz or Low-IF), filtered, and then sampled. This avoids DC offset spikes at the center frequency but introduces image rejection complexities.
+
+\textbf{Direct Conversion / Zero-IF (PlutoSDR, USRP, HackRF):} The Local Oscillator (LO) is tuned exactly to the RF carrier frequency ($f_{\text{LO}} = f_{\text{RF}}$). The signal is mixed directly to baseband (0 Hz).
+
+\begin{itemize}
+    \item \emph{Advantage:} Eliminates IF image frequencies and simplifies filtering requirements.
+    \item \emph{Disadvantage:} Suffers from "DC Offset" (a large spike at 0 Hz) and "IQ Imbalance" (amplitude/phase mismatch between I and Q paths).
+\end{itemize}
+
+The PlutoSDR and USRP mitigate Zero-IF disadvantages through advanced quadrature correction algorithms in their FPGA/RFIC, whereas the HackRF relies heavily on the host PC to handle these imperfections, often resulting in a visible "DC spike" in the center of the spectrum.
+
+\subsection{Bandwidth and Interface Bottlenecks}
+The observable spectral width is constrained by the interface throughput:
+\begin{equation}
+    \text{Data Rate} = \text{Sample Rate} \times \text{Bit Depth} \times 2 \, (I+Q)
+\end{equation}
+
+\begin{itemize}
+    \item \textbf{USB 2.0 (RTL-SDR, HackRF):} Limited to $\approx 350$ Mbps theoretical. The HackRF achieves 20 MHz bandwidth by using 8-bit samples, maxing out the bus.
+    \item \textbf{USB 2.0 (PlutoSDR):} Although capable of USB 2.0, the Pluto acts as a USB-Ethernet gadget. Its bottleneck is often the USB-to-Ethernet emulation or the CPU power of the host handling the context switches.
+    \item \textbf{Gigabit Ethernet (USRP N210):} Provides consistent deterministic throughput. Ethernet allows for long cable runs and network-based switching, unlike USB which is limited to short distances and prone to host-controller latency jitter.
+\end{itemize}
+
+\subsection{Oscillator Stability (PPM)}
+Frequency accuracy is defined by the crystal oscillator's Parts Per Million (PPM) error.
+
+\begin{itemize}
+    \item \textbf{Standard RTL-SDR:} $\sim$50--100 PPM (drifts significantly with heat). A signal at 1 GHz could be shifted by 100 kHz.
+    \item \textbf{HackRF One:} $\sim$20 PPM. Sufficient for wideband signals, but marginal for narrowband (SSB/CW).
+    \item \textbf{TCXO (Temp-Compensated Crystal Oscillator):} Found in RTL-SDR V3/V4 and PlutoSDR. Provides stability of 0.5--1 PPM.
+    \item \textbf{External Reference (USRP):} The N210 can accept a 10 MHz reference (GPSDO), achieving 0.01 PPM or better (Stratum 1 accuracy), required for TDOA (Time Difference of Arrival) localization.
+\end{itemize}
+
+\section{Summary Conclusion}
+The selection of an SDR for spectral monitoring is a trade-off between signal fidelity and cost. The \textbf{RTL-SDR} serves as a disposable sensor for coarse detection. The \textbf{HackRF One} offers agility across bands but suffers from poor dynamic range and noise figure. The \textbf{PlutoSDR} offers the most modern architecture (RFIC based 12-bit) for general engineering tasks. Finally, the \textbf{USRP N210} remains the metrological standard where linear response, high dynamic range, and precise timing are non-negotiable.
+
+\section{References}
+\begin{thebibliography}{9}
+
+\bibitem{ref:rtlsdr}
+RTL-SDR.com, ``RTL-SDR Blog V3/V4 Datasheet and Specs'' (Accessed: \today). Available: \url{https://www.rtl-sdr.com/}.
+
+\bibitem{ref:hackrf}
+Great Scott Gadgets, ``HackRF One Documentation - Hardware Architecture'' (Accessed: \today). Available: \url{https://hackrf.readthedocs.io/}.
+
+\bibitem{ref:analog-devices}
+Analog Devices, ``AD9363: RF Agile Transceiver'' (Core of PlutoSDR). Available: \url{https://www.analog.com/en/products/ad9363.html}.
+
+\bibitem{ref:ettus}
+Ettus Research, ``USRP N200/N210 Networked Series Specification Sheet.'' Available: \url{https://www.ettus.com/all-products/un210-kit/}.
+
+\end{thebibliography}
+
+\end{document}

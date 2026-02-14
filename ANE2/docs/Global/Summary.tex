@@ -1,0 +1,81 @@
+\documentclass[a4paper,12pt]{article}
+
+% --- Packages ---
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[english]{babel}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{hyperref}
+\usepackage{geometry}
+\usepackage{titlesec}
+\usepackage{listings}
+\usepackage{tikz}
+\usetikzlibrary{shapes,arrows,positioning}
+
+\geometry{margin=1in}
+\hypersetup{colorlinks=true, linkcolor=blue, urlcolor=cyan}
+
+% --- Document Information ---
+\title{Summarized Technical Report: ANE-HX / MonRaF2 Spectrum Monitoring System}
+\author{SDR Sensor Engineering Team}
+\date{February 2026}
+
+\begin{document}
+
+\maketitle
+
+\section{System Design and Architecture}
+The **ANE-HX (MonRaF2)** system is an autonomous **Software-Defined Radio (SDR)** platform designed to capture, process, and report radioelectric spectrum data across a range of **1 MHz to 6 GHz**. The system architecture follows an **edge computing model**, where heavy signal processing is performed locally on the sensor to minimize network overhead.
+
+\subsection{High-Level Architecture}
+The system implements a **decoupled hybrid architecture** divided into two functional planes:
+\begin{enumerate}
+    \item \textbf{Control Plane (Python 3):} Managed by the \texttt{orchestrator.py} module, which acts as the "cognitive unit" responsible for logic orchestration, state transitions, and cloud API communication.
+    \item \textbf{Data Plane (C99):} A high-performance **RF Engine** (\texttt{rf\_app}) responsible for direct hardware interaction, IQ sample normalization, and intensive Digital Signal Processing (DSP) like **FFT and PFB** calculations.
+\end{enumerate}
+
+\subsection{Communication and Infrastructure}
+Inter-process communication (IPC) between Python and C is handled via **ZeroMQ (ZMQ)** sockets over the IPC protocol to ensure low latency and fault isolation. For remote management, the system utilizes **OTA-ANE v7**, an infrastructure employing **WireGuard VPN** for secure tunneling and **Port Knocking** to protect management ports from unauthorized access.
+
+\section{Technologies Employed}
+\subsection{Hardware Stack}
+\begin{itemize}
+    \item \textbf{Raspberry Pi 5:} Serving as the primary processing unit with an **ARM Cortex-A76** CPU and 8 GB of RAM.
+    \item \textbf{HackRF One:} The core SDR receiver providing up to **20 MHz of instantaneous bandwidth**.
+    \item \textbf{SIM7600G-H Module:} Provides **4G/LTE** connectivity and **GNSS/GPS** for spatial-temporal synchronization.
+    \item \textbf{Antenna System:} A switched array including **VHF/UHF (25 MHz-1 GHz)**, **TDT (470-698 MHz)**, and high-frequency omnidirectional antennas (**>2 GHz**).
+\end{itemize}
+
+\subsection{Software and DSP Libraries}
+The system leverages **FFTW3** and **KissFFT** for frequency domain transformations. Audio streaming is achieved through a **WebRTC gateway** using **GStreamer** and the **Opus codec** to maintain low-latency distribution over unstable LTE links.
+
+\section{System Functionalities}
+\subsection{Advanced Acquisition Strategies}
+To eliminate the **"DC Spike"** (center artifact) inherent in direct-conversion SDRs, the system uses two software strategies:
+\begin{itemize}
+    \item \textbf{Offset \& Crop (Real-time):} The Local Oscillator (LO) is tuned 1 MHz away from the target, and Gaussian noise is interpolated over the artifact before cropping the band.
+    \item \textbf{Spectral Stitching (Campaign):} Two captures are taken at different offsets and surgically combined ("Cosido") to provide a clean, high-precision spectrum.
+\end{itemize}
+
+\subsection{Spectrum Post-processing for Compliance}
+The system transforms raw **Power Spectral Density (PSD)** data into regulatory findings. It uses the **FCME (Forward Consecutive Mean Excision)** algorithm to estimate the noise floor dynamically. Emissions are then segmented and cross-referenced with **DANE municipal databases** to verify compliance with licensed frequency, bandwidth, and power limits.
+
+\section{Metrological Validation}
+The platform has undergone extensive statistical characterization ($N=10,000$ samples) including:
+\begin{itemize}
+    \item \textbf{DANL Characterization:} Using **ANOVA** testing to ensure uniformity across different hardware units.
+    \item \textbf{IQ Balance Optimization:} Implementing **Gram-Schmidt** orthogonalization to improve the **Spurious-Free Dynamic Range (SFDR)** and suppress spectral images.
+    \item \textbf{Frequency Accuracy:} Correcting **LO drift** using **GSM FCCH tones** as a reference to calculate parts-per-million (PPM) error.
+\end{itemize}
+
+\section{Recommendations for Future Improvements}
+\begin{enumerate}
+    \item \textbf{Enable Automated Calibration:} Current repository analysis shows that **pre-campaign calibration calls** (\texttt{kal\_sync}) are present but often commented out in the orchestrator; these should be fully integrated into the production state machine.
+    \item \textbf{Implement C-Engine Unit Testing:} While the Python code has **168 passing tests** via \texttt{pytest}, the C-based RF engine currently lacks a native automated test suite.
+    \item \textbf{External Clock Integration:} Utilizing a **GPSDO (GPS Disciplined Oscillator)** via the HackRF's CLKIN would eliminate thermal drift and improve PPM accuracy beyond standard TCXO performance.
+    \item \textbf{Dynamic Resource Control:} Implementing a controller to adjust FFT size or decimation factors based on **CPU load** would prevent packet loss during high-bandwidth captures on the Raspberry Pi.
+\end{enumerate}
+
+\end{document}

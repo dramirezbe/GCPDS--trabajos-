@@ -1,0 +1,78 @@
+\documentclass[11pt]{report}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{tabularx}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{hyperref}
+
+% Density adjustment for ~3-4 pages of content
+\usepackage{setspace}
+\setstretch{1.12}
+\setlength{\parskip}{0.4\baselineskip}
+\setlength{\parindent}{0pt}
+
+\title{Digital Filtering Techniques in SDR Pipelines: Audio Conditioning and PSD Smoothing}
+\author{}
+\date{}
+
+\begin{document}
+\maketitle
+
+\section*{1. Introduction}
+Digital Signal Processing (DSP) is the core of Software Defined Radio. Once a signal is digitized and down-converted, filtering becomes the primary tool for extracting information and reducing noise. This report details two critical software-defined filtering applications: post-demodulation audio conditioning and Power Spectral Density (PSD) stabilization for spectrum sensing.
+
+\section*{2. Post-Demodulation Audio Filtering}
+The objective of this stage is to refine the output of AM/FM/SSB demodulators by removing out-of-band noise and improving the Signal-to-Noise Ratio (SNR) for the end-user or automated recognition systems.
+
+\subsection*{2.1 Mathematical Framework}
+After demodulation, the signal $x[n]$ often contains high-frequency artifacts and residual carrier noise. We apply a Linear Time-Invariant (LTI) system, typically a Low-Pass Filter (LPF), defined by the convolution:
+\[
+y[n] = \sum_{k=0}^{M-1} h[k] \, x[n-k]
+\]
+Where $h[k]$ represents the impulse response of the filter. For voice communication, the cutoff frequency $f_c$ is typically set between $3$ kHz and $5$ kHz.
+
+\subsection*{2.2 FIR vs. IIR Implementations}
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Finite Impulse Response (FIR):} Preferred for SDR due to inherent stability and linear phase response, which prevents group delay distortion. Common windowing methods (Hamming, Blackman) are used to minimize Gibbs phenomenon ripples.
+    \item \textbf{Infinite Impulse Response (IIR):} Offers steeper roll-off with fewer coefficients (lower computational cost) but may introduce phase non-linearity and potential instability in fixed-point implementations.
+\end{itemize}
+
+\subsection*{2.3 Advanced Research: De-emphasis and Noise Blanking}
+In FM systems, high-frequency noise increases linearly. Research suggests that a de-emphasis filter (a specialized LPF with a specific time constant, e.g., $75\,\mu\text{s}$) is mandatory to restore the original audio balance. Furthermore, integrating a \textit{Noise Blanker} before the filter can effectively suppress impulsive noise (spikes) before they are "smeared" by the filter's time constant.
+
+\section*{3. Spectral Smoothing for PSD Estimation}
+Raw Power Spectral Density (PSD) estimates, such as those derived from a single Periodogram, exhibit high variance, making it difficult to distinguish weak signals from noise floor fluctuations.
+
+\subsection*{3.1 The Moving Average Filter}
+To stabilize the spectrum for sensing and visualization (waterfall plots), a sliding window average is applied across the frequency bins $k$:
+\[
+\tilde{P}[k] = \frac{1}{N} \sum_{i=0}^{N-1} P[k-i]
+\]
+Where $N$ is the window size. This operation acts as a low-pass filter on the spectral representation itself.
+
+\subsection*{3.2 The Variance-Resolution Trade-off}
+The selection of $N$ is a critical design decision:
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Large $N$:} Significantly reduces variance and stabilizes the noise floor, which is ideal for detecting wideband occupancy or energy-based sensing. However, it leads to \textit{spectral blurring}, where narrow-band carriers (e.g., CW or narrowband IoT) may be suppressed or merged.
+    \item \textbf{Small $N$:} Preserves frequency resolution and identifies narrow peaks but leaves the PSD "jagged," increasing the probability of false alarms in automated threshold detectors.
+\end{itemize}
+
+\subsection*{3.3 Advanced Research: Welch's Method and EMA}
+Current research in spectrum monitoring favors \textbf{Welch’s Method}, which averages multiple overlapping FFTs in the time domain rather than just smoothing bins in the frequency domain. This reduces variance without the same degree of spectral leakage. 
+
+For real-time SDR waterfalls, an \textbf{Exponential Moving Average (EMA)} is often implemented to provide temporal persistence:
+\[
+S_t = \alpha \cdot P_t + (1 - \alpha) \cdot S_{t-1}
+\]
+Where $\alpha$ determines the "memory" of the spectrum, allowing users to see transient signals (bursts) while maintaining a stable background.
+
+\section*{4. Implementation Best Practices}
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Computational Efficiency:} Use SIMD (Single Instruction, Multiple Data) instructions or FFTW libraries for large-scale PSD calculations to maintain real-time throughput.
+    \item \textbf{Metadata Integration:} Always store the filter parameters (taps, window type, $N$) alongside the IQ data to ensure that subsequent analysis can "undo" or account for the filter's bias.
+    \item \textbf{Dynamic Thresholding:} Use the smoothed PSD to calculate a \textit{Constant False Alarm Rate} (CFAR) threshold, which adapts to changing noise environments in real-time.
+\end{itemize}
+
+\end{document}

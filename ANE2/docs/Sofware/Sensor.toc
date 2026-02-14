@@ -1,0 +1,12 @@
+\contentsline {section}{\numberline {1}System Overview}{2}{section.2}%
+\contentsline {section}{\numberline {2}Software Architecture}{2}{section.3}%
+\contentsline {subsection}{\numberline {2.1}System Daemons}{2}{subsection.4}%
+\contentsline {section}{\numberline {3}The Orchestrator \& System Logic}{2}{section.5}%
+\contentsline {subsection}{\numberline {3.1}Global State Machine}{2}{subsection.6}%
+\contentsline {subsection}{\numberline {3.2}Real-time Operational Loop}{2}{subsection.7}%
+\contentsline {subsection}{\numberline {3.3}Campaign Management and Crontab Synchronization}{3}{subsection.8}%
+\contentsline {subsection}{\numberline {3.4}Advanced Acquisition Strategies (AcquireDual)}{3}{subsection.9}%
+\contentsline {subsubsection}{\numberline {3.4.1}DC Spike Removal}{3}{subsubsection.10}%
+\contentsline {subsubsection}{\numberline {3.4.2}Spectral Stitching (Cosido)}{3}{subsubsection.11}%
+\contentsline {section}{\numberline {4}System Monitoring and Status}{4}{section.16}%
+\contentsline {section}{\numberline {5}System Initialization}{4}{section.17}%

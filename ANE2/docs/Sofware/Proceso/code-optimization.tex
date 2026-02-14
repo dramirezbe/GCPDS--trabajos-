@@ -1,0 +1,91 @@
+\documentclass[11pt]{article}
+
+% Language and typography
+\usepackage[english]{babel}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+
+% Page format and links
+\usepackage[margin=1in]{geometry}
+\usepackage[hidelinks]{hyperref}
+
+% Mathematics and figures
+\usepackage{amsmath, amssymb}
+\usepackage{graphicx}
+
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.75\baselineskip}
+
+\title{Code Optimization Techniques for Real-Time Spectral Monitoring}
+\author{Jerónimo Novoa Giraldo}
+\date{}
+
+\begin{document}
+\maketitle
+
+\section{Introduction}
+In real-time spectral monitoring systems, software optimization is critical to sustain high sampling rates and bounded latencies, preventing packet loss due to buffer overflows and performance degradation. As modern Software Defined Radios (SDRs) push towards wider instantaneous bandwidths, the computational throughput required to process IQ samples in real-time scales linearly with the sampling rate. This document synthesizes advanced implementation techniques and algorithmic strategies designed to maximize efficiency in digital signal processing (DSP) pipelines.
+
+\section{Code Optimization Techniques}
+
+\subsection{Computational Load Reduction}
+The primary objective is to minimize the total computational cost per unit of time so that the system satisfies real-time constraints. If the input stream $x[n]$ is sampled at $f_s$ and a processing stage requires $C$ operations per sample (FLOP/sample), the computational budget scales as $\mathcal{O}(f_s \cdot C)$. Therefore, the focus is on reducing $C$ through more efficient algorithms, avoiding re-computation via look-up tables (LUTs), or using controlled approximations.
+
+In terms of complexity, replacing a per-block calculation with an update every $N$ blocks reduces the average cost by an approximate factor of $1/N$, provided that the required temporal resolution is maintained. If a metric $M$ is estimated over windows of length $L$ with a hop size $R$ (in samples), its update frequency is $f_{\text{upd}} = f_s/R$; increasing $R$ reduces $f_{\text{upd}}$ and, consequently, the load, at the cost of temporal granularity.
+
+\subsection{Decimation and Polyphase Filtering}
+Early filtering formalizes the spectral constraint of interest by applying a filter $h[n]$ to obtain $y[n] = (x*h)[n]$, limiting the effective bandwidth to $B$. According to the sampling theorem, once the band is limited, the signal can be represented with a new sampling rate $f_s'$ such that $f_s' \gtrsim 2B$, without introducing aliasing.
+
+Standard decimation involves filtering followed by downsampling. However, \emph{Polyphase Decomposition} is a more efficient approach that interlaces the filtering and decimation processes. Instead of computing $D$ filtered samples and discarding $D-1$ of them, the polyphase implementation computes only the samples that will be retained. From a cost perspective, if a subsequent stage has a cost of $\mathcal{O}(f_s \cdot C)$, decimation reduces it to $\mathcal{O}((f_s/D) \cdot C)$, an improvement nearly proportional to $1/D$.
+
+\subsection{Pipelining and Concurrent Execution}
+A processing pipeline can be modeled as a composition of operators $T = T_K \circ \dots \circ T_2 \circ T_1$ applied to the sequence $x[n]$, where each $T_i$ represents a transformation (e.g., DC-offset removal, FFT, feature extraction). This decomposition allows for the analysis of the cost per stage $c_i$, partial latency $\ell_i$, and memory consumption associated with states and buffers.
+
+By isolating stages into separate threads or processes, task parallelism is enabled. While the total latency for a single block remains $\sum_i t_i$ (plus inter-process communication overhead), the asymptotic throughput is governed by the bottleneck: $t_{\text{cycle}} \approx \max_i t_i$. This allows a multi-core CPU to process samples at a rate higher than any single core could achieve sequentially.
+
+\subsection{Buffering, DMA, and Zero-Copy Mechanisms}
+DSP operations are naturally defined over blocks of $N$ samples. For instance, the Discrete Fourier Transform (DFT) $X[k] = \sum_{n=0}^{N-1} x[n]e^{-j2\pi kn/N}$ is efficiently computed using the Fast Fourier Transform (FFT) when operating in batches. Processing in blocks reduces control overhead and enables vectorization.
+
+To avoid performance penalties, "Zero-Copy" techniques are employed where the SDR hardware writes data directly into a memory region accessible by the application via Direct Memory Access (DMA). Buffers act as a producer-consumer decoupler. If the acquisition rate is $r$ and the processing rate is $\mu$, stability requires $\mu > r$ on average. A buffer of capacity $B$ tolerates transient spikes where $r > \mu$; the overflow is avoided if the duration of the spike $\Delta t$ satisfies $(r-\mu)\Delta t < B$.
+
+\subsection{Vectorization and SIMD Parallelism}
+Modern processors include Single Instruction, Multiple Data (SIMD) units (e.g., Intel AVX-512, ARM NEON) that allow performing the same operation on multiple data points simultaneously. For complex IQ data, this is particularly effective for operations like scaling, power calculation ($I^2 + Q^2$), and element-wise multiplications.
+
+By aligning memory to 32 or 64-byte boundaries and using compiler intrinsics, a loop that processes $N$ samples can be accelerated by a factor related to the vector width (e.g., 4x or 8x). This optimization reduces the constant factor of the algorithmic complexity without changing the underlying logic.
+
+\subsection{Memory Locality and Cache Optimization}
+Memory access speed is often the true bottleneck in spectral monitoring rather than raw FLOPs. High-performance code must be "cache-friendly," ensuring that data is accessed contiguously (spatial locality) and reused while still in the cache (temporal locality).
+
+In DSP, this often means choosing between an \emph{Array of Structures} (AoS: $[I, Q, I, Q, \dots]$) and a \emph{Structure of Arrays} (SoA: $[I, I, \dots], [Q, Q, \dots]$). While AoS is common for IQ samples, SoA is often more efficient for SIMD operations. Furthermore, utilizing circular buffers (ring buffers) prevents the need to shift large amounts of data in memory when new samples arrive, significantly reducing CPU cycles spent on memory management.
+
+\subsection{Use of Optimized Kernels and Hardware Acceleration}
+Key operations such as FFTs and convolutions should rely on specialized libraries (e.g., FFTW, Intel IPP, or VOLK). These libraries exploit:
+\begin{enumerate}
+    \item Algorithmic factorizations (Cooley-Tukey $\mathcal{O}(N \log N)$).
+    \item Architecture-specific SIMD dispatching.
+    \item Advanced planning to minimize non-contiguous memory access.
+\end{enumerate}
+For massive parallelism, GPUs can be used to handle large-scale PSD (Power Spectral Density) computations. However, the total time $t = t_{\text{compute}} + t_{\text{transfer}}$ only improves if the problem size is large enough to hide the PCIe transfer latency.
+
+\subsection{Fixed-Point vs. Floating-Point Considerations}
+While modern desktop CPUs handle floating-point arithmetic (FP32) efficiently, many embedded processors used in remote monitoring stations perform better with fixed-point arithmetic. Converting IQ data to fixed-point can reduce power consumption and increase speed, but requires careful management of bit-width to prevent quantization noise and overflows, particularly during accumulation stages like FIR filtering.
+
+\subsection{Dynamic Adaptation and Feedback Control}
+Dynamic processing can be formalized as a resource control problem: adjusting parameters $\theta$ (FFT size $N$, overlap, update rate, decimation factor $D$) to meet compute and quality constraints. For example, the frequency resolution is $\Delta f = f_s/N$; under high CPU load, reducing $N$ increases $\Delta f$ (losing resolution) but decreases the cost of the $\mathcal{O}(N \log N)$ FFT.
+
+A simple controller can monitor the block processing time $t_{\text{blk}}$ and adjust $\theta$ to keep $t_{\text{blk}}$ below a safety threshold, prioritizing operational continuity with a graceful degradation of spectral sensitivity.
+
+\section{References}
+\begin{thebibliography}{9}
+\bibitem{ref:rtlsdr}
+RTL-SDR Blog, ``RTL-SDR Blog V4 (RTL2832U + R828D, 1\,PPM TCXO)'' (Accessed: \today). Available: \url{https://www.rtl-sdr.com/}.
+
+\bibitem{ref:dsp-optimization}
+U. Meyer-Baese, ``Digital Signal Processing with Field Programmable Gate Arrays,'' Springer, 4th Edition.
+
+\bibitem{ref:volk}
+GNU Radio Project, ``VOLK: The Vector-Optimized Library of Kernels.'' Available: \url{https://www.libvolk.org/}.
+\end{thebibliography}
+
+\end{document}

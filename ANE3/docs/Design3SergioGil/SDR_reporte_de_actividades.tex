@@ -1,0 +1,92 @@
+\documentclass[11pt]{report}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{tabularx}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{hyperref}
+
+% Density adjustment for ~4 pages of content
+\usepackage{setspace}
+\setstretch{1.12}
+\setlength{\parskip}{0.4\baselineskip}
+\setlength{\parindent}{0pt}
+
+\title{Summary Report: SDR Platforms and Spectrum Monitoring}
+\author{}
+\date{}
+
+\begin{document}
+\maketitle
+
+\section*{1. Comparative Analysis of SDR Devices}
+\noindent\textbf{Objective:} To select an SDR platform following a phased approach (Low-cost $\rightarrow$ Scalable) while minimizing \emph{vendor lock-in} through a portable processing pipeline: IQ capture $\rightarrow$ PSD/Waterfall $\rightarrow$ Metadata/Storage.
+
+\vspace{0.5em}
+\noindent\textbf{SDRs Considered:} RTL-SDR (RX), Adalm-Pluto (TX/RX), HackRF One (TX/RX), and USRP N210 (Ethernet-based).
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabularx}{\linewidth}{@{}l l l X@{}}
+\toprule
+\textbf{Device} & \textbf{Resolution} & \textbf{Bandwidth} & \textbf{Key Strengths \& Use Cases} \\
+\midrule
+RTL-SDR & 8-bit & $\sim$2.4 MHz & Extremely low cost. Ideal for Phase 0: signal inventory, basic FM/AM monitoring, and IQ-to-PSD flow validation. \\
+\addlinespace
+PlutoSDR & 12-bit & Up to 56 MHz & Full-duplex (AD936x). Excellent for Phase 1: portable lab prototyping, FPGA-based processing, and IIO ecosystem. \\
+\addlinespace
+HackRF One & 8-bit & 20 MHz & Wide range (1 MHz--6 GHz). Half-duplex. Best for Phase 1: wideband sweeps and rapid RF exploration across multiple bands. \\
+\addlinespace
+USRP N210 & 14-bit & Up to 50 MHz & Industrial grade. Ethernet interface provides high stability and repeatability. Phase 2: high-performance monitoring and modular scaling. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection*{Technical Comparison and Trade-offs}
+\begin{itemize}[leftmargin=*]
+\item \textbf{Dynamic Range:} The 8-bit architecture of the RTL-SDR and HackRF limits the Effective Number of Bits (ENOB), making them susceptible to saturation in the presence of strong nearby signals (e.g., LTE or FM towers). The 12/14-bit resolution of Pluto and USRP provides a much higher dynamic range, essential for detecting weak signals near the noise floor.
+\item \textbf{Frequency Stability:} Most low-cost SDRs suffer from frequency drift as they heat up. The USRP N210 and newer Pluto revisions include or support high-stability TCXOs or external 10 MHz references, which are critical for long-term automated monitoring.
+\item \textbf{Data Throughput:} USB 2.0 (RTL-SDR/HackRF) creates a bottleneck for wideband real-time analysis. The USRP's Gigabit Ethernet interface allows for more reliable high-rate streaming and easier remote deployment via network infrastructure.
+\end{itemize}
+
+\subsection*{Scope and Use Cases}
+Spectrum monitoring ranges from simple \textit{sweeps} (occupancy detection) to detailed \textit{characterization} (bandwidth, relative power, temporal persistence, and basic classification).
+\begin{itemize}[leftmargin=*]
+\item \textbf{Signal Inventory by Band:} Identifying persistent carriers, intermittent signals, and hourly usage patterns.
+\item \textbf{Noise Floor Detection:} Defining robust thresholds based on smoothed PSD and statistical averages (mean/median).
+\item \textbf{IQ Recording with Metadata:} Generating datasets for offline analysis (classification, anomaly detection) while maintaining full traceability of capture parameters.
+\end{itemize}
+
+\subsection*{Selection Criteria (Modularity and Scalability)}
+\begin{itemize}[leftmargin=*]
+\item \textbf{Pipeline Portability:} Prioritize software abstractions (like SoapySDR or GNU Radio) that allow hardware swapping without major code rewrites.
+\item \textbf{RF Environment Adaptability:} In dense environments, 8-bit SDRs require external pre-selection (filters) and attenuation to prevent front-end overload.
+\item \textbf{Synchronization:} If the scope expands to TDOA (Time Difference of Arrival) or AoA (Angle of Arrival), the hardware must support external clock/PPS distribution.
+\item \textbf{Maintainability:} Documenting gains (LNA, VGA, Mixer), sample rates ($F_s$), and antenna types to ensure measurements are repeatable across different campaigns.
+\end{itemize}
+
+\subsection*{Recommended Phased Roadmap}
+\begin{enumerate}[leftmargin=*,label=\arabic*)]
+\item \textbf{Phase 0 (Exploration):} Deploy RTL-SDR for initial site surveys and validating the basic software logic for IQ processing and database storage.
+\item \textbf{Phase 1 (Prototyping):} Use PlutoSDR or HackRF for controlled TX/RX testing and generating training datasets for signal classifiers.
+\item \textbf{Phase 2 (Scaling):} Transition to USRP N210 for high-fidelity monitoring where repeatability, modular frequency coverage (via daughterboards), and network-based scaling are required.
+\end{enumerate}
+
+\subsection*{Hardware Integration and Best Practices}
+To avoid manufacturer lock-in, the system should be decoupled into discrete blocks:
+\begin{enumerate}[leftmargin=*]
+    \item \textbf{RF Front-end:} Antennas (Discone for VHF/UHF, Horn for Microwaves) and external filtering/amplification.
+    \item \textbf{SDR Layer:} Utilizing standard drivers (UHD, Libiio) or abstraction layers (SoapySDR).
+    \item \textbf{Processing Layer:} Decoupled IQ data storage using formats like SigMF (Signal Metadata Format) to record center frequency, gain, and timestamps.
+\end{enumerate}
+
+\subsection*{Expected Limitations and Mitigations}
+\begin{itemize}[leftmargin=*]
+\item \textbf{Strong Signal Saturation:} Mitigated by using notch filters (e.g., FM bandstop) and manual gain control instead of AGC.
+\item \textbf{Measurement Variability:} Controlled by using fixed gain settings and performing periodic calibration against a known reference.
+\item \textbf{Frequency Offset:} Mitigated by using GPSDO (GPS Disciplined Oscillators) or high-quality internal TCXOs where precision is paramount.
+\end{itemize}
+
+\end{document}

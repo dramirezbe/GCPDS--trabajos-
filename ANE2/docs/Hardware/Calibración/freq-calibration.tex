@@ -1,0 +1,144 @@
+% !TeX program = pdflatex
+\documentclass[10pt]{article}
+
+\usepackage[margin=1.8cm]{geometry}
+\usepackage{amsmath, amssymb}
+\usepackage{siunitx}
+\usepackage{enumitem}
+\usepackage{microtype}
+\usepackage{hyperref}
+
+\title{\vspace{-1.0em}Frequency Calibration of HackRF using the GSM FCCH ``Tone''\\(Mathematical process in 2 pages)}
+\author{Sebastian Torres}
+\date{\vspace{-0.6em}\today}
+
+\begin{document}
+\maketitle
+\vspace{-0.6em}
+
+\section*{1.\;Physical Concept and Modeling}
+In an SDR like the HackRF, an error in the local oscillator (LO) manifests as a \textbf{frequency offset} that shifts the \emph{entire} received signal. If we tune a carrier to frequency $f_c$ but the LO is offset, we will observe an additional translation $\Delta f$ in baseband.
+
+\paragraph{Ideal Reception Model (without error).}
+Let $r_{\text{RF}}(t)$ be the RF signal centered at $f_c$ and let the ideal mixer multiply by $e^{-j2\pi f_c t}$. In ideal baseband:
+\begin{equation}
+x(t) = r_{\text{RF}}(t)\, e^{-j2\pi f_c t}.
+\end{equation}
+
+\paragraph{Model with LO Error.}
+If the actual LO is $f_c+\Delta f$ (due to oscillator error), the mixing process is:
+\begin{equation}
+x_\Delta(t) = r_{\text{RF}}(t)\, e^{-j2\pi (f_c+\Delta f) t}
+= x(t)\, e^{-j2\pi \Delta f\, t}.
+\label{eq:baseband_with_offset}
+\end{equation}
+Therefore, \textbf{the LO error appears as a complex rotation} $e^{-j2\pi\Delta f t}$ in baseband, equivalent to a spectral shift of $\Delta f$.
+
+\section*{2.\;Why GSM is Suitable: The FCCH Burst as a Tone}
+In GSM, there is a \textbf{Frequency Correction Channel (FCCH)} that periodically transmits the \textbf{Frequency Correction Burst (FB)}. Its sequence is designed so that, after GMSK modulation, the baseband result is a \textbf{nearly pure tone} (a very narrow spectral peak) at a known frequency:
+\begin{equation}
+f_{\text{FCCH}} = \frac{R_s}{4},
+\end{equation}
+where the GSM symbol rate is
+\begin{equation}
+R_s=\frac{1.625\times 10^6}{6}\approx 270{,}833.33\ \text{sym/s}.
+\end{equation}
+Thus,
+\begin{equation}
+f_{\text{FCCH}} \approx \frac{270{,}833.33}{4} \approx 67{,}708.33\ \text{Hz}.
+\label{eq:fcch_freq}
+\end{equation}
+In summary: if you tune to a GSM channel and capture IQ data, you should see a peak near $67.708\,$kHz in baseband during an FCCH.
+
+\section*{3.\;Mathematical Process for Estimating the Offset $\Delta f$}
+The objective is to estimate $\Delta f$ by measuring the shift of the FCCH tone relative to $f_{\text{FCCH}}$.
+
+\subsection*{3.1.\;Capture and Temporal Selection}
+Capture a window of IQ (baseband) samples $x_\Delta[n]$ sampled at frequency $F_s$:
+\begin{equation}
+x_\Delta[n] = x_\Delta(t)\big|_{t=n/F_s},\quad n=0,\dots,N-1.
+\end{equation}
+Ideally, select a segment where the FCCH is present (otherwise, you can search for the most dominant peak near $f_{\text{FCCH}}$).
+
+\subsection*{3.2.\;Spectral Estimation (FFT/PSD)}
+Calculate the DFT:
+\begin{equation}
+X_\Delta[k] = \sum_{n=0}^{N-1} x_\Delta[n]\; e^{-j2\pi kn/N},\quad k=0,\dots,N-1.
+\end{equation}
+Map each bin to a frequency (centered at 0) using the FFT shift re-indexing:
+\begin{equation}
+f[k] = \left(k-\frac{N}{2}\right)\frac{F_s}{N},\quad k=0,\dots,N-1.
+\end{equation}
+Then estimate the spectral magnitude $\lvert X_\Delta[k]\rvert$ (or PSD). The FCCH appears as a peak:
+\begin{equation}
+k^\star = \arg\max_{k\in \mathcal{K}} \lvert X_\Delta[k]\rvert,
+\end{equation}
+where $\mathcal{K}$ is a neighborhood around $f_{\text{FCCH}}$ (for example, $\pm 20$ kHz) to avoid confusing it with interference.
+
+\paragraph{Measured Tone Frequency.}
+\begin{equation}
+\hat f_{\text{tono}} = f[k^\star].
+\end{equation}
+
+\subsection*{3.3.\;Calculation of the Absolute Offset in Hz}
+If there were no LO error, the peak should be at $f_{\text{FCCH}}$ (eq.~\eqref{eq:fcch_freq}). With error, per \eqref{eq:baseband_with_offset}, the peak shifts approximately by $\Delta f$:
+\begin{equation}
+\hat f_{\text{tono}} \approx f_{\text{FCCH}} + \Delta f.
+\end{equation}
+Therefore, the estimator for the offset in Hz is:
+\begin{equation}
+\widehat{\Delta f} = \hat f_{\text{tono}} - f_{\text{FCCH}}.
+\label{eq:delta_f_hat}
+\end{equation}
+
+\subsection*{3.4.\;Conversion to ppm (Parts Per Million)}
+The standard oscillator error specification is expressed in ppm:
+\begin{equation}
+\widehat{\text{ppm}} = \frac{\widehat{\Delta f}}{f_c}\times 10^6,
+\label{eq:ppm}
+\end{equation}
+where $f_c$ is the central RF frequency of the GSM channel (the carrier you tuned to).
+
+\paragraph{Numerical Example.}
+If you tune to $f_c=\SI{947.6}{MHz}$ and measure $\widehat{\Delta f}=\SI{5}{kHz}$:
+\[
+\widehat{\text{ppm}}=\frac{5000}{947.6\times 10^6}\times 10^6\approx 5.28\ \text{ppm}.
+\]
+
+\section*{4.\;How to Apply the Correction}
+There are two equivalent ways:
+
+\subsection*{4.1.\;Correcting the Tuning Frequency}
+If your SDR does not have a ppm correction parameter, you can compensate by adjusting the tuning:
+\begin{equation}
+f_{\text{tune}} = f_{\text{objetivo}} - \widehat{\Delta f}
+\quad\Longleftrightarrow\quad
+f_{\text{tune}} \approx f_{\text{objetivo}}\left(1-\frac{\widehat{\text{ppm}}}{10^6}\right).
+\end{equation}
+
+\subsection*{4.2.\;Correcting in Baseband (Digital Mixing)}
+Multiply the signal by a complex exponential that cancels the rotation:
+\begin{equation}
+y[n] = x_\Delta[n]\; e^{+j2\pi \widehat{\Delta f}\, n/F_s}.
+\end{equation}
+This shifts the spectrum back to its place and ``straightens'' the tone.
+
+\section*{5.\;Practical Notes (for best results)}
+\begin{itemize}[leftmargin=1.2em]
+\item \textbf{Spectral resolution:} $\Delta f_{\text{bin}}=F_s/N$. To better estimate $\widehat{\Delta f}$, use a large $N$ (or average several FFTs).
+\item \textbf{Thermal drift:} $\Delta f$ can change with temperature. It is advisable to calibrate after a few minutes of warm-up.
+\item \textbf{Band dependency:} the offset may vary slightly with the band/PLL. Ideally, calibrate near your band of interest (not just on any random GSM channel).
+\item \textbf{Best solution: external clock:} using a \SI{10}{MHz} reference (GPSDO/OCXO) at CLKIN improves both offset and stability.
+\end{itemize}
+
+\vspace{-0.2em}
+\section*{6.\;Summary of the Mathematical Pipeline}
+\begin{enumerate}[leftmargin=1.2em]
+\item Capture $x_\Delta[n]$ (IQ) at $F_s$ on a GSM channel with FCCH.
+\item Estimate the spectrum $\lvert X_\Delta[k]\rvert$ and locate the peak: $\hat f_{\text{tono}}$.
+\item Calculate the offset in Hz: $\widehat{\Delta f}=\hat f_{\text{tono}}-f_{\text{FCCH}}$.
+\item Convert to ppm: $\widehat{\text{ppm}}=\widehat{\Delta f}/f_c\cdot 10^6$.
+\item Correct the tuning or perform digital mixing to compensate for $\widehat{\Delta f}$.
+\end{enumerate}
+
+\end{document}
