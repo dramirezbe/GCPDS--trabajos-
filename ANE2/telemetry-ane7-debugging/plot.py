@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 # Load and parse data
-df = pd.read_csv('telemetry-noPCB-20M-1KRBW-FILTERING-6GHZ.csv', parse_dates=['timestamp'])
+df = pd.read_csv('telemetry-ANE3-20M-1kRBW-6G.csv', parse_dates=['timestamp'])
 df.set_index('timestamp', inplace=True)
 
 # Process CPU cores
