@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SDR Nexus Control</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            background-color: #f4f7f6;
+            color: #2b3035;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .card {
+            background-color: #ffffff;
+            border: 1px solid #e0e6ed;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        }
+        .card-header {
+            background: linear-gradient(90deg, #0d6efd 0%, #4facfe 100%);
+            color: #ffffff !important;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            border-bottom: none;
+            border-radius: 8px 8px 0 0 !important;
+        }
+        .form-label {
+            font-size: 0.85rem;
+            color: #495057;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 0.2rem;
+            font-weight: 600;
+        }
+        .form-control, .form-select {
+            border: 1px solid #ced4da;
+            background-color: #ffffff;
+        }
+        .form-control:focus, .form-select:focus {
+            border-color: #0d6efd;
+            box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+        }
+        .input-group-text {
+            background-color: #f8f9fa;
+            color: #495057;
+            font-weight: 500;
+        }
+        .value-display {
+            font-family: monospace;
+            color: #0d6efd;
+            font-weight: bold;
+            float: right;
+            font-size: 0.95rem;
+        }
+        .btn-action-green {
+            background-color: #198754;
+            color: white;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        .btn-action-green:hover { background-color: #157347; color: white; }
+        
+        .btn-action-red {
+            background-color: #dc3545;
+            color: white;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        .btn-action-red:hover { background-color: #bb2d3b; color: white; }
+        
+        .badge-active {
+            background-color: #198754 !important;
+            color: white;
+        }
+        /* Ocultar flechas de inputs number */
+        input[type=number]::-webkit-inner-spin-button, 
+        input[type=number]::-webkit-outer-spin-button { 
+            -webkit-appearance: none; 
+            margin: 0; 
+        }
+    </style>
+</head>
+<body>
+
+<div class="container-fluid py-4 px-4">
+    <div class="d-flex justify-content-between align-items-center mb-4 border-bottom pb-3">
+        <h2 class="mb-0 text-dark" style="letter-spacing: 1px; font-weight: bold;">SDR <span class="text-primary">NEXUS</span> CONTROL</h2>
+        <div class="input-group" style="width: 350px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+            <span class="input-group-text border-primary bg-primary text-white">MAC SENSOR</span>
+            <input type="text" class="form-control text-center border-primary fw-bold" id="mac_address" value="d0:65:78:9c:dd:d0">
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-xl-4 col-lg-5 mb-4">
+            <div class="card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center py-3">
+                    <span class="fs-6">⎈ Parámetros de RF</span>
+                    <div>
+                        <button class="btn btn-sm btn-light text-primary fw-bold me-1" onclick="loadConfig()">SYNC ⟳</button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <form id="configForm">
+                        <div class="row g-3">
+                            
+                            <div class="col-12">
+                                <label class="form-label">Método PSD</label>
+                                <select class="form-select" id="method_psd">
+                                    <option value="pfb">Polyphase Filter Bank (PFB)</option>
+                                    <option value="welch">Welch's Method</option>
+                                </select>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label">Center Freq <span class="text-secondary fw-normal">(1-6000)</span></label>
+                                <div class="input-group input-group-sm">
+                                    <input type="number" class="form-control" id="center_freq_mhz" min="1" max="6000" step="0.001">
+                                    <span class="input-group-text">MHz</span>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Sample Rate <span class="text-secondary fw-normal">(1-20)</span></label>
+                                <div class="input-group input-group-sm">
+                                    <input type="number" class="form-control" id="sample_rate_mhz" min="1" max="20" step="0.1">
+                                    <span class="input-group-text">MHz</span>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-12">
+                                <label class="form-label">RBW <span class="text-secondary fw-normal">(1kHz - 1MHz)</span></label>
+                                <div class="input-group input-group-sm">
+                                    <input type="number" class="form-control" id="rbw_khz" min="1" max="1000" step="1">
+                                    <span class="input-group-text">kHz</span>
+                                </div>
+                            </div>
+
+                            <hr class="border-secondary-subtle my-3">
+
+                            <div class="col-md-6">
+                                <label class="form-label">Window Function</label>
+                                <select class="form-select form-select-sm" id="window">
+                                    <option value="hann">Hann</option>
+                                    <option value="rectangular">Rectangular</option>
+                                    <option value="blackman">Blackman</option>
+                                    <option value="hamming">Hamming</option>
+                                    <option value="flattop">Flat-Top</option>
+                                    <option value="kaiser">Kaiser</option>
+                                    <option value="tukey">Tukey</option>
+                                    <option value="bartlett">Bartlett</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Overlap</label>
+                                <select class="form-select form-select-sm" id="overlap">
+                                    <option value="0.25">25%</option>
+                                    <option value="0.50" selected>50%</option>
+                                    <option value="0.75">75%</option>
+                                </select>
+                            </div>
+
+                            <hr class="border-secondary-subtle my-3">
+
+                            <div class="col-md-4">
+                                <label class="form-label">Antenna Port</label>
+                                <select class="form-select form-select-sm" id="antenna_port">
+                                    <option value="1">Port 1</option>
+                                    <option value="2">Port 2</option>
+                                    <option value="3">Port 3</option>
+                                    <option value="4">Port 4</option>
+                                </select>
+                            </div>
+                            
+                            <div class="col-md-12 mt-3">
+                                <label class="form-label w-100">LNA Gain <span id="lna_val" class="value-display">0 dB</span></label>
+                                <input type="range" class="form-range" id="lna_gain" min="0" max="40" step="8" value="0" oninput="document.getElementById('lna_val').innerText = this.value + ' dB'">
+                            </div>
+                            <div class="col-md-12 mt-2">
+                                <label class="form-label w-100">VGA Gain <span id="vga_val" class="value-display">0 dB</span></label>
+                                <input type="range" class="form-range" id="vga_gain" min="0" max="62" step="2" value="0" oninput="document.getElementById('vga_val').innerText = this.value + ' dB'">
+                            </div>
+
+                            <div class="col-12 mt-3">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="antenna_amp">
+                                    <label class="form-check-label text-dark fw-bold">Activar Amplificador de Antena (Bias-T)</label>
+                                </div>
+                            </div>
+
+                            <hr class="border-secondary-subtle my-3">
+                            <h6 class="text-secondary mb-2" style="font-size: 0.8rem; text-transform: uppercase; font-weight: bold;">Filtro Lógico (Opcional)</h6>
+                            <div class="col-md-6">
+                                <label class="form-label">Start (MHz)</label>
+                                <input type="number" class="form-control form-control-sm" id="filter_start_mhz" step="0.001">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">End (MHz)</label>
+                                <input type="number" class="form-control form-control-sm" id="filter_end_mhz" step="0.001">
+                            </div>
+                        </div>
+                    </form>
+                    
+                    <div class="d-grid gap-2 mt-4">
+                        <button class="btn btn-action-green" id="btn-start" onclick="startAcquisition()">▶ INICIAR ADQUISICIÓN</button>
+                        <button class="btn btn-action-red d-none" id="btn-stop" onclick="stopAcquisition()">⏹ DETENER HARDWARE</button>
+                    </div>
+                    <div id="status-msg" class="mt-2 text-center fw-bold" style="min-height: 24px;"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-8 col-lg-7 mb-4">
+            <div class="card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center py-3">
+                    <span class="fs-6">∿ Densidad Espectral de Potencia (Tiempo Real)</span>
+                    <span id="acq-status" class="badge bg-light text-dark border border-secondary">STANDBY</span>
+                </div>
+                <div class="card-body bg-white rounded-bottom">
+                    <div style="position: relative; height: calc(100vh - 200px); min-height: 400px; width: 100%;">
+                        <canvas id="pxxChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const API_BASE = window.location.origin;
+    let acquisitionInterval = null;
+
+    // Configuración Limpia de Chart.js
+    Chart.defaults.color = '#6c757d';
+    Chart.defaults.font.family = "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif";
+    
+    const ctx = document.getElementById('pxxChart').getContext('2d');
+    let pxxChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: { 
+            labels: [], 
+            datasets: [{ 
+                label: 'Signal Power', 
+                data: [], 
+                borderColor: '#0d6efd', // Azul Bootstrap
+                backgroundColor: 'rgba(13, 110, 253, 0.15)', // Difuminado azul claro
+                borderWidth: 1.5, 
+                pointRadius: 0, 
+                tension: 0.1,
+                fill: 'start' // <--- LA MAGIA: Rellena hacia el fondo absoluto del gráfico
+            }] 
+        },
+        options: { 
+            responsive: true, 
+            maintainAspectRatio: false, 
+            animation: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                    titleColor: '#2b3035',
+                    bodyColor: '#2b3035',
+                    borderColor: '#ced4da',
+                    borderWidth: 1
+                }
+            },
+            scales: {
+                x: { 
+                    title: { display: true, text: 'Frecuencia (MHz)', color: '#495057', font: { weight: 'bold' } },
+                    grid: { color: '#e9ecef' }
+                },
+                y: { 
+                    title: { display: true, text: 'Amplitud (dBm/Hz)', color: '#495057', font: { weight: 'bold' } },
+                    grid: { color: '#e9ecef' },
+                    suggestedMax: 0,
+                    suggestedMin: -120
+                }
+            }
+        }
+    });
+
+    function getMac() {
+        return document.getElementById('mac_address').value.trim() || 'd0:65:78:9c:dd:d0';
+    }
+
+    window.onload = () => { loadConfig(); };
+
+    // ==========================================
+    // LÓGICA DE CONVERSIÓN (UI -> API -> UI)
+    // ==========================================
+
+    async function loadConfig() {
+        try {
+            const mac = getMac();
+            const res = await fetch(`${API_BASE}/${mac}/realtime`);
+            if(!res.ok) throw new Error("No conectado");
+            const data = await res.json();
+            
+            if(data.center_freq_hz > 0) {
+                document.getElementById('center_freq_mhz').value = (data.center_freq_hz / 1e6).toFixed(3);
+                document.getElementById('sample_rate_mhz').value = (data.sample_rate_hz / 1e6).toFixed(3);
+                document.getElementById('rbw_khz').value = (data.rbw_hz / 1e3).toFixed(1);
+            }
+
+            document.getElementById('method_psd').value = data.method_psd || 'pfb';
+            document.getElementById('window').value = data.window;
+            document.getElementById('overlap').value = data.overlap.toFixed(2);
+            document.getElementById('antenna_port').value = data.antenna_port;
+            document.getElementById('antenna_amp').checked = data.antenna_amp;
+            
+            document.getElementById('lna_gain').value = data.lna_gain;
+            document.getElementById('lna_val').innerText = data.lna_gain + ' dB';
+            document.getElementById('vga_gain').value = data.vga_gain;
+            document.getElementById('vga_val').innerText = data.vga_gain + ' dB';
+            
+            if (data.filter && data.filter.start_freq_hz > 0) {
+                document.getElementById('filter_start_mhz').value = (data.filter.start_freq_hz / 1e6).toFixed(3);
+                document.getElementById('filter_end_mhz').value = (data.filter.end_freq_hz / 1e6).toFixed(3);
+            } else {
+                document.getElementById('filter_start_mhz').value = "";
+                document.getElementById('filter_end_mhz').value = "";
+            }
+            
+            showMessage(`Parámetros sincronizados desde la API.`, '#0d6efd');
+        } catch (e) { showMessage("Error al conectar con la API.", '#dc3545'); }
+    }
+
+    function getFormData() {
+        const center_mhz = parseFloat(document.getElementById('center_freq_mhz').value) || 0;
+        const sr_mhz = parseFloat(document.getElementById('sample_rate_mhz').value) || 0;
+        const rbw_khz = parseFloat(document.getElementById('rbw_khz').value) || 0;
+        
+        const filter_start = parseFloat(document.getElementById('filter_start_mhz').value);
+        const filter_end = parseFloat(document.getElementById('filter_end_mhz').value);
+
+        let payload = {
+            method_psd: document.getElementById('method_psd').value,
+            center_freq_hz: Math.round(center_mhz * 1e6),
+            sample_rate_hz: Math.round(sr_mhz * 1e6),
+            rbw_hz: Math.round(rbw_khz * 1e3),
+            window: document.getElementById('window').value,
+            overlap: parseFloat(document.getElementById('overlap').value),
+            lna_gain: parseInt(document.getElementById('lna_gain').value),
+            vga_gain: parseInt(document.getElementById('vga_gain').value),
+            antenna_port: parseInt(document.getElementById('antenna_port').value),
+            antenna_amp: document.getElementById('antenna_amp').checked,
+            demodulation: null,
+            filter: null
+        };
+
+        if(!isNaN(filter_start) && !isNaN(filter_end)) {
+            payload.filter = {
+                start_freq_hz: Math.round(filter_start * 1e6),
+                end_freq_hz: Math.round(filter_end * 1e6)
+            };
+        }
+
+        return payload;
+    }
+
+    async function sendConfig(payload) {
+        const mac = getMac();
+        const res = await fetch(`${API_BASE}/${mac}/realtime`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        if (!res.ok) throw new Error("Error en el servidor");
+        return res;
+    }
+
+    async function startAcquisition() {
+        const payload = getFormData();
+        
+        if(payload.center_freq_hz < 1e6) {
+            showMessage("Error: Center Freq debe ser mayor a 1 MHz.", '#dc3545');
+            return;
+        }
+
+        try {
+            await sendConfig(payload);
+            showMessage("COMANDO ENVIADO: ADQUISICIÓN ACTIVA", '#198754');
+            
+            document.getElementById('btn-start').classList.add('d-none');
+            document.getElementById('btn-stop').classList.remove('d-none');
+            
+            const statusBadge = document.getElementById('acq-status');
+            statusBadge.innerText = "∿ RX ACTIVE";
+            statusBadge.className = "badge badge-active";
+
+            fetchData();
+            acquisitionInterval = setInterval(fetchData, 250);
+        } catch (e) { showMessage("Fallo al contactar hardware.", '#dc3545'); }
+    }
+
+    async function stopAcquisition() {
+        const payload = getFormData();
+        payload.center_freq_hz = 0; 
+        
+        try {
+            await sendConfig(payload);
+            showMessage("COMANDO ENVIADO: HARDWARE STANDBY", '#dc3545');
+            
+            document.getElementById('btn-stop').classList.add('d-none');
+            document.getElementById('btn-start').classList.remove('d-none');
+            
+            const statusBadge = document.getElementById('acq-status');
+            statusBadge.innerText = "STANDBY";
+            statusBadge.className = "badge bg-light text-dark border border-secondary";
+
+            if (acquisitionInterval) clearInterval(acquisitionInterval);
+        } catch (e) { showMessage("Fallo al detener hardware.", '#dc3545'); }
+    }
+
+    async function fetchData() {
+        try {
+            const mac = getMac();
+            const res = await fetch(`${API_BASE}/${mac}/data`);
+            if (!res.ok) return;
+            const data = await res.json();
+            
+            if (data.Pxx && data.Pxx.length > 0) {
+                const step = (data.end_freq_hz - data.start_freq_hz) / data.Pxx.length;
+                
+                pxxChartInstance.data.labels = data.Pxx.map((_, i) => {
+                    let freq_hz = data.start_freq_hz + (i * step);
+                    return (freq_hz / 1e6).toFixed(3); 
+                });
+                
+                pxxChartInstance.data.datasets[0].data = data.Pxx;
+                pxxChartInstance.update();
+            } else {
+                pxxChartInstance.data.labels = [];
+                pxxChartInstance.data.datasets[0].data = [];
+                pxxChartInstance.update();
+            }
+        } catch (e) { }
+    }
+
+    function showMessage(msg, color) {
+        const el = document.getElementById('status-msg');
+        el.innerText = msg;
+        el.style.color = color;
+        setTimeout(() => el.innerText = "", 4000);
+    }
+</script>
+</body>
+</html>
