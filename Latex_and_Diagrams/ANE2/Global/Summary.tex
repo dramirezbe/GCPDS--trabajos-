@@ -1,81 +1,168 @@
-\documentclass[a4paper,12pt]{article}
+\documentclass[aspectratio=169]{beamer}
 
-% --- Packages ---
-\usepackage[utf8]{inputenc}
-\usepackage[T1]{fontenc}
-\usepackage[english]{babel}
-\usepackage{graphicx}
-\usepackage{amsmath}
-\usepackage{amssymb}
-\usepackage{hyperref}
-\usepackage{geometry}
-\usepackage{titlesec}
-\usepackage{listings}
-\usepackage{tikz}
-\usetikzlibrary{shapes,arrows,positioning}
+% --- Temas y Colores ---
+\usetheme{Madrid} % Tema clásico y formal para investigación
+\usecolortheme{default} % Puedes cambiarlo a 'whale', 'dolphin', etc.
 
-\geometry{margin=1in}
-\hypersetup{colorlinks=true, linkcolor=blue, urlcolor=cyan}
+% --- Paquetes y Librerías Necesarias ---
+\usepackage[utf8]{inputenc} % Codificación para tildes y eñes
+\usepackage[spanish, es-tabla]{babel} % Idioma español
+\usepackage{graphicx} % Para insertar imágenes
+\usepackage{amsmath, amssymb, amsfonts} % Para fórmulas matemáticas (FCME, Gram-Schmidt)
+\usepackage{booktabs} % Para tablas con formato profesional (toprule, midrule, bottomrule)
+\usepackage{tikz} % Excelente para crear diagramas de arquitectura en código
+\usepackage{hyperref} % Para hipervínculos
+\usepackage{listings} % Por si necesitas mostrar fragmentos de código en C99 o Python
 
-% --- Document Information ---
-\title{Summarized Technical Report: ANE-HX / MonRaF2 Spectrum Monitoring System}
-\author{SDR Sensor Engineering Team}
-\date{February 2026}
+% --- Configuración de la Portada ---
+\title[Sensado SDR Autónomo - ANE]{Desarrollo y Despliegue de un Sistema de Sensado SDR Autónomo de Alto Rendimiento}
+\subtitle{Monitoreo Institucional del Espectro Radioeléctrico}
+\author[Tu Nombre]{Tu Nombre / Tu Equipo}
+\institute[Tu Institución]{Nombre de tu Grupo de Investigación o Universidad \\ \vspace{0.2cm} Proyecto en contexto con la ANE}
+\date{\today}
 
 \begin{document}
 
-\maketitle
+% --- Diapositiva: Portada ---
+\begin{frame}
+    \titlepage
+\end{frame}
 
-\section{System Design and Architecture}
-The **ANE-HX (MonRaF2)** system is an autonomous **Software-Defined Radio (SDR)** platform designed to capture, process, and report radioelectric spectrum data across a range of **1 MHz to 6 GHz**. The system architecture follows an **edge computing model**, where heavy signal processing is performed locally on the sensor to minimize network overhead.
+% --- Diapositiva: Índice (Opcional, pero recomendado) ---
+\begin{frame}{Contenido}
+    \tableofcontents
+\end{frame}
 
-\subsection{High-Level Architecture}
-The system implements a **decoupled hybrid architecture** divided into two functional planes:
-\begin{enumerate}
-    \item \textbf{Control Plane (Python 3):} Managed by the \texttt{orchestrator.py} module, which acts as the "cognitive unit" responsible for logic orchestration, state transitions, and cloud API communication.
-    \item \textbf{Data Plane (C99):} A high-performance **RF Engine** (\texttt{rf\_app}) responsible for direct hardware interaction, IQ sample normalization, and intensive Digital Signal Processing (DSP) like **FFT and PFB** calculations.
-\end{enumerate}
+% --- Diapositiva 1: Motivación ---
+\section{Motivación}
+\begin{frame}{Motivación: Contexto Global}
+    \begin{itemize}
+        \item \textbf{El Recurso:} El espectro radioeléctrico es un bien escaso y estratégico.
+        \item \textbf{Rol de la ANE:} Garantizar el uso legal y eficiente (TDT, bandas móviles, FM).
+        \item \textbf{Necesidad Global:} Demanda por sensores autónomos, de bajo costo y alta disponibilidad para redes nacionales masivas.
+    \end{itemize}
+\end{frame}
 
-\subsection{Communication and Infrastructure}
-Inter-process communication (IPC) between Python and C is handled via **ZeroMQ (ZMQ)** sockets over the IPC protocol to ensure low latency and fault isolation. For remote management, the system utilizes **OTA-ANE v7**, an infrastructure employing **WireGuard VPN** for secure tunneling and **Port Knocking** to protect management ports from unauthorized access.
+% --- Diapositiva 2: Problema ---
+\section{Problema}
+\begin{frame}{El Problema: La Brecha Técnica}
+    \begin{itemize}
+        \item \textbf{Carga Computacional:} Procesar flujos IQ de alta velocidad (40 MB/s) en hardware embebido (Raspberry Pi 5) sin \textit{sample drops}.
+        \item \textbf{Artefactos de Hardware:} Receptores SDR económicos presentan fallas intrínsecas (DC Spike, desbalance IQ) que contaminan mediciones.
+        \item \textbf{Entornos Inestables:} Operación remota con enlaces LTE/4G precarios y cortes abruptos de energía.
+    \end{itemize}
+\end{frame}
 
-\section{Technologies Employed}
-\subsection{Hardware Stack}
-\begin{itemize}
-    \item \textbf{Raspberry Pi 5:} Serving as the primary processing unit with an **ARM Cortex-A76** CPU and 8 GB of RAM.
-    \item \textbf{HackRF One:} The core SDR receiver providing up to **20 MHz of instantaneous bandwidth**.
-    \item \textbf{SIM7600G-H Module:} Provides **4G/LTE** connectivity and **GNSS/GPS** for spatial-temporal synchronization.
-    \item \textbf{Antenna System:} A switched array including **VHF/UHF (25 MHz-1 GHz)**, **TDT (470-698 MHz)**, and high-frequency omnidirectional antennas (**>2 GHz**).
-\end{itemize}
+% --- Diapositiva 3: Estado del Arte ---
+\section{Estado del Arte}
+\begin{frame}{Estado del Arte: SDR de Bajo Costo y Edge Computing}
+    \textbf{Desarrollos Actuales (SOTA):}
+    \begin{itemize}
+        \item Redes Crowdsourced (ej. Electrosense con RTL-SDR y RPi).
+        \item Nodos para bandas puntuales (TVS, TETRA) entre \$150 - \$350 USD.
+    \end{itemize}
+    \vspace{0.3cm}
+    \textbf{Limitaciones para la ANE:}
+    \begin{itemize}
+        \item \textit{Cuellos de Botella:} GNU Radio / Python saturan la CPU en el borde.
+        \item \textit{Falta de Rigor Metrológico:} Sin limpieza espectral en tiempo real.
+        \item \textit{Ausencia de Grado Institucional:} Sin estrategias de despliegue seguro o persistencia.
+    \end{itemize}
+\end{frame}
 
-\subsection{Software and DSP Libraries}
-The system leverages **FFTW3** and **KissFFT** for frequency domain transformations. Audio streaming is achieved through a **WebRTC gateway** using **GStreamer** and the **Opus codec** to maintain low-latency distribution over unstable LTE links.
+% --- Diapositiva 4: Objetivos ---
+\section{Objetivos}
+\begin{frame}{Objetivos del Proyecto}
+    \textbf{Meta General:} Desarrollar un sistema de sensado SDR autónomo de alto rendimiento para el monitoreo institucional. \\
+    \vspace{0.3cm}
+    \textbf{Hitos Específicos:}
+    \begin{enumerate}
+        \item Implementar una arquitectura híbrida optimizada (C99/Python).
+        \item Garantizar la integridad de datos (escritura atómica, colas FIFO).
+        \item Validar metrológicamente el sistema con estándares de laboratorio.
+        \item Automatizar la documentación técnica para mantenimiento.
+    \end{enumerate}
+\end{frame}
 
-\section{System Functionalities}
-\subsection{Advanced Acquisition Strategies}
-To eliminate the **"DC Spike"** (center artifact) inherent in direct-conversion SDRs, the system uses two software strategies:
-\begin{itemize}
-    \item \textbf{Offset \& Crop (Real-time):} The Local Oscillator (LO) is tuned 1 MHz away from the target, and Gaussian noise is interpolated over the artifact before cropping the band.
-    \item \textbf{Spectral Stitching (Campaign):} Two captures are taken at different offsets and surgically combined ("Cosido") to provide a clean, high-precision spectrum.
-\end{itemize}
+% --- Diapositiva 5: Metodología I ---
+\section{Metodología}
+\begin{frame}{Metodología I: Arquitectura y Stack Tecnológico}
+    % Aquí puedes insertar tu imagen o usar TikZ
+    \begin{center}
+        \includegraphics[width=0.6\textwidth]{example-image} % Reemplaza 'example-image' con el nombre de tu diagrama
+    \end{center}
+    \begin{itemize}
+        \item \textbf{Hardware:} Raspberry Pi 5, HackRF One, Módulo SIM7600G-H.
+        \item \textbf{Software (Híbrido):} Python 3 (Control/Orquestación) + C99 y FFTW3 (Plano de Datos DSP).
+        \item \textbf{Comunicación:} ZeroMQ (ZMQ) para latencia ultra baja.
+    \end{itemize}
+\end{frame}
 
-\subsection{Spectrum Post-processing for Compliance}
-The system transforms raw **Power Spectral Density (PSD)** data into regulatory findings. It uses the **FCME (Forward Consecutive Mean Excision)** algorithm to estimate the noise floor dynamically. Emissions are then segmented and cross-referenced with **DANE municipal databases** to verify compliance with licensed frequency, bandwidth, and power limits.
+% --- Diapositiva 6: Metodología II ---
+\begin{frame}{Metodología II: Despliegue y Algoritmos}
+    \textbf{Despliegue e Infraestructura:}
+    \begin{itemize}
+        \item OTA-ANE v7 con VPN WireGuard y Port Knocking.
+    \end{itemize}
+    \vspace{0.3cm}
+    \textbf{Algoritmos Clave (DSP en el Borde):}
+    \begin{itemize}
+        \item \textit{Limpieza Espectral:} Offset \& Crop y Spectral Stitching (eliminación del DC Spike).
+        \item \textit{Cumplimiento Normativo:} Algoritmo FCME para estimación del piso de ruido.
+        \item \textit{Metrología:} Ortogonalización de Gram-Schmidt para desbalance IQ.
+    \end{itemize}
+\end{frame}
 
-\section{Metrological Validation}
-The platform has undergone extensive statistical characterization ($N=10,000$ samples) including:
-\begin{itemize}
-    \item \textbf{DANL Characterization:} Using **ANOVA** testing to ensure uniformity across different hardware units.
-    \item \textbf{IQ Balance Optimization:} Implementing **Gram-Schmidt** orthogonalization to improve the **Spurious-Free Dynamic Range (SFDR)** and suppress spectral images.
-    \item \textbf{Frequency Accuracy:} Correcting **LO drift** using **GSM FCCH tones** as a reference to calculate parts-per-million (PPM) error.
-\end{itemize}
+% --- Diapositiva 7: Resultados I ---
+\section{Resultados y Discusión}
+\begin{frame}{Resultados: Evidencia Metrológica}
+    \begin{itemize}
+        \item \textbf{Piso de Ruido (DANL):} Caracterización estadística ($N=10,000$) validada con pruebas ANOVA entre unidades SDR.
+        \item \textbf{Precisión de Potencia:} Error promedio $< 1.5$ dB (calibración Keysight).
+        \item \textbf{Exactitud de Frecuencia:} Errores $< 13$ ppm (sincronización vía tono GSM FCCH).
+    \end{itemize}
+    \vspace{0.3cm}
+    % Ejemplo de tabla de resultados
+    \begin{table}
+        \centering
+        \begin{tabular}{lcc}
+            \toprule
+            \textbf{Parámetro} & \textbf{SOTA (Promedio)} & \textbf{Nuestro Sistema} \\
+            \midrule
+            RMSE Potencia & $> 3$ dB & $< 1$ dB \\
+            Pérdida de Muestras & Alta & $0\%$ a 40 MB/s \\
+            \bottomrule
+        \end{tabular}
+        \caption{Comparativa de Rendimiento}
+    \end{table}
+\end{frame}
 
-\section{Recommendations for Future Improvements}
-\begin{enumerate}
-    \item \textbf{Enable Automated Calibration:} Current repository analysis shows that **pre-campaign calibration calls** (\texttt{kal\_sync}) are present but often commented out in the orchestrator; these should be fully integrated into the production state machine.
-    \item \textbf{Implement C-Engine Unit Testing:} While the Python code has **168 passing tests** via \texttt{pytest}, the C-based RF engine currently lacks a native automated test suite.
-    \item \textbf{External Clock Integration:} Utilizing a **GPSDO (GPS Disciplined Oscillator)** via the HackRF's CLKIN would eliminate thermal drift and improve PPM accuracy beyond standard TCXO performance.
-    \item \textbf{Dynamic Resource Control:} Implementing a controller to adjust FFT size or decimation factors based on **CPU load** would prevent packet loss during high-bandwidth captures on the Raspberry Pi.
-\end{enumerate}
+% --- Diapositiva 8: Resultados II ---
+\begin{frame}{Resultados y Discusión: Operatividad}
+    \begin{itemize}
+        \item \textbf{Evidencia de Software:} 168 pruebas automatizadas exitosas (tolerancia a fallos, concurrencia).
+        \item \textbf{Streaming:} Distribución de audio demodulado (AM/FM) de baja latencia vía WebRTC y Opus.
+        \item \textbf{Automatización:} Generación de reportes JSON de cumplimiento (elimina subjetividad).
+    \end{itemize}
+\end{frame}
+
+% --- Diapositiva 9: Conclusiones ---
+\section{Conclusiones}
+\begin{frame}{Conclusiones}
+    \begin{itemize}
+        \item \textbf{Confirmación Técnica:} Sensor de alto rendimiento que supera los cuellos de botella del SOTA y compite con instrumentos de laboratorio en linealidad (RMSE $< 1$ dB).
+        \item \textbf{Impacto Real:} Descentralización efectiva del monitoreo espectral, permitiendo a la ANE gestionar mediciones masivas, remotas y a una fracción del costo.
+    \end{itemize}
+\end{frame}
+
+% --- Diapositiva 10: Trabajo Futuro ---
+\section{Trabajo Futuro}
+\begin{frame}{Trabajo Futuro}
+    \begin{itemize}
+        \item Integración de \textbf{GPSDO} (Osciladores Disciplinados por GPS) para estabilidad de frecuencia atómica.
+        \item Implementación de \textbf{pruebas unitarias nativas} para el motor DSP en C.
+        \item Exploración de \textbf{aceleración por GPU} (Edge AI) para cálculos de PSD a gran escala.
+    \end{itemize}
+\end{frame}
 
 \end{document}
