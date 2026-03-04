@@ -6,6 +6,7 @@
 from fastapi import FastAPI, Path
 from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 import uvicorn
@@ -21,12 +22,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# === AÑADE ESTA LÍNEA AQUÍ ===
+app.mount("/assets", StaticFiles(directory=os.path.join(os.path.dirname(__file__), "frontend", "dist", "assets")), name="assets")
+# =============================
+
 # ==========================================
 # SERVIR EL FRONTEND (HTML)
 # ==========================================
 @app.get("/", response_class=HTMLResponse)
 def serve_dashboard():
-    html_path = os.path.join(os.path.dirname(__file__), "index.html")
+    html_path = os.path.join(os.path.dirname(__file__), "frontend", "dist", "index.html")
     if not os.path.exists(html_path):
         return "<h1>Error: Archivo index.html no encontrado.</h1>"
     with open(html_path, "r", encoding="utf-8") as f:
