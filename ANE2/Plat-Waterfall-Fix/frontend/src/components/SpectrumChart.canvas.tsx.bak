@@ -1,0 +1,966 @@
+import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
+
+interface Marker {
+  id: string;
+  frequency: number;
+  power: number;
+  color: string;
+}
+
+interface SpectrumSeries {
+  name: string;
+  data: { frequency: number; power: number }[];
+  color?: string;
+}
+
+interface SpectrumChartProps {
+  data?: { frequency: number; power: number }[];
+  series?: SpectrumSeries[];
+  markers: Marker[];
+  onMarkerAdd?: (frequency: number, power: number) => void;
+  activeStats?: Set<string>;
+  statColors?: { [key: string]: string };
+  maxHold?: boolean;
+  minHold?: boolean;
+  zoomMode?: boolean;
+  zoomArea?: {minFreq: number, maxFreq: number, minPower: number, maxPower: number} | null;
+  onZoomAreaChange?: (area: {minFreq: number, maxFreq: number, minPower: number, maxPower: number} | null) => void;
+  vbw?: string | number;
+  rbw?: string | number;
+  freqUnit?: 'Hz' | 'kHz' | 'MHz' | 'GHz';
+  powerUnit?: string;
+  antennaGain?: number;
+  umbral?: number; // Umbral de detección en dB (sobre noise floor)
+  noiseFloor?: number; // Piso de ruido estimado en dBm
+}
+
+export function SpectrumChart({ data, series, markers, onMarkerAdd, activeStats, statColors, maxHold, minHold, zoomMode, zoomArea, onZoomAreaChange, vbw, rbw, freqUnit = 'MHz', powerUnit = 'dBm', antennaGain = 0, umbral, noiseFloor }: SpectrumChartProps) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [tooltip, setTooltip] = useState<{ x: number; y: number; freq: number; power: number; seriesName?: string } | null>(null);
+  const [maxHoldData, setMaxHoldData] = useState<{ frequency: number; power: number }[]>([]);
+  const [minHoldData, setMinHoldData] = useState<{ frequency: number; power: number }[]>([]);
+  const lastMouseMoveTime = useRef<number>(0);
+  const [selectionStart, setSelectionStart] = useState<{x: number, y: number} | null>(null);
+  const [selectionEnd, setSelectionEnd] = useState<{x: number, y: number} | null>(null);
+  const [isSelecting, setIsSelecting] = useState(false);
+
+  // Unificar datos para cálculos de rango y visualización
+  // Si hay series, usamos series. Si no, usamos data (compatible con single line)
+  const displaySeries = useMemo(() => {
+    if (series && series.length > 0) return series;
+    if (data && data.length > 0) return [{ name: 'Sensor', data: data, color: '#f97316' }];
+    return [];
+  }, [data, series]);
+
+  // Calcular padding dinámico basado en la unidad
+  const padding = useMemo(() => {
+    // Unidades que requieren más espacio por su longitud o formato (científico)
+    const longUnits = ['W/m²', 'mV/m', 'dBuV/m', 'dBmV/m', 'V/m', 'W/m2'];
+    const isLongUnit = powerUnit && (powerUnit.length > 5 || longUnits.includes(powerUnit));
+    
+    const leftPadding = isLongUnit ? 100 : 60;
+    return { top: 20, right: 40, bottom: 40, left: leftPadding };
+  }, [powerUnit]);
+
+  // Usar la primera serie para cálculos de maxHold/minHold (solo soportado en modo single sensor por ahora)
+  const primaryData = displaySeries.length > 0 ? displaySeries[0].data : [];
+
+  // Detectar cambio de rango de frecuencia para resetear maxHold/minHold
+  // Si los parámetros de adquisición cambian, los datos acumulados ya no son válidos
+  const lastFreqRangeRef = useRef<string>('');
+  useEffect(() => {
+    if (primaryData.length === 0) {
+      // Cuando no hay datos (ej: entre stop y start), resetear hold
+      if (lastFreqRangeRef.current !== '') {
+        setMaxHoldData([]);
+        setMinHoldData([]);
+        lastFreqRangeRef.current = '';
+      }
+      return;
+    }
+    const firstFreq = primaryData[0]?.frequency ?? 0;
+    const lastFreq = primaryData[primaryData.length - 1]?.frequency ?? 0;
+    const rangeKey = `${primaryData.length}-${firstFreq.toFixed(0)}-${lastFreq.toFixed(0)}`;
+    if (lastFreqRangeRef.current !== '' && lastFreqRangeRef.current !== rangeKey) {
+      // Rango de frecuencia cambió → resetear trazas acumuladas
+      console.log('🔄 SpectrumChart: freq range changed, resetting maxHold/minHold');
+      setMaxHoldData([]);
+      setMinHoldData([]);
+    }
+    lastFreqRangeRef.current = rangeKey;
+  }, [primaryData]);
+
+  // Convertir potencia de dBm a otras unidades
+  const convertPower = useCallback((powerDbm: number, frequencyHz?: number): number => {
+    // Si antennaGain no está definido (aunque por default es 0), usar 0
+    const gain = antennaGain || 0;
+    
+    switch (powerUnit) {
+      case 'dBm':
+        return powerDbm;
+      case 'nW': {
+        // dBm -> nW
+        // Fórmula: 10^((dBm+60)/10)
+        return Math.pow(10, (powerDbm + 60) / 10);
+      }
+      case 'mV': {
+        // dBm -> mV (rms)
+        // Fórmula: sqrt(50) * 10^((dBm+30)/20)
+        // Nota: 10^((dBm+30)/20) es equivalente a sqrt(10^((dBm+30)/10))
+        return Math.sqrt(50) * Math.pow(10, (powerDbm + 30) / 20);
+      }
+      case 'dBmV': {
+        // dBm -> dBmV
+        // Fórmula: dBm + 46.99
+        return powerDbm + 46.99;
+      }
+      case 'dBuV': {
+        // dBm -> dBµV
+        // Fórmula: dBm + 106.99
+        return powerDbm + 106.99;
+      }
+      // Unidades de campo eléctrico (requieren frecuencia)
+      case 'dBuV/m': {
+        if (frequencyHz === undefined || frequencyHz === null) return powerDbm;
+        const freqMhz = frequencyHz / 1e6;
+        if (freqMhz <= 0) return 0; // Evitar log10(0)
+        // E(dBuV/m) = P(dBm) + 107 + 20log(f_MHz) - G(dBi) - 29.77
+        // Simplificado: P(dBm) + 77.23 + 20log(f_MHz) - G(dBi)
+        return powerDbm + 77.23 + 20 * Math.log10(freqMhz) - gain;
+      }
+      case 'dBmV/m': {
+        if (frequencyHz === undefined || frequencyHz === null) return powerDbm;
+        const freqMhz = frequencyHz / 1e6;
+        if (freqMhz <= 0) return 0;
+        const e_dbuv_m = powerDbm + 77.23 + 20 * Math.log10(freqMhz) - gain;
+        return e_dbuv_m - 60;
+      }
+      case 'mV/m': {
+        if (frequencyHz === undefined || frequencyHz === null) return 0;
+        const freqMhz = frequencyHz / 1e6;
+        if (freqMhz <= 0) return 0;
+        const e_dbuv_m = powerDbm + 77.23 + 20 * Math.log10(freqMhz) - gain;
+        // mV/m = 10^((dBuV/m - 60) / 20)
+        return Math.pow(10, (e_dbuv_m - 60) / 20);
+      }
+      case 'V/m': {
+        if (frequencyHz === undefined || frequencyHz === null) return 0;
+        const freqMhz = frequencyHz / 1e6;
+        if (freqMhz <= 0) return 0;
+        const e_dbuv_m = powerDbm + 77.23 + 20 * Math.log10(freqMhz) - gain;
+        // V/m = 10^((dBuV/m - 120) / 20)
+        return Math.pow(10, (e_dbuv_m - 120) / 20);
+      }
+      case 'W/m²': {
+        if (frequencyHz === undefined || frequencyHz === null) return 0;
+        const freqMhz = frequencyHz / 1e6;
+        if (freqMhz <= 0) return 0;
+        const e_dbuv_m = powerDbm + 77.23 + 20 * Math.log10(freqMhz) - gain;
+        // S = E^2 / 377
+        // E en V/m = 10^((dBuV/m - 120) / 20)
+        const e_v_m = Math.pow(10, (e_dbuv_m - 120) / 20);
+        return (e_v_m * e_v_m) / 377;
+      }
+      case 'dBW/m²/MHz': {
+        // Esta es densidad espectral, más compleja si no es por Hz.
+        // Asumiendo conversión directa de potencia a densidad de potencia en dB
+        if (frequencyHz === undefined || frequencyHz === null) return powerDbm;
+        const freqMhz = frequencyHz / 1e6;
+        if (freqMhz <= 0) return -200; // Valor bajo para 0 Hz
+        const e_dbuv_m = powerDbm + 77.23 + 20 * Math.log10(freqMhz) - gain;
+        // W/m² = E^2/377. dBW/m² = 10log(W/m²)
+        const e_v_m = Math.pow(10, (e_dbuv_m - 120) / 20);
+        const s_w_m2 = (e_v_m * e_v_m) / 377;
+        if (s_w_m2 <= 0) return -200;
+        return 10 * Math.log10(s_w_m2);
+      }
+      default:
+        return powerDbm;
+    }
+  }, [powerUnit, antennaGain]);
+
+  // Convertir frecuencia a la unidad seleccionada
+  const convertFrequency = useCallback((freqHz: number): number => {
+    switch (freqUnit) {
+      case 'Hz': return freqHz;
+      case 'kHz': return freqHz / 1e3;
+      case 'MHz': return freqHz / 1e6;
+      case 'GHz': return freqHz / 1e9;
+      default: return freqHz / 1e6;
+    }
+  }, [freqUnit]);
+
+  // Formatear frecuencia con la unidad
+  const formatFrequency = useCallback((freqHz: number): string => {
+    const converted = convertFrequency(freqHz);
+    return `${converted.toFixed(converted < 1 ? 3 : converted < 100 ? 2 : 1)} ${freqUnit}`;
+  }, [convertFrequency, freqUnit]);
+
+  // Función helper para obtener coordenadas del canvas considerando el escalado
+  const getCanvasCoordinates = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return null;
+
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+
+    return {
+      x: (e.clientX - rect.left) * scaleX,
+      y: (e.clientY - rect.top) * scaleY
+    };
+  };
+
+  // Cachear rangos para evitar recalcular en cada render
+  const ranges = useMemo(() => {
+    if (displaySeries.length === 0) return null;
+    
+    // Si hay zoomArea, usar esos rangos
+    if (zoomArea) {
+      return zoomArea;
+    }
+    
+    // Calcular rangos completos iterando sobre TODAS las series
+    let minFreq = Infinity, maxFreq = -Infinity;
+    let minPower = Infinity, maxPower = -Infinity;
+    
+    displaySeries.forEach(serie => {
+      const sData = serie.data;
+      if (!sData) return;
+      
+      for (let i = 0; i < sData.length; i++) {
+        const freq = sData[i].frequency;
+        const power = sData[i].power;
+        if (freq < minFreq) minFreq = freq;
+        if (freq > maxFreq) maxFreq = freq;
+        if (power < minPower) minPower = power;
+        if (power > maxPower) maxPower = power;
+      }
+    });
+    
+    if (minFreq === Infinity) return null;
+
+    return {
+      minFreq,
+      maxFreq,
+      minPower: minPower - 5,
+      maxPower: maxPower + 5
+    };
+  }, [displaySeries, zoomArea]);
+
+  // Actualizar datos de retención (solo usa primaryData)
+  useEffect(() => {
+    if (primaryData.length === 0) return;
+
+    if (maxHold) {
+      setMaxHoldData(prev => {
+        if (prev.length === 0) return primaryData;
+        return primaryData.map((point, i) => ({
+          frequency: point.frequency,
+          power: Math.max(point.power, prev[i]?.power || point.power)
+        }));
+      });
+    } else {
+      setMaxHoldData([]);
+    }
+
+    if (minHold) {
+      setMinHoldData(prev => {
+        if (prev.length === 0) return primaryData;
+        return primaryData.map((point, i) => ({
+          frequency: point.frequency,
+          power: Math.min(point.power, prev[i]?.power || point.power)
+        }));
+      });
+    } else {
+      setMinHoldData([]);
+    }
+  }, [primaryData, maxHold, minHold]);
+
+  // Función para interpolar y dibujar datos en el canvas
+  const drawInterpolatedData = useCallback((
+    ctx: CanvasRenderingContext2D,
+    data: { frequency: number; power: number }[],
+    minFreq: number,
+    maxFreq: number,
+    minPower: number,
+    maxPower: number,
+    chartWidth: number,
+    chartHeight: number,
+    padding: { top: number; left: number }
+  ) => {
+    if (data.length === 0) return;
+
+    const pointsPerPixel = data.length / chartWidth;
+    
+    if (pointsPerPixel < 0.5) {
+      // Interpolar cuando hay pocos datos
+      for (let pixelX = 0; pixelX < chartWidth; pixelX++) {
+        const targetFreq = minFreq + (pixelX / chartWidth) * (maxFreq - minFreq);
+        
+        let lowerIdx = 0;
+        let upperIdx = data.length - 1;
+        
+        for (let i = 0; i < data.length - 1; i++) {
+          if (data[i].frequency <= targetFreq && data[i + 1].frequency >= targetFreq) {
+            lowerIdx = i;
+            upperIdx = i + 1;
+            break;
+          }
+        }
+        
+        let power;
+        if (lowerIdx === upperIdx) {
+          power = data[lowerIdx].power;
+        } else {
+          const freqSpan = data[upperIdx].frequency - data[lowerIdx].frequency;
+          const fraction = freqSpan === 0 ? 0 : (targetFreq - data[lowerIdx].frequency) / freqSpan;
+          power = data[lowerIdx].power + (data[upperIdx].power - data[lowerIdx].power) * fraction;
+        }
+        
+        const x = padding.left + pixelX;
+        const y = padding.top + chartHeight - ((power - minPower) / (maxPower - minPower)) * chartHeight;
+        const clampedY = Math.max(padding.top, Math.min(padding.top + chartHeight, y));
+        
+        if (pixelX === 0) {
+          ctx.moveTo(x, clampedY);
+        } else {
+          ctx.lineTo(x, clampedY);
+        }
+      }
+    } else {
+      // Dibujar normalmente cuando hay suficientes datos
+      data.forEach((point, index) => {
+        const x = padding.left + ((point.frequency - minFreq) / (maxFreq - minFreq)) * chartWidth;
+        const y = padding.top + chartHeight - ((point.power - minPower) / (maxPower - minPower)) * chartHeight;
+        const clampedY = Math.max(padding.top, Math.min(padding.top + chartHeight, y));
+
+        if (index === 0) {
+          ctx.moveTo(x, clampedY);
+        } else {
+          ctx.lineTo(x, clampedY);
+        }
+      });
+    }
+  }, []);
+
+  // Función de suavizado basada en VBW
+  const applyVBWSmoothing = useCallback((dataToSmooth: { frequency: number; power: number }[]) => {
+    if (!vbw || dataToSmooth.length === 0) return dataToSmooth;
+
+    let smoothingFactor = 1;
+    
+    // Obtener valor de RBW para cálculos
+    const rbwValue = typeof rbw === 'string' ? parseFloat(rbw) : (rbw || 1000);
+    
+    // Determinar el factor de suavizado según VBW
+    if (typeof vbw === 'string') {
+      // Nuevos valores relativos a RBW
+      if (vbw === 'rbw/5') {
+        smoothingFactor = 7; // Máximo suavizado
+      } else if (vbw === 'rbw/3') {
+        smoothingFactor = 5; // Alto suavizado
+      } else if (vbw === 'rbw/2') {
+        smoothingFactor = 3; // Medio suavizado
+      } else if (vbw === 'rbw') {
+        smoothingFactor = 1; // Sin suavizado adicional
+      } else {
+        // Valores heredados (por si acaso)
+        const vbwValue = parseFloat(vbw);
+        if (!isNaN(vbwValue) && vbwValue > 0) {
+          // Relación VBW/RBW determina el suavizado
+          const ratio = vbwValue / rbwValue;
+          if (ratio <= 0.2) smoothingFactor = 7;      // VBW mucho menor que RBW
+          else if (ratio <= 0.33) smoothingFactor = 5; // VBW = RBW/3
+          else if (ratio <= 0.5) smoothingFactor = 3;  // VBW = RBW/2
+          else smoothingFactor = 1;                    // VBW ≈ RBW o mayor
+        }
+      }
+    }
+
+    if (smoothingFactor <= 1) return dataToSmooth;
+
+    // Aplicar filtro de media móvil
+    const smoothed: { frequency: number; power: number }[] = [];
+    const windowSize = Math.min(smoothingFactor * 2 + 1, dataToSmooth.length);
+    const halfWindow = Math.floor(windowSize / 2);
+
+    for (let i = 0; i < dataToSmooth.length; i++) {
+      let sum = 0;
+      let count = 0;
+
+      for (let j = Math.max(0, i - halfWindow); j <= Math.min(dataToSmooth.length - 1, i + halfWindow); j++) {
+        sum += dataToSmooth[j].power;
+        count++;
+      }
+
+      smoothed.push({
+        frequency: dataToSmooth[i].frequency,
+        power: sum / count
+      });
+    }
+
+    return smoothed;
+  }, [vbw, rbw]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || !data || data.length === 0 || !ranges) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const width = canvas.width;
+    const height = canvas.height;
+    // Usar padding calculado en el componente
+    const chartWidth = width - padding.left - padding.right;
+    const chartHeight = height - padding.top - padding.bottom;
+
+    const { minFreq, maxFreq, minPower, maxPower } = ranges;
+
+    // Limpiar canvas
+    ctx.clearRect(0, 0, width, height);
+
+    // Fondo del gráfico - blanco
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(padding.left, padding.top, chartWidth, chartHeight);
+
+    // Grid con líneas claras
+    ctx.strokeStyle = '#e5e7eb';
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= 8; i++) {
+      const y = padding.top + (chartHeight * i) / 8;
+      ctx.beginPath();
+      ctx.moveTo(padding.left, y);
+      ctx.lineTo(padding.left + chartWidth, y);
+      ctx.stroke();
+
+      ctx.fillStyle = '#4b5563';
+      ctx.font = 'bold 11px sans-serif';
+      ctx.textAlign = 'right';
+      const powerValue = maxPower - ((maxPower - minPower) * i) / 8;
+      // Ajustar decimales según la unidad y el valor
+      const centerFreq = minFreq + (maxFreq - minFreq) / 2;
+      const convertedPower = convertPower(powerValue, centerFreq);
+      
+      let label = '';
+      const absValue = Math.abs(convertedPower);
+      if ((powerUnit === 'V/m' || powerUnit === 'W/m²' || powerUnit === 'mV/m' || powerUnit === 'nW') && absValue < 0.01) {
+        // Usar notación científica para valores muy pequeños, incluso 0
+        label = convertedPower.toExponential(2);
+      } else {
+        const decimals = (powerUnit === 'mV' || powerUnit === 'mV/m' || powerUnit === 'V/m' || powerUnit === 'W/m²') ? 3 : (powerUnit?.includes('dB') ? 1 : 2);
+        label = convertedPower.toFixed(decimals);
+      }
+      
+      ctx.fillText(`${label} ${powerUnit}`, padding.left - 5, y + 4);
+    }
+
+    for (let i = 0; i <= 10; i++) {
+      const x = padding.left + (chartWidth * i) / 10;
+      ctx.beginPath();
+      ctx.moveTo(x, padding.top);
+      ctx.lineTo(x, padding.top + chartHeight);
+      ctx.stroke();
+
+      ctx.fillStyle = '#4b5563';
+      ctx.font = 'bold 11px sans-serif';
+      ctx.textAlign = 'center';
+      const freqValue = minFreq + ((maxFreq - minFreq) * i) / 10;
+      ctx.fillText(convertFrequency(freqValue).toFixed(convertFrequency(freqValue) < 100 ? 2 : 1), x, height - padding.bottom + 15);
+    }
+
+    // Filtrar datos dentro del rango visible y dibujar cada serie
+    const colors = ['#f97316', '#3b82f6', '#10b981', '#a855f7', '#ef4444', '#eab308', '#6366f1', '#ec4899'];
+    
+    displaySeries.forEach((serie, index) => {
+      let visibleData = serie.data.filter(point => 
+        point.frequency >= minFreq && 
+        point.frequency <= maxFreq
+      );
+
+      // Aplicar suavizado VBW a los datos visibles
+      visibleData = applyVBWSmoothing(visibleData);
+
+      if (visibleData.length > 0) {
+        const color = serie.color || colors[index % colors.length];
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        ctx.shadowColor = color;
+        ctx.shadowBlur = 2;
+        ctx.beginPath();
+        drawInterpolatedData(ctx, visibleData, minFreq, maxFreq, minPower, maxPower, chartWidth, chartHeight, padding);
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+      }
+    });
+
+    // Dibujar leyenda si hay múltiples series
+    if (displaySeries.length > 1) {
+      const legendX = width - padding.right - 10;
+      const legendY = padding.top + 10;
+      
+      ctx.textAlign = 'right';
+      ctx.font = 'bold 11px sans-serif';
+      
+      displaySeries.forEach((serie, index) => {
+        const color = serie.color || colors[index % colors.length];
+        const y = legendY + (index * 15);
+        
+        ctx.fillStyle = color;
+        ctx.fillRect(legendX - 10, y - 8, 10, 10);
+        ctx.fillText(serie.name, legendX - 15, y);
+      });
+    }
+
+    // Dibujar maxHold si está activo (solo para primaryData)
+    if (maxHold && maxHoldData.length > 0) {
+      let visibleMaxHold = maxHoldData.filter(point => 
+        point.frequency >= minFreq && point.frequency <= maxFreq
+      );
+      visibleMaxHold = applyVBWSmoothing(visibleMaxHold);
+
+      if (visibleMaxHold.length > 0) {
+        ctx.strokeStyle = '#ff4444'; // Rojo más brillante
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([3, 3]);
+        ctx.beginPath();
+        drawInterpolatedData(ctx, visibleMaxHold, minFreq, maxFreq, minPower, maxPower, chartWidth, chartHeight, padding);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+    }
+
+    // Dibujar minHold si está activo
+    if (minHold && minHoldData.length > 0) {
+      let visibleMinHold = minHoldData.filter(point => 
+        point.frequency >= minFreq && point.frequency <= maxFreq
+      );
+      visibleMinHold = applyVBWSmoothing(visibleMinHold);
+
+      if (visibleMinHold.length > 0) {
+        ctx.strokeStyle = '#44ff44'; // Verde más brillante
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([3, 3]);
+        ctx.beginPath();
+        drawInterpolatedData(ctx, visibleMinHold, minFreq, maxFreq, minPower, maxPower, chartWidth, chartHeight, padding);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+    }
+
+    // Calcular y dibujar estadísticas si están activas
+    if (activeStats && activeStats.size > 0 && statColors) {
+      // Calcular estadísticas de líneas horizontales (Min, Max, Avg, RMS)
+      if (activeStats.has('min') || activeStats.has('max') || activeStats.has('avg') || activeStats.has('rms')) {
+        let sum = 0, sumLinearPower = 0, min = Infinity, max = -Infinity;
+        
+        for (let i = 0; i < data.length; i++) {
+          const powerDbm = data[i].power;
+          sum += powerDbm;
+          // Convertir dBm a potencia lineal (mW): P(mW) = 10^(dBm/10)
+          const linearPower = Math.pow(10, powerDbm / 10);
+          sumLinearPower += linearPower * linearPower;
+          if (powerDbm < min) min = powerDbm;
+          if (powerDbm > max) max = powerDbm;
+        }
+        
+        const avg = sum / data.length;
+        // RMS en escala logarítmica: convertir a lineal, calcular RMS, volver a dBm
+        const rmsLinear = Math.sqrt(sumLinearPower / data.length);
+        const rms = 10 * Math.log10(rmsLinear); // Convertir de mW a dBm
+
+        // Dibujar líneas horizontales
+        const horizontalStats: Array<{stat: string, value: number}> = [];
+        if (activeStats.has('min')) horizontalStats.push({stat: 'min', value: min});
+        if (activeStats.has('max')) horizontalStats.push({stat: 'max', value: max});
+        if (activeStats.has('avg')) horizontalStats.push({stat: 'avg', value: avg});
+        if (activeStats.has('rms')) horizontalStats.push({stat: 'rms', value: rms});
+
+        horizontalStats.forEach(({stat, value}) => {
+          const y = padding.top + chartHeight - ((value - minPower) / (maxPower - minPower)) * chartHeight;
+          
+          ctx.strokeStyle = statColors[stat];
+          ctx.lineWidth = 1.5;
+          ctx.setLineDash([5, 3]);
+          ctx.beginPath();
+          ctx.moveTo(padding.left, y);
+          ctx.lineTo(padding.left + chartWidth, y);
+          ctx.stroke();
+          ctx.setLineDash([]);
+
+          ctx.fillStyle = statColors[stat];
+          ctx.font = 'bold 11px sans-serif';
+          ctx.textAlign = 'left';
+          // Para stats globales (min/max/avg), no hay una frecuencia única. Usamos centro.
+          const centerFreq = minFreq + (maxFreq - minFreq) / 2;
+          const convertedValue = convertPower(value, centerFreq);
+          ctx.fillText(`${stat.toUpperCase()}: ${convertedValue.toFixed(1)} ${powerUnit}`, padding.left + 5, y - 5);
+        });
+      }
+
+      // VBW - Gráfica suavizada (curva)
+      if (activeStats.has('vbw')) {
+        const windowSize = Math.max(3, Math.floor(data.length / 20));
+        const vbwData: Array<{frequency: number, power: number}> = [];
+        
+        for (let i = 0; i < data.length; i++) {
+          const start = Math.max(0, i - Math.floor(windowSize / 2));
+          const end = Math.min(data.length, i + Math.ceil(windowSize / 2));
+          let sum = 0;
+          for (let j = start; j < end; j++) {
+            sum += data[j].power;
+          }
+          vbwData.push({
+            frequency: data[i].frequency,
+            power: sum / (end - start)
+          });
+        }
+
+        // Dibujar curva VBW
+        ctx.strokeStyle = statColors.vbw;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+
+        for (let i = 0; i < vbwData.length; i++) {
+          const x = padding.left + ((vbwData[i].frequency - minFreq) / (maxFreq - minFreq)) * chartWidth;
+          const y = padding.top + chartHeight - ((vbwData[i].power - minPower) / (maxPower - minPower)) * chartHeight;
+
+          if (i === 0) {
+            ctx.moveTo(x, y);
+          } else {
+            ctx.lineTo(x, y);
+          }
+        }
+
+        ctx.stroke();
+
+        // Etiqueta VBW
+        ctx.fillStyle = statColors.vbw;
+        ctx.font = 'bold 11px sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText('VBW (Video Bandwidth)', padding.left + 5, padding.top + 15);
+      }
+    }
+
+    // Dibujar línea de umbral si está disponible
+    if (umbral !== undefined && noiseFloor !== undefined) {
+      const thresholdLevel = noiseFloor + umbral;
+      const y = padding.top + chartHeight - ((thresholdLevel - minPower) / (maxPower - minPower)) * chartHeight;
+
+      // Solo dibujar si está dentro del rango visible
+      if (y >= padding.top && y <= padding.top + chartHeight) {
+        ctx.strokeStyle = '#ef4444'; // Rojo
+        ctx.lineWidth = 2;
+        ctx.setLineDash([8, 4]); // Línea punteada
+        ctx.beginPath();
+        ctx.moveTo(padding.left, y);
+        ctx.lineTo(padding.left + chartWidth, y);
+        ctx.stroke();
+        ctx.setLineDash([]); // Reset dash
+
+        // Etiqueta
+        ctx.fillStyle = '#ef4444';
+        ctx.font = 'bold 12px sans-serif';
+        ctx.textAlign = 'right';
+        ctx.fillText(`Umbral: ${thresholdLevel.toFixed(1)} ${powerUnit} (NF+${umbral}dB)`, padding.left + chartWidth - 10, y - 8);
+      }
+    }
+
+    // Dibujar líneas delta entre marcadores
+    // Colores para los deltas (distintos a naranja)
+    const deltaColors = [
+      '#4F46E5', // Indigo (M1-M2)
+      '#DB2777', // Rosa (M3-M4)
+      '#059669', // Emerald (M5-M6)
+      '#7C3AED', // Violet (M7-M8)
+      '#0891B2'  // Cyan (M9-M10)
+    ];
+
+    if (markers.length >= 2) {
+      // Loop para dibujar pares de deltas
+      for (let i = 0; i < markers.length - 1; i += 2) {
+        if (i + 1 >= markers.length) break;
+
+        const m1 = markers[i];
+        const m2 = markers[i+1];
+        const color = deltaColors[i / 2] || '#4F46E5';
+
+        const x1 = padding.left + ((m1.frequency - minFreq) / (maxFreq - minFreq)) * chartWidth;
+        const y1 = padding.top + chartHeight - ((m1.power - minPower) / (maxPower - minPower)) * chartHeight;
+        const x2 = padding.left + ((m2.frequency - minFreq) / (maxFreq - minFreq)) * chartWidth;
+        const y2 = padding.top + chartHeight - ((m2.power - minPower) / (maxPower - minPower)) * chartHeight;
+
+        // Línea horizontal (delta frecuencia)
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y1);
+        ctx.stroke();
+
+        // Línea vertical (delta potencia)
+        ctx.beginPath();
+        ctx.moveTo(x2, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+
+        // Etiquetas delta
+        ctx.fillStyle = color;
+        ctx.font = 'bold 11px sans-serif';
+        ctx.textAlign = 'center';
+        const deltaFreq = Math.abs(m2.frequency - m1.frequency);
+        const deltaPower = m2.power - m1.power;
+        const convertedDeltaPower = convertPower(m1.power + deltaPower) - convertPower(m1.power);
+        ctx.fillText(`Δf: ${(deltaFreq / 1e6).toFixed(3)} MHz`, (x1 + x2) / 2, y1 - 5);
+        ctx.textAlign = 'left';
+        ctx.fillText(`Δp: ${convertedDeltaPower.toFixed(2)} ${powerUnit}`, x2 + 5, (y1 + y2) / 2);
+      }
+    }
+
+    markers.forEach((marker) => {
+      const x = padding.left + ((marker.frequency - minFreq) / (maxFreq - minFreq)) * chartWidth;
+      const y = padding.top + chartHeight - ((marker.power - minPower) / (maxPower - minPower)) * chartHeight;
+
+      ctx.fillStyle = marker.color;
+      ctx.beginPath();
+      ctx.arc(x, y, 6, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.strokeStyle = marker.color;
+      ctx.lineWidth = 1;
+      ctx.setLineDash([5, 5]);
+      ctx.beginPath();
+      ctx.moveTo(x, padding.top);
+      ctx.lineTo(x, padding.top + chartHeight);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.fillStyle = marker.color;
+      ctx.font = '11px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(formatFrequency(marker.frequency), x, padding.top - 5);
+      const convertedMarkerPower = convertPower(marker.power, marker.frequency);
+      
+      let label = '';
+      const absValue = Math.abs(convertedMarkerPower);
+      if ((powerUnit === 'V/m' || powerUnit === 'W/m²' || powerUnit === 'mV/m' || powerUnit === 'nW') && absValue < 0.01) {
+        label = convertedMarkerPower.toExponential(2);
+      } else {
+        const decimals = (powerUnit === 'mV' || powerUnit === 'mV/m' || powerUnit === 'V/m' || powerUnit === 'W/m²') ? 3 : (powerUnit?.includes('dB') ? 1 : 2);
+        label = convertedMarkerPower.toFixed(decimals);
+      }
+      
+      ctx.fillText(`${label} ${powerUnit}`, x, y - 10);
+    });
+
+    ctx.fillStyle = '#4b5563';
+    ctx.font = '12px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(`Frecuencia (${freqUnit})`, width / 2, height - 5);
+
+    // Dibujar rectángulo de selección si está activo
+    if (isSelecting && selectionStart && selectionEnd) {
+      const x1 = Math.min(selectionStart.x, selectionEnd.x);
+      const y1 = Math.min(selectionStart.y, selectionEnd.y);
+      const w = Math.abs(selectionEnd.x - selectionStart.x);
+      const h = Math.abs(selectionEnd.y - selectionStart.y);
+
+      ctx.strokeStyle = '#FFA500';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([5, 5]);
+      ctx.strokeRect(x1, y1, w, h);
+      ctx.setLineDash([]);
+
+      ctx.fillStyle = 'rgba(255, 165, 0, 0.1)';
+      ctx.fillRect(x1, y1, w, h);
+    }
+  }, [ranges, markers, activeStats, statColors, maxHold, minHold, maxHoldData, minHoldData, isSelecting, selectionStart, selectionEnd, convertFrequency, formatFrequency, freqUnit, powerUnit, convertPower, drawInterpolatedData, applyVBWSmoothing, padding]);
+
+  // Definir handleMouseMoveSelection PRIMERO
+  const handleMouseMoveSelection = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!isSelecting || !selectionStart) return;
+
+    const coords = getCanvasCoordinates(e);
+    if (!coords) return;
+
+    setSelectionEnd(coords);
+  }, [isSelecting, selectionStart]);
+
+  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    // Manejar selección si está activa
+    if (isSelecting) {
+      handleMouseMoveSelection(e);
+      return;
+    }
+
+    const now = Date.now();
+    // Throttle: solo actualizar cada 50ms
+    if (now - lastMouseMoveTime.current < 50) return;
+    lastMouseMoveTime.current = now;
+
+    const coords = getCanvasCoordinates(e);
+    if (!coords || !ranges) return;
+
+    const { x, y } = coords;
+    // const padding = { top: 20, right: 40, bottom: 40, left: 60 }; // Removed local padding
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const chartWidth = canvas.width - padding.left - padding.right;
+    const chartHeight = canvas.height - padding.top - padding.bottom;
+
+    if (x >= padding.left && x <= padding.left + chartWidth && y >= padding.top && y <= padding.top + chartHeight) {
+      const { minFreq, maxFreq, minPower, maxPower } = ranges;
+      const frequency = minFreq + ((x - padding.left) / chartWidth) * (maxFreq - minFreq);
+      const power = maxPower - ((y - padding.top) / chartHeight) * (maxPower - minPower);
+
+      // Para el tooltip, usar coordenadas de pantalla
+      const canvas = canvasRef.current;
+      if (canvas) {
+        const rect = canvas.getBoundingClientRect();
+        setTooltip({ x: e.clientX - rect.left, y: e.clientY - rect.top, freq: frequency, power });
+      }
+    } else {
+      setTooltip(null);
+    }
+  }, [ranges, isSelecting, handleMouseMoveSelection, padding]);
+
+  const handleMouseLeave = () => {
+    setTooltip(null);
+  };
+
+  const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    const coords = getCanvasCoordinates(e);
+    if (!coords || !ranges) return;
+
+    const { x, y } = coords;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    // const padding = { top: 20, right: 40, bottom: 40, left: 60 }; // Removed local padding
+    const chartWidth = canvas.width - padding.left - padding.right;
+    const chartHeight = canvas.height - padding.top - padding.bottom;
+
+    // Verificar que esté dentro del área del gráfico
+    if (x < padding.left || x > padding.left + chartWidth || 
+        y < padding.top || y > padding.top + chartHeight) {
+      return;
+    }
+
+    if (zoomMode) {
+      // Modo zoom: iniciar selección (arrastrar para zoom)
+      setSelectionStart({ x, y });
+      setSelectionEnd({ x, y });
+      setIsSelecting(true);
+    }
+    
+    // Guardar coordenadas para detectar clic simple
+    if (onMarkerAdd && primaryData && primaryData.length > 0) {
+      setSelectionStart({ x, y });
+    }
+  }, [ranges, primaryData, onMarkerAdd, zoomMode, padding]);
+
+  const handleMouseUp = useCallback(() => {
+    if (!selectionStart || !ranges) return;
+
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    // const padding = { top: 20, right: 40, bottom: 40, left: 60 }; // Removed local padding
+    const chartWidth = canvas.width - padding.left - padding.right;
+    const chartHeight = canvas.height - padding.top - padding.bottom;
+
+    const { minFreq, maxFreq, minPower, maxPower } = ranges;
+
+    // Detectar si fue un clic simple o arrastre
+    const isClick = !selectionEnd || 
+      (Math.abs(selectionEnd.x - selectionStart.x) < 5 && 
+       Math.abs(selectionEnd.y - selectionStart.y) < 5);
+
+    if (isClick && onMarkerAdd && primaryData && primaryData.length > 0) {
+      // Clic simple: agregar marcador (siempre a la serie primaria por ahora)
+      const relativeX = selectionStart.x - padding.left;
+      const frequency = minFreq + (relativeX / chartWidth) * (maxFreq - minFreq);
+
+      let closestIndex = 0;
+      let minDiff = Math.abs(primaryData[0].frequency - frequency);
+
+      for (let i = 1; i < primaryData.length; i++) {
+        const diff = Math.abs(primaryData[i].frequency - frequency);
+        if (diff < minDiff) {
+          minDiff = diff;
+          closestIndex = i;
+        }
+      }
+
+      const power = primaryData[closestIndex].power;
+      const exactFrequency = primaryData[closestIndex].frequency;
+      onMarkerAdd(exactFrequency, power);
+    } else if (isSelecting && selectionEnd && zoomMode && onZoomAreaChange) {
+      // Arrastre en modo zoom: aplicar zoom
+      const x1 = Math.min(selectionStart.x, selectionEnd.x) - padding.left;
+      const x2 = Math.max(selectionStart.x, selectionEnd.x) - padding.left;
+      const y1 = Math.min(selectionStart.y, selectionEnd.y) - padding.top;
+      const y2 = Math.max(selectionStart.y, selectionEnd.y) - padding.top;
+
+      // Convertir a frecuencias y potencias
+      const newMinFreq = minFreq + (x1 / chartWidth) * (maxFreq - minFreq);
+      const newMaxFreq = minFreq + (x2 / chartWidth) * (maxFreq - minFreq);
+      const newMaxPower = maxPower - (y1 / chartHeight) * (maxPower - minPower);
+      const newMinPower = maxPower - (y2 / chartHeight) * (maxPower - minPower);
+
+      // Solo aplicar zoom si el rectángulo es suficientemente grande
+      if (Math.abs(x2 - x1) > 20 && Math.abs(y2 - y1) > 20) {
+        onZoomAreaChange({
+          minFreq: newMinFreq,
+          maxFreq: newMaxFreq,
+          minPower: newMinPower,
+          maxPower: newMaxPower
+        });
+      }
+    }
+
+    // Limpiar selección
+    setIsSelecting(false);
+    setSelectionStart(null);
+    setSelectionEnd(null);
+  }, [isSelecting, selectionStart, selectionEnd, ranges, onZoomAreaChange, zoomMode, primaryData, onMarkerAdd, padding]);
+
+  return (
+    <div className="relative">
+      <canvas
+        ref={canvasRef}
+        width={1200}
+        height={400}
+        className={`w-full border border-gray-300 rounded transition-all ${
+          zoomMode ? 'cursor-crosshair' : 'cursor-crosshair'
+        }`}
+        onMouseMove={handleMouseMove}
+        onMouseDown={handleMouseDown}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseLeave}
+      />
+      {tooltip && (
+        <div
+          className="absolute bg-white border border-gray-300 text-gray-800 text-xs px-2 py-1 rounded shadow-lg pointer-events-none"
+          style={{
+            left: tooltip.x + 10,
+            top: tooltip.y - 30,
+          }}
+        >
+          <div>Freq: {formatFrequency(tooltip.freq)}</div>
+          <div>Power: {(() => {
+            const val = convertPower(tooltip.power, tooltip.freq);
+            const absVal = Math.abs(val);
+            if ((powerUnit === 'V/m' || powerUnit === 'W/m²' || powerUnit === 'mV/m' || powerUnit === 'nW') && absVal < 0.01) {
+              return val.toExponential(2);
+            }
+            const decimals = (powerUnit === 'mV' || powerUnit === 'mV/m' || powerUnit === 'V/m' || powerUnit === 'W/m²') ? 3 : (powerUnit?.includes('dB') ? 1 : 2);
+            return val.toFixed(decimals);
+          })()} {powerUnit}</div>
+        </div>
+      )}
+    </div>
+  );
+}

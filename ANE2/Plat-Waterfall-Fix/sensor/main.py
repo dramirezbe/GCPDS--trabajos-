@@ -1,16 +1,27 @@
-import requests
 import time
 import numpy as np
-
-MAC_ADDRESS = "d0:65:78:9c:dd:d0"
-BASE_URL = "http://0.0.0.0:8005"
+import subprocess
+import cfg
+from utils import RequestClient
 
 payload_count = 0
 stations = []
+last_status_time = 0
+
+# Initialize client once
+cli = RequestClient(cfg.API_URL, mac_wifi=cfg.get_mac(), timeout=(5, 5))
 
 while True:
-    try:
-        config = requests.get(f"{BASE_URL}/{MAC_ADDRESS}/realtime", timeout=5).json()
+    # Run status.py asynchronously every 60 seconds
+    if time.time() - last_status_time >= 60:
+        subprocess.Popen(["./venv/bin/python", "-u", "status.py"])
+        last_status_time = time.time()
+
+    # Get configuration using RequestClient
+    rc, resp = cli.get(cfg.REALTIME_URL)
+    
+    if rc == 0 and resp:
+        config = resp.json()
         
         fs = config.get("sample_rate_hz", 0) or 1e6
         rbw = config.get("rbw_hz", 0) or 1e3
@@ -44,19 +55,23 @@ while True:
                     pxx[target_idx] += current_power * (1 - abs(i) / (half_bw + 1))
         
         payload = {
-            "mac": MAC_ADDRESS,
+            "mac": cfg.get_mac(),
             "Pxx": pxx.tolist(),
             "start_freq_hz": int(fc - (fs / 2)),
             "end_freq_hz": int(fc + (fs / 2)),
             "timestamp": int(time.time())
         }
         
-        requests.post(f"{BASE_URL}/data", json=payload, timeout=5)
-        print(f"Payload {payload_count}: Sent {n_bins} points. Center: {fc}Hz.")
+        # Post data using RequestClient
+        post_rc, _ = cli.post_json(cfg.DATA_URL, payload)
         
-        payload_count += 1
+        if post_rc == 0:
+            print(f"Payload {payload_count}: Sent {n_bins} points. Center: {fc}Hz.")
+            payload_count += 1
+        else:
+            print("Failed to send payload.")
 
-    except requests.exceptions.RequestException:
+    else:
         print("Endpoint not found or unreachable. Retrying...")
     
     time.sleep(2)

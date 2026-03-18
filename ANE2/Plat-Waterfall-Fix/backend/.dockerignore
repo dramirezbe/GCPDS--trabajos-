@@ -1,0 +1,9 @@
+node_modules
+*.log
+.git
+.gitignore
+.env
+.env.*
+*.md
+data/ane.db
+logs

@@ -1,0 +1,125 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Estilos para slider doble (range slider) */
+.range-slider-start,
+.range-slider-end {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  height: 20px;
+  cursor: pointer;
+  outline: none;
+}
+
+/* Track (invisible para que solo se vea el thumb) */
+.range-slider-start::-webkit-slider-runnable-track,
+.range-slider-end::-webkit-slider-runnable-track {
+  width: 100%;
+  height: 2px;
+  background: transparent;
+  border: none;
+}
+
+.range-slider-start::-moz-range-track,
+.range-slider-end::-moz-range-track {
+  width: 100%;
+  height: 2px;
+  background: transparent;
+  border: none;
+}
+
+/* Thumbs - Círculos naranjas */
+.range-slider-start::-webkit-slider-thumb,
+.range-slider-end::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #ea580c;
+  cursor: grab;
+  border: 3px solid white;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  margin-top: -9px;
+  position: relative;
+  z-index: 100;
+}
+
+.range-slider-start::-moz-range-thumb,
+.range-slider-end::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #ea580c;
+  cursor: grab;
+  border: 3px solid white;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  position: relative;
+  z-index: 100;
+}
+
+/* Efecto hover */
+.range-slider-start:hover::-webkit-slider-thumb,
+.range-slider-end:hover::-webkit-slider-thumb {
+  background: #dc2626;
+  transform: scale(1.1);
+  transition: all 0.2s ease;
+}
+
+.range-slider-start:hover::-moz-range-thumb,
+.range-slider-end:hover::-moz-range-thumb {
+  background: #dc2626;
+  transform: scale(1.1);
+  transition: all 0.2s ease;
+}
+
+/* Efecto activo (mientras se arrastra) */
+.range-slider-start:active::-webkit-slider-thumb,
+.range-slider-end:active::-webkit-slider-thumb {
+  cursor: grabbing;
+  box-shadow: 0 0 0 4px rgba(234, 88, 12, 0.2);
+}
+
+.range-slider-start:active::-moz-range-thumb,
+.range-slider-end:active::-moz-range-thumb {
+  cursor: grabbing;
+  box-shadow: 0 0 0 4px rgba(234, 88, 12, 0.2);
+}
+
+/* Focus */
+.range-slider-start:focus::-webkit-slider-thumb,
+.range-slider-end:focus::-webkit-slider-thumb {
+  box-shadow: 0 0 0 4px rgba(234, 88, 12, 0.3);
+  outline: none;
+}
+
+.range-slider-start:focus::-moz-range-thumb,
+.range-slider-end:focus::-moz-range-thumb {
+  box-shadow: 0 0 0 4px rgba(234, 88, 12, 0.3);
+  outline: none;
+}
+
+/* Fix para que el mapa ocupe todo el espacio */
+.leaflet-container {
+  height: 100%;
+  width: 100%;
+  z-index: 1;
+}
+
+/* Asegurar que el mapa se renderice correctamente */
+.leaflet-pane,
+.leaflet-tile,
+.leaflet-marker-icon,
+.leaflet-marker-shadow,
+.leaflet-tile-container,
+.leaflet-pane > svg,
+.leaflet-pane > canvas,
+.leaflet-zoom-box,
+.leaflet-image-layer,
+.leaflet-layer {
+  position: absolute;
+  left: 0;
+  top: 0;
+}
