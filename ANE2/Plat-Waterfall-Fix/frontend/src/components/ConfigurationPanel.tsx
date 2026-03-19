@@ -36,6 +36,7 @@ interface ConfigurationPanelProps {
   isMonitoring?: boolean;
   onMonitoringChange?: (isActive: boolean, selectedSensor: string | null) => void;
   onLiveConfigUpdate?: () => void; // Notificar cuando se actualizan parámetros durante adquisición activa
+  onWaterfallResetRequested?: () => void; // Solicitar reset de waterfall solo cuando el usuario confirma con Enter
   maxMonitoringTime?: number; // Tiempo máximo en minutos
   onCreateCampaign?: (config: any) => void;
   sensors?: Sensor[];
@@ -142,6 +143,7 @@ export function ConfigurationPanel({
   isMonitoring = false,
   onMonitoringChange,
   onLiveConfigUpdate,
+  onWaterfallResetRequested,
   maxMonitoringTime = 10, // Default 10 minutos
   onCreateCampaign,
   sensors: propSensors
@@ -965,6 +967,7 @@ export function ConfigurationPanel({
                   onChange={(e) => handleCenterFrequencyChange(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && isMonitoring) {
+                      onWaterfallResetRequested?.();
                       handleUpdateConfig();
                     }
                   }}
@@ -1021,6 +1024,7 @@ export function ConfigurationPanel({
                       const clampedSpan = Math.min(20, Math.max(minSpan, localSpan));
                       setLocalSpan(clampedSpan);
                       onConfigChange({ ...config, span: clampedSpan, sampleRate: clampedSpan });
+                      onWaterfallResetRequested?.();
                       handleUpdateConfig();
                     }
                   }}

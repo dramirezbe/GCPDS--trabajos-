@@ -7,17 +7,63 @@ export function useSpectrumData(sensorMac: string | null, autoRefresh: boolean =
   const [error, setError] = useState<string | null>(null);
   const loadingRef = useRef(false); // Para evitar llamadas simultáneas
   const lastResetKeyRef = useRef(resetKey);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const requestIdRef = useRef(0); // Para detectar respuestas tardías (stale)
+  const lastValidSensorMacRef = useRef<string | null>(null); // Último sensor que recibió datos exitosamente
 
   const loadData = useCallback(async () => {
     if (!sensorMac || loadingRef.current) return;
+    
+    // Cancelar request anterior si existe
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+    
+    const currentRequestId = ++requestIdRef.current;
+    const currentSensorMac = sensorMac;
     
     loadingRef.current = true;
     setError(null);
     
     try {
       const result = await sensorDataAPI.getLatestData(sensorMac, 1);
+      
+      // VALIDACIÓN CRÍTICA: ¿El sensor cambió mientras esperábamos la respuesta?
+      // O ¿la respuesta es del sensor correcto?
+      if (abortControllerRef.current?.signal.aborted) {
+        console.log('🚫 Spectrum request abortado - respuesta descartada', { currentSensorMac });
+        return;
+      }
+      
+      // Verificar que la respuesta corresponde al sensor actual (anti-stale)
+      if (currentSensorMac !== sensorMac) {
+        console.log('⚠️ Spectrum data mismatch: respuesta es de sensor anterior', {
+          originalSensor: currentSensorMac,
+          currentSensor: sensorMac,
+          requestId: currentRequestId
+        });
+        return;
+      }
+      
+      // Validar que la respuesta tenga datos del sensor correcto
+      // (Si el backend devuelve datos, validar que sea del sensor solicitado)
+      if (result && result.length > 0 && result[0].mac && result[0].mac !== currentSensorMac) {
+        console.warn('⚠️ Backend devolvió datos de otro sensor:', {
+          requested: currentSensorMac,
+          received: result[0].mac
+        });
+        return;
+      }
+      
+      lastValidSensorMacRef.current = currentSensorMac;
       setData(result);
     } catch (err: any) {
+      // Ignorar errores de abort (son normales al cambiar sensor)
+      if (err.name === 'AbortError') {
+        console.log('🚫 Spectrum request abortado');
+        return;
+      }
       setError(err.message);
       console.error('Error loading spectrum data:', err);
     } finally {
@@ -28,44 +74,88 @@ export function useSpectrumData(sensorMac: string | null, autoRefresh: boolean =
 
   // NO cargar datos automáticamente al montar
   // Solo cargar cuando autoRefresh está activo (modo monitoreo)
-  // useEffect(() => {
-  //   loadData();
-  // }, [loadData]);
-
   const prevAutoRefreshRef = useRef(autoRefresh);
+  const prevSensorMacRef = useRef(sensorMac);
 
+  // Cleanup: Cancelar request cuando se desmontar o cambiar sensor
   useEffect(() => {
-    if (!autoRefresh || !sensorMac) {
-      // Si el autoRefresh se desactiva, limpiar los datos
-      if (prevAutoRefreshRef.current && !autoRefresh) {
-        setData([]);
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
       }
-      prevAutoRefreshRef.current = autoRefresh;
-      return;
-    }
+    };
+  }, []);
 
-    // Si autoRefresh acaba de activarse (inicio de monitoreo), resetear datos
-    if (!prevAutoRefreshRef.current && autoRefresh) {
-      console.log('🔄 Spectrum reset: monitoring started');
+  // Resetear estado cuando cambia el sensor o autoRefresh
+  useEffect(() => {
+    const sensorChanged = sensorMac !== prevSensorMacRef.current;
+    const autoRefreshChanged = autoRefresh !== prevAutoRefreshRef.current;
+
+    if (sensorChanged) {
+      console.log('🔄 Spectrum reset: sensor changed', { 
+        from: prevSensorMacRef.current, 
+        to: sensorMac 
+      });
+      
+      // Cancelar request en vuelo del sensor anterior
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      abortControllerRef.current = new AbortController();
+      
+      // Limpiar datos del sensor anterior
       setData([]);
+      setError(null);
+      requestIdRef.current = 0;
     }
+
+    if (!sensorChanged && autoRefreshChanged) {
+      if (!autoRefresh && prevAutoRefreshRef.current) {
+        // Al detener monitoreo, limpiar datos
+        console.log('🔄 Spectrum reset: monitoring stopped');
+        setData([]);
+        setError(null);
+      } else if (autoRefresh && !prevAutoRefreshRef.current) {
+        // Al iniciar monitoreo, limpiar datos para empezar fresco
+        console.log('🔄 Spectrum reset: monitoring started');
+        setData([]);
+        setError(null);
+      }
+    }
+
     prevAutoRefreshRef.current = autoRefresh;
-
-    const interval = setInterval(() => {
-      loadData();
-    }, refreshInterval);
-
-    return () => clearInterval(interval);
-  }, [autoRefresh, sensorMac, refreshInterval, loadData]);
+    prevSensorMacRef.current = sensorMac;
+  }, [sensorMac, autoRefresh]);
 
   // Resetear cuando cambia el resetKey (cambio de parámetros en vivo)
   useEffect(() => {
     if (resetKey !== lastResetKeyRef.current) {
       console.log('🔄 Spectrum reset: config updated in-flight (resetKey)', resetKey);
       setData([]);
+      setError(null);
       lastResetKeyRef.current = resetKey;
     }
   }, [resetKey]);
+
+  // Setup interval de polling - Mejorado para evitar stale closures
+  useEffect(() => {
+    if (!autoRefresh || !sensorMac) {
+      return;
+    }
+
+    // Cargar datos inmediatamente
+    loadData();
+
+    // Configurar polling en intervalo
+    const interval = setInterval(() => {
+      loadData();
+    }, refreshInterval);
+
+    return () => {
+      clearInterval(interval);
+      // Nota: No cancelamos el AbortController aquí porque se maneja en el otro useEffect
+    };
+  }, [autoRefresh, sensorMac, refreshInterval, loadData]);
 
   const convertToChartFormat = (spectrumData: SpectrumData[]) => {
     if (spectrumData.length === 0) return [];
@@ -111,58 +201,59 @@ export function useSpectrumData(sensorMac: string | null, autoRefresh: boolean =
 }
 
 // Hook para cargar datos de múltiples capturas (para waterfall)
-export function useWaterfallData(sensorMac: string | null, limit: number = 100, autoRefresh: boolean = false, refreshInterval: number = 3000, resetKey: number = 0) {
+export function useWaterfallData(sensorMac: string | null, limit: number = 100, autoRefresh: boolean = false, refreshInterval: number = 3000) {
   const [history, setHistory] = useState<{ frequency: number; power: number }[][]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const lastTimestampRef = useRef<number>(0);
-  const lastSensorMacRef = useRef<string | null>(null);
   const lastAutoRefreshRef = useRef(autoRefresh);
-  const lastResetKeyRef = useRef(resetKey);
-
-  // Resetear cuando cambia el sensor o cambia el estado de autoRefresh
-  useEffect(() => {
-    const sensorChanged = sensorMac !== lastSensorMacRef.current;
-    const autoRefreshChanged = autoRefresh !== lastAutoRefreshRef.current;
-
-    // Limpiar waterfall cuando:
-    // 1. Cambia el sensor
-    // 2. Se DETIENE el monitoreo (autoRefresh: true → false)
-    // 3. Se INICIA el monitoreo (autoRefresh: false → true)
-    if (sensorChanged || autoRefreshChanged) {
-      console.log('🔄 Waterfall reset:', { 
-        reason: sensorChanged ? 'sensor changed' : (autoRefresh ? 'monitoring started' : 'monitoring stopped'),
-        sensorMac,
-        autoRefresh
-      });
-      lastTimestampRef.current = 0;
-      lastSensorMacRef.current = sensorMac;
-      setHistory([]);
-    }
-    
-    lastAutoRefreshRef.current = autoRefresh;
-  }, [sensorMac, autoRefresh]);
-
-  // Resetear cuando cambia el resetKey (cambio de parámetros en vivo)
-  useEffect(() => {
-    if (resetKey !== lastResetKeyRef.current) {
-      console.log('🌊 Waterfall reset: config updated in-flight (resetKey)', resetKey);
-      lastTimestampRef.current = 0;
-      setHistory([]);
-      lastResetKeyRef.current = resetKey;
-    }
-  }, [resetKey]);
-
   const loadingHistoryRef = useRef(false); // Para evitar llamadas simultáneas
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const requestIdRef = useRef(0); // Para detectar respuestas tardías (stale)
+  const prevSensorMacRef = useRef<string | null>(null);
 
   const loadHistory = useCallback(async () => {
     if (!sensorMac || loadingHistoryRef.current) return;
+    
+    // Cancelar request anterior si existe
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+    
+    const currentRequestId = ++requestIdRef.current;
+    const currentSensorMac = sensorMac;
     
     loadingHistoryRef.current = true;
     setError(null);
     
     try {
       const result = await sensorDataAPI.getLatestData(sensorMac, limit);
+      
+      // VALIDACIÓN CRÍTICA: ¿El sensor cambió o fue abortado?
+      if (abortControllerRef.current?.signal.aborted) {
+        console.log('🚫 Waterfall request abortado - respuesta descartada', { currentSensorMac });
+        return;
+      }
+      
+      // Verificar que la respuesta corresponde al sensor actual
+      if (currentSensorMac !== sensorMac) {
+        console.log('⚠️ Waterfall data mismatch: respuesta es de sensor anterior', {
+          originalSensor: currentSensorMac,
+          currentSensor: sensorMac,
+          requestId: currentRequestId
+        });
+        return;
+      }
+      
+      // Validar que la respuesta tenga datos del sensor correcto
+      if (result && result.length > 0 && result[0].mac && result[0].mac !== currentSensorMac) {
+        console.warn('⚠️ Backend devolvió waterfall de otro sensor:', {
+          requested: currentSensorMac,
+          received: result[0].mac
+        });
+        return;
+      }
       
       // Si es la primera carga (inicio de monitoreo), solo establecer el timestamp
       // y NO cargar datos antiguos - empezar con waterfall vacío
@@ -198,6 +289,11 @@ export function useWaterfallData(sensorMac: string | null, limit: number = 100, 
         lastTimestampRef.current = newData[0].timestamp;
       }
     } catch (err: any) {
+      // Ignorar errores de abort (son normales al cambiar sensor)
+      if (err.name === 'AbortError') {
+        console.log('🚫 Waterfall request abortado');
+        return;
+      }
       setError(err.message);
       console.error('Error loading waterfall data:', err);
     } finally {
@@ -206,16 +302,77 @@ export function useWaterfallData(sensorMac: string | null, limit: number = 100, 
     }
   }, [sensorMac, limit]);
 
+  // Cleanup: Cancelar request cuando se desmonte
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
+
+  // Resetear cuando cambia el sensor o cambia el estado de autoRefresh
+  useEffect(() => {
+    const sensorChanged = sensorMac !== prevSensorMacRef.current;
+    const autoRefreshChanged = autoRefresh !== lastAutoRefreshRef.current;
+
+    if (sensorChanged) {
+      console.log('🔄 Waterfall reset: sensor changed', { 
+        from: prevSensorMacRef.current, 
+        to: sensorMac 
+      });
+      
+      // Cancelar request en vuelo del sensor anterior
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      abortControllerRef.current = new AbortController();
+      
+      // Resetear timestamp y limpiar histórico
+      lastTimestampRef.current = 0;
+      setHistory([]);
+      setError(null);
+      requestIdRef.current = 0;
+    }
+
+    if (!sensorChanged && autoRefreshChanged) {
+      // Limpiar waterfall cuando:
+      // 1. Se DETIENE el monitoreo (autoRefresh: true → false)
+      // 2. Se INICIA el monitoreo (autoRefresh: false → true)
+      if (!autoRefresh && lastAutoRefreshRef.current) {
+        console.log('🔄 Waterfall reset: monitoring stopped');
+        lastTimestampRef.current = 0;
+        setHistory([]);
+        setError(null);
+      } else if (autoRefresh && !lastAutoRefreshRef.current) {
+        console.log('🔄 Waterfall reset: monitoring started');
+        lastTimestampRef.current = 0;
+        setHistory([]);
+        setError(null);
+      }
+    }
+
+    prevSensorMacRef.current = sensorMac;
+    lastAutoRefreshRef.current = autoRefresh;
+  }, [sensorMac, autoRefresh]);
+
   // NO cargar historial automáticamente al montar
   // Solo cargar cuando autoRefresh está activo (modo monitoreo)
-  // useEffect(() => {
-  //   loadHistory();
-  // }, [loadHistory]);
-
   useEffect(() => {
-    if (!autoRefresh || !sensorMac) return;
+    if (!autoRefresh || !sensorMac) {
+      return;
+    }
+
+    // Cargar datos inmediatamente
+    loadHistory();
+
+    // Configurar polling en intervalo
     const interval = setInterval(loadHistory, refreshInterval);
-    return () => clearInterval(interval);
+
+    return () => {
+      clearInterval(interval);
+      // Nota: No cancelamos el AbortController aquí porque se maneja en el otro useEffect
+    };
   }, [autoRefresh, sensorMac, refreshInterval, loadHistory]);
 
   return {

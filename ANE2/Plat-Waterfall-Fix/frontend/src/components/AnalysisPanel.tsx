@@ -1,4 +1,4 @@
-import { useState, useRef, forwardRef, useImperativeHandle, useMemo } from 'react';
+import { useState, useRef, forwardRef, useImperativeHandle } from 'react';
 import { ZoomIn, ZoomOut, Trash2, Copy, RotateCcw, Maximize2, Settings, Download } from 'lucide-react';
 import Plotly from 'plotly.js-dist-min';
 import { SpectrumChart } from './SpectrumChart';
@@ -280,19 +280,6 @@ export const AnalysisPanel = forwardRef<AnalysisPanelRef, AnalysisPanelProps>(({
     link.click();
     document.body.removeChild(link);
   };
-
-  // Calcular rango de frecuencia para waterfall
-  const spectrumRange = useMemo(() => {
-    if (zoomArea) {
-      return { minFreq: zoomArea.minFreq, maxFreq: zoomArea.maxFreq };
-    }
-    if (data && data.length > 0) {
-      const minFreq = data[0].frequency;
-      const maxFreq = data[data.length - 1].frequency;
-      return { minFreq, maxFreq };
-    }
-    return { minFreq: undefined, maxFreq: undefined };
-  }, [zoomArea, data]);
 
   return (
     <div className="flex-1 bg-gray-50 p-3 md:p-6 overflow-y-auto">
@@ -663,12 +650,9 @@ export const AnalysisPanel = forwardRef<AnalysisPanelRef, AnalysisPanelProps>(({
 
       <div className="px-4 pb-3">
         <Waterfall 
-          data={data} 
           history={history} 
           freqUnit={freqUnit} 
           stepRatio={0.1}
-          minFreq={spectrumRange.minFreq}
-          maxFreq={spectrumRange.maxFreq}
         />
       </div>
       </div>

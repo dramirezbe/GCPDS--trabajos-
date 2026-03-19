@@ -11,7 +11,7 @@ import { AntennaManagement } from './components/AntennaManagement';
 import { CampaignsList } from './components/CampaignsList';
 import { AlertsPanel } from './components/AlertsPanel';
 import { UserManagement } from './components/UserManagement';
-import { useSpectrumData, useWaterfallData } from './hooks/useSpectrumData';
+import { useSpectrumData } from './hooks/useSpectrumData';
 import { sensorAPI, Sensor, statisticsAPI, Statistics, configAPI } from './services/api';
 import { useAuth } from './contexts/AuthContext';
 import axios from 'axios';
@@ -107,7 +107,7 @@ function AuthenticatedApp({ user, logout, isAdmin }: { user: any, logout: () => 
     depth?: number;
   }>({});
 
-  // Cache scope changes should clear Spectrum/Waterfall (e.g., sensor or monitoring mode changes).
+  // Cache scope changes should clear Spectrum.
   const cacheScopeKey = `${selectedSensor?.mac ?? 'none'}|${config.preset ?? 'none'}`;
 
   // Estado para pre-llenar campaña desde monitoreo
@@ -424,6 +424,18 @@ function AuthenticatedApp({ user, logout, isAdmin }: { user: any, logout: () => 
     cacheScopeKey
   );
 
+  // Waterfall independiente del panel de control:
+  // Se alimenta unicamente de las trazas de espectro ya normalizadas.
+  const [realtimeWaterfallHistory, setRealtimeWaterfallHistory] = useState<{ frequency: number; power: number }[][]>([]);
+  const lastSpectrumSignatureRef = useRef<string>('');
+  const selectedSensorMac = selectedSensor?.mac ?? null;
+  const [waterfallResetToken, setWaterfallResetToken] = useState(0);
+  const lastWaterfallResetTokenRef = useRef(0);
+  const pendingWaterfallResetRef = useRef(false);
+  const targetFreqRangeAfterResetRef = useRef<{ minHz: number; maxHz: number } | null>(null);
+  const graceFramesRemainingRef = useRef(0);
+  const RESET_GRACE_FRAMES = 3;
+
   // Actualizar métricas desde datos de polling (SpectrumData)
   useEffect(() => {
     if (rawSpectrumData && rawSpectrumData.length > 0) {
@@ -439,21 +451,94 @@ function AuthenticatedApp({ user, logout, isAdmin }: { user: any, logout: () => 
     }
   }, [rawSpectrumData]);
 
-  const { history: realtimeWaterfallHistory, loading: loadingRealtimeWaterfall, error: realtimeWaterfallError } = useWaterfallData(
-    isMonitoringActive && selectedSensor ? selectedSensor.mac : null,
-    200,
-    isMonitoringActive, // Auto-refresh ACTIVADO
-    200, // Polling cada 0.2s para waterfall
-    cacheScopeKey
-  );
+  useEffect(() => {
+    if (!isMonitoringActive || !selectedSensorMac) {
+      setRealtimeWaterfallHistory([]);
+      lastSpectrumSignatureRef.current = '';
+      pendingWaterfallResetRef.current = false;
+      targetFreqRangeAfterResetRef.current = null;
+      graceFramesRemainingRef.current = 0;
+      return;
+    }
+
+    // Reset atomico: cuando cambia el token, limpiar y esperar el siguiente frame
+    // para iniciar una nueva sesion de waterfall sin mezclar filas antiguas.
+    if (waterfallResetToken !== lastWaterfallResetTokenRef.current) {
+      lastWaterfallResetTokenRef.current = waterfallResetToken;
+      setRealtimeWaterfallHistory([]);
+      lastSpectrumSignatureRef.current = '';
+      pendingWaterfallResetRef.current = true;
+
+      const minHz = (config.centerFrequency - config.span / 2) * 1e6;
+      const maxHz = (config.centerFrequency + config.span / 2) * 1e6;
+      targetFreqRangeAfterResetRef.current = { minHz, maxHz };
+      graceFramesRemainingRef.current = RESET_GRACE_FRAMES;
+      return;
+    }
+
+    if (!realtimeSpectrumData || realtimeSpectrumData.length === 0) {
+      return;
+    }
+
+    const first = realtimeSpectrumData[0];
+    const last = realtimeSpectrumData[realtimeSpectrumData.length - 1];
+
+    // Ventana de gracia: descartar frames transitorios (stale) luego del reset
+    // hasta que el rango de frecuencias coincida con la nueva configuracion.
+    if (graceFramesRemainingRef.current > 0 && targetFreqRangeAfterResetRef.current) {
+      const expected = targetFreqRangeAfterResetRef.current;
+      const frameMinHz = first.frequency;
+      const frameMaxHz = last.frequency;
+      const expectedSpanHz = Math.max(expected.maxHz - expected.minHz, 1);
+      const toleranceHz = Math.max(5_000, expectedSpanHz * 0.02);
+
+      const rangeMatches =
+        Math.abs(frameMinHz - expected.minHz) <= toleranceHz &&
+        Math.abs(frameMaxHz - expected.maxHz) <= toleranceHz;
+
+      if (!rangeMatches) {
+        console.log('⏳ Waterfall grace window: dropping transient frame', {
+          expectedMinHz: expected.minHz,
+          expectedMaxHz: expected.maxHz,
+          frameMinHz,
+          frameMaxHz,
+          toleranceHz,
+          graceFramesRemaining: graceFramesRemainingRef.current,
+        });
+        return;
+      }
+
+      graceFramesRemainingRef.current -= 1;
+      if (graceFramesRemainingRef.current === 0) {
+        targetFreqRangeAfterResetRef.current = null;
+      }
+    }
+
+    const signature = `${realtimeSpectrumData.length}|${first.frequency}|${last.frequency}|${first.power}|${last.power}`;
+
+    // Evita duplicar filas cuando no hubo cambio real en el espectro.
+    if (signature === lastSpectrumSignatureRef.current) {
+      return;
+    }
+
+    lastSpectrumSignatureRef.current = signature;
+
+    if (pendingWaterfallResetRef.current) {
+      pendingWaterfallResetRef.current = false;
+      setRealtimeWaterfallHistory([realtimeSpectrumData]);
+      return;
+    }
+
+    setRealtimeWaterfallHistory(prev => [realtimeSpectrumData, ...prev].slice(0, 200));
+  }, [isMonitoringActive, selectedSensorMac, realtimeSpectrumData, waterfallResetToken]);
 
   // Ya no se usan datos demo - solo tiempo real desde sensores activos
 
   // En monitoreo siempre se muestran datos en tiempo real (priorizando Polling ahora)
   const spectrumData = realtimeSpectrumData; // wsSpectrumData.length > 0 ? wsSpectrumData : realtimeSpectrumData;
   const waterfallHistory = realtimeWaterfallHistory; // wsWaterfallHistory.length > 0 ? wsWaterfallHistory : realtimeWaterfallHistory;
-  const loading = loadingRealtimeSpectrum || loadingRealtimeWaterfall;
-  const error = realtimeSpectrumError || realtimeWaterfallError;
+  const loading = loadingRealtimeSpectrum;
+  const error = realtimeSpectrumError;
 
   // Debug: Log cuando cambien los datos
   useEffect(() => {
@@ -1081,11 +1166,14 @@ function AuthenticatedApp({ user, logout, isAdmin }: { user: any, logout: () => 
               config={config} 
               onConfigChange={setConfig}
               onDemodTypeChange={setDemodType}
+              onWaterfallResetRequested={() => setWaterfallResetToken(prev => prev + 1)}
               isMonitoring={isMonitoringActive}
               onCreateCampaign={handleCreateCampaign}
               onMonitoringChange={(isActive, sensorMac) => {
                 setIsMonitoringActive(isActive);
                 if (isActive && sensorMac) {
+                  // Reiniciar waterfall con ventana de gracia al iniciar adquisicion.
+                  setWaterfallResetToken(prev => prev + 1);
                   const sensor = sensors.find(s => s.mac === sensorMac);
                   setSelectedSensor(sensor || null);
                   // Si es preset AM/FM y hay demodType configurado, iniciar audio WebRTC
