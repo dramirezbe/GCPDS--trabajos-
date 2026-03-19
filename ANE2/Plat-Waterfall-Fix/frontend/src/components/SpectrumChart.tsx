@@ -18,7 +18,7 @@ interface SpectrumChartProps {
   data?: { frequency: number; power: number }[];
   series?: SpectrumSeries[];
   markers: Marker[];
-  onMarkerAdd?: (frequency: number, power: number) => void;
+  onMarkerAdd?: (frequency: number) => void;
   activeStats?: Set<string>;
   statColors?: { [key: string]: string };
   maxHold?: boolean;
@@ -41,7 +41,7 @@ export function SpectrumChart({ data, series, markers, onMarkerAdd, activeStats,
   const [maxHoldData, setMaxHoldData] = useState<{ frequency: number; power: number }[]>([]);
   const [minHoldData, setMinHoldData] = useState<{ frequency: number; power: number }[]>([]);
   const lastFreqRangeRef = useRef<string>('');
-  const clickHandlerRef = useRef<((freq: number, power: number) => void) | null>(null);
+  const clickHandlerRef = useRef<((freq: number) => void) | null>(null);
   const zoomCallbackRef = useRef<((area: {minFreq: number, maxFreq: number, minPower: number, maxPower: number} | null) => void) | null>(null);
   const primaryDataRef = useRef<{ frequency: number; power: number }[]>([]);
   const freqUnitRef = useRef<'Hz' | 'kHz' | 'MHz' | 'GHz'>(freqUnit);
@@ -192,6 +192,17 @@ export function SpectrumChart({ data, series, markers, onMarkerAdd, activeStats,
     }
     return smoothed;
   }, [vbw, rbw]);
+
+  const getPowerAtFrequency = useCallback((frequencyHz: number): number => {
+    if (primaryData.length === 0) return 0;
+    let closest = primaryData[0];
+    for (let i = 1; i < primaryData.length; i++) {
+      if (Math.abs(primaryData[i].frequency - frequencyHz) < Math.abs(closest.frequency - frequencyHz)) {
+        closest = primaryData[i];
+      }
+    }
+    return closest.power;
+  }, [primaryData]);
 
   // Reset maxHold/minHold when frequency range changes
   useEffect(() => {
@@ -409,7 +420,7 @@ export function SpectrumChart({ data, series, markers, onMarkerAdd, activeStats,
     if (markers.length > 0) {
       traces.push({
         x: markers.map(m => convertFrequency(m.frequency)),
-        y: markers.map(m => convertPower(m.power, m.frequency)),
+        y: markers.map(m => convertPower(getPowerAtFrequency(m.frequency), m.frequency)),
         type: 'scatter',
         mode: 'text+markers' as Plotly.PlotData['mode'],
         name: 'Markers',
@@ -423,7 +434,7 @@ export function SpectrumChart({ data, series, markers, onMarkerAdd, activeStats,
         textposition: 'top center',
         textfont: { size: 11, color: markers.map(m => m.color) },
         hovertemplate: markers.map(m => {
-          const val = convertPower(m.power, m.frequency);
+          const val = convertPower(getPowerAtFrequency(m.frequency), m.frequency);
           return `${m.id}<br>Freq: ${convertFrequency(m.frequency).toFixed(3)} ${freqUnit}<br>Power: ${val.toFixed(2)} ${powerUnit}<extra></extra>`;
         }),
         showlegend: false,
@@ -457,8 +468,8 @@ export function SpectrumChart({ data, series, markers, onMarkerAdd, activeStats,
       const color = deltaColors[Math.floor(i / 2)] || '#4F46E5';
       const f1 = convertFrequency(m1.frequency);
       const f2 = convertFrequency(m2.frequency);
-      const p1 = convertPower(m1.power, m1.frequency);
-      const p2 = convertPower(m2.power, m2.frequency);
+      const p1 = convertPower(getPowerAtFrequency(m1.frequency), m1.frequency);
+      const p2 = convertPower(getPowerAtFrequency(m2.frequency), m2.frequency);
 
       // Horizontal delta line
       shapes.push({
@@ -614,13 +625,12 @@ export function SpectrumChart({ data, series, markers, onMarkerAdd, activeStats,
       eventsAttachedRef.current = true;
       const el = plotRef.current as any;
 
-      el.on('plotly_click', (eventData: any) => {
-        if (!eventData.points || eventData.points.length === 0) return;
+      el.addEventListener('click', (event: MouseEvent) => {
         if (!clickHandlerRef.current) return;
-        const point = eventData.points[0];
-        const clickedFreqConverted = point.x as number;
+        const rect = el.getBoundingClientRect();
+        const fullLayout = el._fullLayout;
+        const clickedFreqConverted = fullLayout.xaxis.p2l(event.clientX - rect.left - fullLayout._size.l);
         const currentFreqUnit = freqUnitRef.current;
-        const currentPrimaryData = primaryDataRef.current;
         let clickedFreqHz: number;
         switch (currentFreqUnit) {
           case 'Hz': clickedFreqHz = clickedFreqConverted; break;
@@ -628,18 +638,7 @@ export function SpectrumChart({ data, series, markers, onMarkerAdd, activeStats,
           case 'GHz': clickedFreqHz = clickedFreqConverted * 1e9; break;
           default: clickedFreqHz = clickedFreqConverted * 1e6; break;
         }
-        if (currentPrimaryData.length > 0) {
-          let closestIndex = 0;
-          let minDiff = Math.abs(currentPrimaryData[0].frequency - clickedFreqHz);
-          for (let i = 1; i < currentPrimaryData.length; i++) {
-            const diff = Math.abs(currentPrimaryData[i].frequency - clickedFreqHz);
-            if (diff < minDiff) {
-              minDiff = diff;
-              closestIndex = i;
-            }
-          }
-          clickHandlerRef.current(currentPrimaryData[closestIndex].frequency, currentPrimaryData[closestIndex].power);
-        }
+        clickHandlerRef.current(clickedFreqHz);
       });
 
       el.on('plotly_relayout', (eventData: any) => {

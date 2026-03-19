@@ -1,6 +1,10 @@
 import { memo, useEffect, useRef, useMemo, useState } from 'react';
 import Plotly from 'plotly.js-dist-min';
 
+const FIXED_MIN_POWER_UNITS = -90;
+const FIXED_MAX_POWER_UNITS = 10;
+const WATERFALL_POWER_LABEL = 'units';
+
 interface WaterfallProps {
   history: { frequency: number; power: number }[][];
   freqUnit?: 'Hz' | 'kHz' | 'MHz' | 'GHz';
@@ -10,12 +14,11 @@ interface WaterfallProps {
   maxFreq?: number;
 }
 
-export const Waterfall = memo(function Waterfall({ history, freqUnit = 'MHz', powerUnit = 'dBm' }: WaterfallProps) {
+export const Waterfall = memo(function Waterfall({ history, freqUnit = 'MHz' }: WaterfallProps) {
   const MAX_CACHED_SIGNALS = 5;
   const plotRef = useRef<HTMLDivElement>(null);
   const resizeRafRef = useRef<number | null>(null);
   const lastHistoryHashRef = useRef<string>('');
-  const lastPowerScaleRef = useRef<{ min: number; max: number } | null>(null);
   const [showColorbar, setShowColorbar] = useState(false);
 
   const convertFrequency = useMemo(() => {
@@ -78,7 +81,6 @@ export const Waterfall = memo(function Waterfall({ history, freqUnit = 'MHz', po
       const currentHash = '';
       if (lastHistoryHashRef.current !== currentHash) {
         lastHistoryHashRef.current = currentHash;
-        lastPowerScaleRef.current = null;
         Plotly.react(plotRef.current, [], {
           margin: { t: 10, r: 40, b: 40, l: 70 },
           plot_bgcolor: '#ffffff',
@@ -165,32 +167,6 @@ export const Waterfall = memo(function Waterfall({ history, freqUnit = 'MHz', po
       return new Array(numBins).fill(Number.NaN);
     });
 
-    // Calculate a stable power scale from real (non-NaN) data only.
-    // This prevents transient autoscale artifacts during the first frames after reset.
-    let minPower = Infinity;
-    let maxPower = -Infinity;
-    for (let r = 0; r < builtRows.length; r++) {
-      const row = builtRows[r];
-      for (let c = 0; c < row.length; c++) {
-        const value = row[c];
-        if (Number.isNaN(value)) continue;
-        if (value < minPower) minPower = value;
-        if (value > maxPower) maxPower = value;
-      }
-    }
-
-    if (minPower === Infinity || maxPower === -Infinity) {
-      minPower = lastPowerScaleRef.current?.min ?? -120;
-      maxPower = lastPowerScaleRef.current?.max ?? -20;
-    } else {
-      // Avoid zero-width color scale on edge cases where all values are identical.
-      if (minPower === maxPower) {
-        minPower -= 1;
-        maxPower += 1;
-      }
-      lastPowerScaleRef.current = { min: minPower, max: maxPower };
-    }
-
     // Hash check to avoid unnecessary full redraws (just length + first snapshot identity)
     const newHash = `${cachedHistory.length}-${refSnapshot.length}-${actualMinFreq.toFixed(0)}-${actualMaxFreq.toFixed(0)}`;
 
@@ -201,8 +177,8 @@ export const Waterfall = memo(function Waterfall({ history, freqUnit = 'MHz', po
         z: zData,
         type: 'heatmap',
         zauto: false,
-        zmin: minPower,
-        zmax: maxPower,
+        zmin: FIXED_MIN_POWER_UNITS,
+        zmax: FIXED_MAX_POWER_UNITS,
         zsmooth: false,
         connectgaps: false,
         colorscale: [
@@ -215,11 +191,13 @@ export const Waterfall = memo(function Waterfall({ history, freqUnit = 'MHz', po
         hoverongaps: false,
         showscale: showColorbar,
         colorbar: {
-          title: { text: powerUnit, side: 'right', font: { size: 11 } },
+          title: { text: `${WATERFALL_POWER_LABEL} / %`, side: 'right', font: { size: 11 } },
           thickness: 15,
           len: 0.9,
+          tickvals: [-90, -70, -50, -30, -10, 10],
+          ticktext: ['0%', '20%', '40%', '60%', '80%', '100%'],
         },
-        hovertemplate: `Freq: %{x:.3f} ${freqUnit}<br>Power: %{z:.1f} ${powerUnit}<br>Sweep: %{y}<extra></extra>`,
+        hovertemplate: `Freq: %{x:.3f} ${freqUnit}<br>Power: %{z:.1f} ${WATERFALL_POWER_LABEL}<br>Sweep: %{y}<extra></extra>`,
       },
     ];
 
@@ -255,7 +233,7 @@ export const Waterfall = memo(function Waterfall({ history, freqUnit = 'MHz', po
 
     Plotly.react(plotRef.current, traces, layout, config);
     lastHistoryHashRef.current = newHash;
-  }, [history, freqUnit, powerUnit, convertFrequency, showColorbar]);
+  }, [history, freqUnit, convertFrequency, showColorbar]);
 
   return (
     <div className="-mt-3 relative">

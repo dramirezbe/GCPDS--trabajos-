@@ -34,7 +34,9 @@ while True:
         factor = win_factors.get(window, 1.0)
         
         n_bins = int((factor * fs) / rbw)
-        noise_level = -23 + lna + vga
+        # LNA controls the baseline floor: 0 -> -90 dB, 40 -> -20 dB.
+        lna_clamped = max(0, min(40, lna))
+        noise_level = -90 + (lna_clamped / 40.0) * 70.0
         pxx = np.random.normal(noise_level, 2.0, n_bins)
         
         if payload_count % 10 == 0 or not stations:
@@ -47,7 +49,8 @@ while True:
 
         for rel_pos, base_power in stations:
             idx = int(rel_pos * n_bins)
-            current_power = base_power + np.random.uniform(-5.0, 5.0) 
+            # VGA boosts emissions only, not the baseline floor.
+            current_power = base_power + vga + np.random.uniform(-5.0, 5.0)
             
             for i in range(-half_bw, half_bw + 1):
                 target_idx = idx + i

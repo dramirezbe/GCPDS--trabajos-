@@ -30,7 +30,7 @@ interface SpectrumSeries {
 interface Marker {
   id: string;
   frequency: number;
-  power: number;
+  power?: number;
   color: string;
   isDelta?: boolean;
   deltaRef?: string;
@@ -303,7 +303,7 @@ export function CampaignDataViewer({ campaignId, campaignName, sensors, allSenso
   };
 
   // Funciones para marcadores
-  const handleAddMarker = (frequency: number, power: number) => {
+  const handleAddMarker = (frequency: number) => {
     if (markers.length >= 10) {
       alert('Máximo 10 marcadores permitidos');
       return;
@@ -325,10 +325,20 @@ export function CampaignDataViewer({ campaignId, campaignName, sensors, allSenso
     const newMarker: Marker = {
       id: labels[markers.length],
       frequency,
-      power,
       color: colors[markers.length % colors.length],
     };
     setMarkers([...markers, newMarker]);
+  };
+
+  const getMarkerPowerAtFrequency = (frequency: number): number => {
+    if (!currentSpectrumData || currentSpectrumData.length === 0) return 0;
+    let closest = currentSpectrumData[0];
+    for (let i = 1; i < currentSpectrumData.length; i++) {
+      if (Math.abs(currentSpectrumData[i].frequency - frequency) < Math.abs(closest.frequency - frequency)) {
+        closest = currentSpectrumData[i];
+      }
+    }
+    return closest.power;
   };
 
   // Convertir potencia de dBm a otras unidades
@@ -401,6 +411,8 @@ export function CampaignDataViewer({ campaignId, campaignName, sensors, allSenso
     if (markers.length <= idx2) return null;
     const m1 = markers[idx1];
     const m2 = markers[idx2];
+    const p1 = getMarkerPowerAtFrequency(m1.frequency);
+    const p2 = getMarkerPowerAtFrequency(m2.frequency);
     
     // Colores para los deltas (distintos a naranja)
     const deltaColors = [
@@ -413,7 +425,7 @@ export function CampaignDataViewer({ campaignId, campaignName, sensors, allSenso
 
     return {
       deltaFreq: Math.abs(m2.frequency - m1.frequency),
-      deltaPower: m2.power - m1.power,
+      deltaPower: p2 - p1,
       marker1: m1.id,
       marker2: m2.id,
       color: deltaColors[Math.floor(idx1 / 2)]
@@ -1297,7 +1309,7 @@ export function CampaignDataViewer({ campaignId, campaignName, sensors, allSenso
                             <span className="font-semibold">{marker.id}:</span>
                             <span>{(marker.frequency / 1e6).toFixed(3)} MHz</span>
                           <span className="text-gray-500">|</span>
-                          <span>{convertPower(marker.power, marker.frequency).toFixed(2)} {powerUnit}</span>
+                          <span>{convertPower(getMarkerPowerAtFrequency(marker.frequency), marker.frequency).toFixed(2)} {powerUnit}</span>
                         </div>
                         <button
                             onClick={() => setMarkers(markers.filter(m => m.id !== marker.id))}
@@ -1332,7 +1344,7 @@ export function CampaignDataViewer({ campaignId, campaignName, sensors, allSenso
                               <div>
                                 <span className="text-gray-600">Δ Potencia:</span>
                                 <p className="font-semibold text-gray-900">
-                                  {(convertPower(markers[i].power + delta.deltaPower) - convertPower(markers[i].power)).toFixed(2)} {powerUnit}
+                                  {(convertPower(getMarkerPowerAtFrequency(markers[i + 1].frequency), markers[i + 1].frequency) - convertPower(getMarkerPowerAtFrequency(markers[i].frequency), markers[i].frequency)).toFixed(2)} {powerUnit}
                                 </p>
                               </div>
                             </div>
