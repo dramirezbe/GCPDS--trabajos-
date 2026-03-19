@@ -652,6 +652,8 @@ export const AnalysisPanel = forwardRef<AnalysisPanelRef, AnalysisPanelProps>(({
         <Waterfall 
           history={history} 
           freqUnit={freqUnit} 
+          minFreq={zoomArea?.minFreq}
+          maxFreq={zoomArea?.maxFreq}
           stepRatio={0.1}
         />
       </div>

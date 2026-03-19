@@ -1,9 +1,9 @@
 import { memo, useEffect, useRef, useMemo, useState } from 'react';
 import Plotly from 'plotly.js-dist-min';
 
-const FIXED_MIN_POWER_UNITS = -90;
-const FIXED_MAX_POWER_UNITS = 10;
 const WATERFALL_POWER_LABEL = 'units';
+const WATERFALL_MIN_POWER = -70;
+const WATERFALL_MAX_POWER = 5;
 
 interface WaterfallProps {
   history: { frequency: number; power: number }[][];
@@ -14,7 +14,7 @@ interface WaterfallProps {
   maxFreq?: number;
 }
 
-export const Waterfall = memo(function Waterfall({ history, freqUnit = 'MHz' }: WaterfallProps) {
+export const Waterfall = memo(function Waterfall({ history, freqUnit = 'MHz', minFreq, maxFreq }: WaterfallProps) {
   const MAX_CACHED_SIGNALS = 5;
   const plotRef = useRef<HTMLDivElement>(null);
   const resizeRafRef = useRef<number | null>(null);
@@ -101,18 +101,27 @@ export const Waterfall = memo(function Waterfall({ history, freqUnit = 'MHz' }: 
     const refSnapshot = cachedHistory[0];
     if (!refSnapshot || refSnapshot.length === 0) return;
 
-    // Keep cache independent from external central-frequency/range changes.
-    // Always use the snapshot's own frequency span for cached rows.
-    const actualMinFreq = refSnapshot[0].frequency;
-    const actualMaxFreq = refSnapshot[refSnapshot.length - 1].frequency;
+    // Base span from newest snapshot, then clamp/override with zoomed range when provided.
+    const snapshotMinFreq = refSnapshot[0].frequency;
+    const snapshotMaxFreq = refSnapshot[refSnapshot.length - 1].frequency;
+    const requestedMinFreq = minFreq ?? snapshotMinFreq;
+    const requestedMaxFreq = maxFreq ?? snapshotMaxFreq;
+    const effectiveMinFreq = Math.max(snapshotMinFreq, Math.min(requestedMinFreq, requestedMaxFreq));
+    const effectiveMaxFreq = Math.min(snapshotMaxFreq, Math.max(requestedMinFreq, requestedMaxFreq));
+
+    if (effectiveMaxFreq <= effectiveMinFreq) return;
 
     // Build x-axis labels (frequency values)
-    // We resample each history snapshot to a consistent set of frequency bins
-    const numBins = Math.min(refSnapshot.length, 600); // limit bins for performance
-    const freqStep = (actualMaxFreq - actualMinFreq) / numBins;
+    // We resample each history snapshot to a consistent set of frequency bins,
+    // preserving relative resolution when a zoomed frequency window is active.
+    const fullSpan = Math.max(snapshotMaxFreq - snapshotMinFreq, 1);
+    const effectiveSpan = effectiveMaxFreq - effectiveMinFreq;
+    const spanRatio = Math.max(0.01, Math.min(1, effectiveSpan / fullSpan));
+    const numBins = Math.max(10, Math.min(600, Math.round(refSnapshot.length * spanRatio)));
+    const freqStep = numBins > 1 ? effectiveSpan / (numBins - 1) : effectiveSpan;
     const freqLabels: number[] = [];
     for (let i = 0; i < numBins; i++) {
-      freqLabels.push(convertFrequency(actualMinFreq + i * freqStep));
+      freqLabels.push(convertFrequency(effectiveMinFreq + i * freqStep));
     }
 
     // Build z matrix: each row is a time slice (history[0] = most recent)
@@ -133,7 +142,7 @@ export const Waterfall = memo(function Waterfall({ history, freqUnit = 'MHz' }: 
       const snapshotRange = snapshotMaxFreq - snapshotMinFreq;
 
       for (let i = 0; i < numBins; i++) {
-        const targetFreq = actualMinFreq + i * freqStep;
+        const targetFreq = effectiveMinFreq + i * freqStep;
         
         if (snapshotRange <= 0) {
           row[i] = snapshot[0]?.power ?? -100;
@@ -167,26 +176,47 @@ export const Waterfall = memo(function Waterfall({ history, freqUnit = 'MHz' }: 
       return new Array(numBins).fill(Number.NaN);
     });
 
+    const powerRange = Math.max(WATERFALL_MAX_POWER - WATERFALL_MIN_POWER, 1e-9);
+
+    // Fixed normalization: -70 -> 0% and 0 -> 100%, clamped outside the range.
+    const normalizedZData = zData.map(row =>
+      row.map(value => {
+        if (!Number.isFinite(value)) return Number.NaN;
+        const normalized = ((value - WATERFALL_MIN_POWER) / powerRange) * 100;
+        return Math.max(0, Math.min(100, normalized));
+      })
+    );
+
     // Hash check to avoid unnecessary full redraws (just length + first snapshot identity)
-    const newHash = `${cachedHistory.length}-${refSnapshot.length}-${actualMinFreq.toFixed(0)}-${actualMaxFreq.toFixed(0)}`;
+    const newHash = `${cachedHistory.length}-${refSnapshot.length}-${effectiveMinFreq.toFixed(0)}-${effectiveMaxFreq.toFixed(0)}`;
 
     const traces: Plotly.Data[] = [
       {
         x: freqLabels,
         y: ySlots,
-        z: zData,
+        z: normalizedZData,
+        customdata: zData,
         type: 'heatmap',
         zauto: false,
-        zmin: FIXED_MIN_POWER_UNITS,
-        zmax: FIXED_MAX_POWER_UNITS,
+        zmin: 0,
+        zmax: 100,
         zsmooth: false,
         connectgaps: false,
         colorscale: [
-          [0, '#0000ff'],
-          [0.25, '#00ffff'],
-          [0.5, '#00ff00'],
-          [0.75, '#ffff00'],
-          [1, '#ff0000'],
+          [0.0, '#03061a'],
+          [0.08, '#0a1c5c'],
+          [0.16, '#1a4db5'],
+          [0.24, '#148be6'],
+          [0.32, '#00c2ff'],
+          [0.4, '#00f0ff'],
+          [0.48, '#00e070'],
+          [0.56, '#7de000'],
+          [0.64, '#d6f000'],
+          [0.72, '#ffe100'],
+          [0.8, '#ffad00'],
+          [0.88, '#ff6900'],
+          [0.94, '#ff2a00'],
+          [1.0, '#fff2ea'],
         ],
         hoverongaps: false,
         showscale: showColorbar,
@@ -194,10 +224,10 @@ export const Waterfall = memo(function Waterfall({ history, freqUnit = 'MHz' }: 
           title: { text: `${WATERFALL_POWER_LABEL} / %`, side: 'right', font: { size: 11 } },
           thickness: 15,
           len: 0.9,
-          tickvals: [-90, -70, -50, -30, -10, 10],
-          ticktext: ['0%', '20%', '40%', '60%', '80%', '100%'],
+          tickvals: [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
+          ticktext: ['0%', '10%', '20%', '30%', '40%', '50%', '60%', '70%', '80%', '90%', '100%'],
         },
-        hovertemplate: `Freq: %{x:.3f} ${freqUnit}<br>Power: %{z:.1f} ${WATERFALL_POWER_LABEL}<br>Sweep: %{y}<extra></extra>`,
+        hovertemplate: `Freq: %{x:.3f} ${freqUnit}<br>Power: %{customdata:.1f} ${WATERFALL_POWER_LABEL}<br>Normalized: %{z:.0f}%<br>Sweep: %{y}<extra></extra>`,
       },
     ];
 
@@ -233,7 +263,7 @@ export const Waterfall = memo(function Waterfall({ history, freqUnit = 'MHz' }: 
 
     Plotly.react(plotRef.current, traces, layout, config);
     lastHistoryHashRef.current = newHash;
-  }, [history, freqUnit, convertFrequency, showColorbar]);
+  }, [history, freqUnit, convertFrequency, minFreq, maxFreq, showColorbar]);
 
   return (
     <div className="-mt-3 relative">
@@ -255,6 +285,8 @@ export const Waterfall = memo(function Waterfall({ history, freqUnit = 'MHz' }: 
   return (
     prevProps.history === nextProps.history &&
     prevProps.freqUnit === nextProps.freqUnit &&
-    prevProps.powerUnit === nextProps.powerUnit
+    prevProps.powerUnit === nextProps.powerUnit &&
+    prevProps.minFreq === nextProps.minFreq &&
+    prevProps.maxFreq === nextProps.maxFreq
   );
 });
