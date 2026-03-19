@@ -1,5 +1,6 @@
 import { useState, useRef, forwardRef, useImperativeHandle, useMemo } from 'react';
 import { ZoomIn, ZoomOut, Trash2, Copy, RotateCcw, Maximize2, Settings, Download } from 'lucide-react';
+import Plotly from 'plotly.js-dist-min';
 import { SpectrumChart } from './SpectrumChart';
 import { Waterfall } from './Waterfall';
 import WebRTCAudioPlayer, { WebRTCAudioPlayerRef } from './WebRTCAudioPlayer';
@@ -180,17 +181,40 @@ export const AnalysisPanel = forwardRef<AnalysisPanelRef, AnalysisPanelProps>(({
     setActiveStats(new Set());
   };
 
-  const handleCopyImage = () => {
-    const canvas = document.querySelector('canvas');
-    if (canvas) {
-      canvas.toBlob((blob) => {
-        if (blob) {
-          const item = new ClipboardItem({ 'image/png': blob });
-          navigator.clipboard.write([item]).then(() => {
-            alert('Imagen copiada al portapapeles');
-          });
-        }
+  const handleCopyImage = async () => {
+    const plotElement = chartRef.current?.querySelector('.js-plotly-plot') as Plotly.PlotlyHTMLElement | null;
+    if (!plotElement) {
+      alert('No se encontró el gráfico para copiar');
+      return;
+    }
+
+    try {
+      if (!navigator.clipboard || !navigator.clipboard.write || typeof ClipboardItem === 'undefined') {
+        alert('Tu navegador no soporta copiar imágenes al portapapeles');
+        return;
+      }
+
+      const width = Math.max(1, Math.round(plotElement.clientWidth || 1200));
+      const height = Math.max(1, Math.round(plotElement.clientHeight || 400));
+      const imageDataUrl = await Plotly.toImage(plotElement, {
+        format: 'png',
+        width,
+        height,
+        scale: 2,
       });
+
+      const response = await fetch(imageDataUrl);
+      const blob = await response.blob();
+      const item = new ClipboardItem({ 'image/png': blob });
+      await navigator.clipboard.write([item]);
+      alert('Imagen copiada al portapapeles');
+    } catch (error: any) {
+      console.error('Error al copiar imagen:', error);
+      if (error?.name === 'NotAllowedError') {
+        alert('Permiso denegado. Permite el acceso al portapapeles en el navegador.');
+      } else {
+        alert('Error al copiar imagen');
+      }
     }
   };
 
@@ -338,8 +362,10 @@ export const AnalysisPanel = forwardRef<AnalysisPanelRef, AnalysisPanelProps>(({
           </div>
         </div>
       )}
+      {/* Contenedor de análisis (espectro + waterfall) para fullscreen */}
+      <div ref={chartRef} className="bg-gray-50 rounded-lg p-1">
       {/* Gráfico de espectro */}
-      <div ref={chartRef} className="bg-white border border-orange-200 rounded-lg shadow-sm mb-4">
+      <div className="bg-white border border-orange-200 rounded-lg shadow-sm mb-4">
         {/* Header con título y herramientas */}
         <div className="flex items-center justify-between p-4 pb-2">
           <h3 className="font-semibold text-gray-800 flex items-center gap-2">
@@ -635,7 +661,7 @@ export const AnalysisPanel = forwardRef<AnalysisPanelRef, AnalysisPanelProps>(({
         </div>
       </div>
 
-      <div className="px-4">
+      <div className="px-4 pb-3">
         <Waterfall 
           data={data} 
           history={history} 
@@ -644,6 +670,7 @@ export const AnalysisPanel = forwardRef<AnalysisPanelRef, AnalysisPanelProps>(({
           minFreq={spectrumRange.minFreq}
           maxFreq={spectrumRange.maxFreq}
         />
+      </div>
       </div>
     </div>
   );

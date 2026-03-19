@@ -50,7 +50,6 @@ function AuthenticatedApp({ user, logout, isAdmin }: { user: any, logout: () => 
   const [sensors, setSensors] = useState<Sensor[]>([]);
   const [statistics, setStatistics] = useState<Statistics | null>(null);
   const [isMonitoringActive, setIsMonitoringActive] = useState(false);
-  const [configResetKey, setConfigResetKey] = useState(0);
   const [maxMonitoringTime, setMaxMonitoringTime] = useState<number>(10); // Límite de tiempo en minutos
   const [centerFreqTolerance, setCenterFreqTolerance] = useState<number>(100); // kHz
   const [bandwidthTolerance, setBandwidthTolerance] = useState<number>(10); // kHz
@@ -107,6 +106,9 @@ function AuthenticatedApp({ user, logout, isAdmin }: { user: any, logout: () => 
     excursion_hz?: number;
     depth?: number;
   }>({});
+
+  // Cache scope changes should clear Spectrum/Waterfall (e.g., sensor or monitoring mode changes).
+  const cacheScopeKey = `${selectedSensor?.mac ?? 'none'}|${config.preset ?? 'none'}`;
 
   // Estado para pre-llenar campaña desde monitoreo
   const [campaignPrefillData, setCampaignPrefillData] = useState<any>(null);
@@ -419,7 +421,7 @@ function AuthenticatedApp({ user, logout, isAdmin }: { user: any, logout: () => 
     isMonitoringActive && selectedSensor ? selectedSensor.mac : null,
     isMonitoringActive, // Auto-refresh ACTIVADO si hay monitoreo
     200, // Polling cada 0.2s
-    configResetKey // Reset cuando se actualizan parámetros en vivo
+    cacheScopeKey
   );
 
   // Actualizar métricas desde datos de polling (SpectrumData)
@@ -442,7 +444,7 @@ function AuthenticatedApp({ user, logout, isAdmin }: { user: any, logout: () => 
     200,
     isMonitoringActive, // Auto-refresh ACTIVADO
     200, // Polling cada 0.2s para waterfall
-    configResetKey // Reset cuando se actualizan parámetros en vivo
+    cacheScopeKey
   );
 
   // Ya no se usan datos demo - solo tiempo real desde sensores activos
@@ -1043,7 +1045,7 @@ function AuthenticatedApp({ user, logout, isAdmin }: { user: any, logout: () => 
           </div>
         </div>
       ) : (
-        <div className="flex flex-1 overflow-hidden">
+        <div className="relative flex flex-1 overflow-hidden">
           <div className={`w-[450px] overflow-y-auto border-r border-gray-200 ${hideConfigPanel ? 'hidden' : ''}`}>
             {/* Panel de monitoreo - datos en tiempo real */}
             <div className="p-4 bg-white border-b border-gray-200">
@@ -1097,7 +1099,6 @@ function AuthenticatedApp({ user, logout, isAdmin }: { user: any, logout: () => 
                   analysisPanelRef.current?.stopAudio();
                 }
               }}
-              onLiveConfigUpdate={() => setConfigResetKey(k => k + 1)}
               maxMonitoringTime={maxMonitoringTime}
               sensors={sensors} // Pasar lista de sensores actualizada
             />
@@ -1107,10 +1108,10 @@ function AuthenticatedApp({ user, logout, isAdmin }: { user: any, logout: () => 
           {isMonitoringActive && (
             <button
               onClick={() => setHideConfigPanel(!hideConfigPanel)}
-              className={`fixed top-1/2 -translate-y-1/2 z-50 bg-orange-500 hover:bg-orange-600 text-white p-3 shadow-lg transition-all ${
-                hideConfigPanel 
-                  ? 'left-4 rounded-lg' 
-                  : 'left-[654px] rounded-lg'
+              className={`absolute top-1/2 -translate-y-1/2 z-50 bg-orange-500 hover:bg-orange-600 text-white p-3 shadow-lg transition-all rounded-lg ${
+                hideConfigPanel
+                  ? 'left-2'
+                  : 'left-[450px]'
               }`}
               title={hideConfigPanel ? 'Mostrar configuración' : 'Ocultar configuración'}
             >

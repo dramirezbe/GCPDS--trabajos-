@@ -11,9 +11,10 @@ interface WaterfallProps {
   maxFreq?: number;
 }
 
-export function Waterfall({ history, freqUnit = 'MHz', powerUnit = 'dBm', minFreq, maxFreq }: WaterfallProps) {
-  const MAX_CACHED_SIGNALS = 10;
+export function Waterfall({ history, freqUnit = 'MHz', powerUnit = 'dBm' }: WaterfallProps) {
+  const MAX_CACHED_SIGNALS = 5;
   const plotRef = useRef<HTMLDivElement>(null);
+  const resizeRafRef = useRef<number | null>(null);
   const lastHistoryHashRef = useRef<string>('');
   const [showColorbar, setShowColorbar] = useState(false);
 
@@ -35,8 +36,36 @@ export function Waterfall({ history, freqUnit = 'MHz', powerUnit = 'dBm', minFre
     if (!el) return;
     const blockWheel = (e: WheelEvent) => { e.preventDefault(); e.stopPropagation(); };
     el.addEventListener('wheel', blockWheel, { passive: false });
+
+    const scheduleResize = () => {
+      if (resizeRafRef.current !== null) {
+        cancelAnimationFrame(resizeRafRef.current);
+      }
+      resizeRafRef.current = requestAnimationFrame(() => {
+        if (plotRef.current) {
+          Plotly.Plots.resize(plotRef.current);
+        }
+      });
+    };
+
+    const observer = new ResizeObserver(() => {
+      scheduleResize();
+    });
+    observer.observe(el);
+
+    const handleFullscreenChange = () => {
+      scheduleResize();
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+
     return () => {
       el.removeEventListener('wheel', blockWheel);
+      observer.disconnect();
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      if (resizeRafRef.current !== null) {
+        cancelAnimationFrame(resizeRafRef.current);
+        resizeRafRef.current = null;
+      }
       Plotly.purge(el);
     };
   }, []);
@@ -61,15 +90,18 @@ export function Waterfall({ history, freqUnit = 'MHz', powerUnit = 'dBm', minFre
       return;
     }
 
+    // history[0] is expected to be the newest snapshot.
+    // Keep a fixed FIFO window of 5 rows in the heatmap.
     const cachedHistory = history.slice(0, MAX_CACHED_SIGNALS);
 
     // Build frequency labels from the first snapshot (assumed same for all)
     const refSnapshot = cachedHistory[0];
     if (!refSnapshot || refSnapshot.length === 0) return;
 
-    // Determine actual frequency range
-    const actualMinFreq = minFreq ?? refSnapshot[0].frequency;
-    const actualMaxFreq = maxFreq ?? refSnapshot[refSnapshot.length - 1].frequency;
+    // Keep cache independent from external central-frequency/range changes.
+    // Always use the snapshot's own frequency span for cached rows.
+    const actualMinFreq = refSnapshot[0].frequency;
+    const actualMaxFreq = refSnapshot[refSnapshot.length - 1].frequency;
 
     // Build x-axis labels (frequency values)
     // We resample each history snapshot to a consistent set of frequency bins
@@ -83,12 +115,12 @@ export function Waterfall({ history, freqUnit = 'MHz', powerUnit = 'dBm', minFre
     // Build z matrix: each row is a time slice (history[0] = most recent)
     // Limit to cached signal window for performance
     const maxHistory = cachedHistory.length;
-    const zData: number[][] = [];
+    const builtRows: number[][] = [];
 
     for (let hi = 0; hi < maxHistory; hi++) {
       const snapshot = cachedHistory[hi];
       if (!snapshot || snapshot.length === 0) {
-        zData.push(new Array(numBins).fill(-100));
+        builtRows.push(new Array(numBins).fill(-100));
         continue;
       }
 
@@ -119,8 +151,16 @@ export function Waterfall({ history, freqUnit = 'MHz', powerUnit = 'dBm', minFre
           row[i] = lowerPower + (upperPower - lowerPower) * fraction;
         }
       }
-      zData.push(row);
+      builtRows.push(row);
     }
+
+    // Keep a fixed 5-row grid at all times.
+    // Missing rows are null so they render as empty space instead of stretching existing frames.
+    const ySlots = Array.from({ length: MAX_CACHED_SIGNALS }, (_, i) => i + 1);
+    const zData: (number | null)[][] = Array.from({ length: MAX_CACHED_SIGNALS }, (_, rowIndex) => {
+      if (rowIndex < builtRows.length) return builtRows[rowIndex];
+      return new Array(numBins).fill(null);
+    });
 
     // Hash check to avoid unnecessary full redraws (just length + first snapshot identity)
     const newHash = `${cachedHistory.length}-${refSnapshot.length}-${actualMinFreq.toFixed(0)}-${actualMaxFreq.toFixed(0)}`;
@@ -128,6 +168,7 @@ export function Waterfall({ history, freqUnit = 'MHz', powerUnit = 'dBm', minFre
     const traces: Plotly.Data[] = [
       {
         x: freqLabels,
+        y: ySlots,
         z: zData,
         type: 'heatmap',
         colorscale: [
@@ -137,6 +178,7 @@ export function Waterfall({ history, freqUnit = 'MHz', powerUnit = 'dBm', minFre
           [0.75, '#ffff00'],
           [1, '#ff0000'],
         ],
+        hoverongaps: false,
         showscale: showColorbar,
         colorbar: {
           title: { text: powerUnit, side: 'right', font: { size: 11 } },
@@ -156,6 +198,10 @@ export function Waterfall({ history, freqUnit = 'MHz', powerUnit = 'dBm', minFre
       },
       yaxis: {
         autorange: 'reversed',
+        range: [MAX_CACHED_SIGNALS + 0.5, 0.5],
+        tickmode: 'array',
+        tickvals: ySlots,
+        ticktext: ySlots.map(value => `${value}`),
         gridcolor: '#e5e7eb',
         linecolor: '#d1d5db',
         fixedrange: true,
@@ -175,7 +221,7 @@ export function Waterfall({ history, freqUnit = 'MHz', powerUnit = 'dBm', minFre
 
     Plotly.react(plotRef.current, traces, layout, config);
     lastHistoryHashRef.current = newHash;
-  }, [history, minFreq, maxFreq, freqUnit, powerUnit, convertFrequency, showColorbar]);
+  }, [history, freqUnit, powerUnit, convertFrequency, showColorbar]);
 
   return (
     <div className="-mt-3 relative">

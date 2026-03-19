@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { X, Download, Loader2, ZoomIn, ZoomOut, Trash2, Copy, RotateCcw, Maximize2, ChevronLeft, Settings, FileText, Layers, Activity } from 'lucide-react';
+import Plotly from 'plotly.js-dist-min';
 import { SpectrumChart } from './SpectrumChart';
 import { Waterfall } from './Waterfall';
 import axios from 'axios';
@@ -458,18 +459,34 @@ export function CampaignDataViewer({ campaignId, campaignName, sensors, allSenso
   };
 
   const handleCopyImage = async () => {
-    const originalCanvas = document.querySelector('canvas');
-    if (!originalCanvas) {
+    const plotElement = chartRef.current?.querySelector('.js-plotly-plot') as Plotly.PlotlyHTMLElement | null;
+    if (!plotElement) {
       alert('No se encontró el gráfico para copiar');
       return;
     }
 
     try {
       // Verificar si el navegador soporta clipboard API
-      if (!navigator.clipboard || !navigator.clipboard.write) {
+      if (!navigator.clipboard || !navigator.clipboard.write || typeof ClipboardItem === 'undefined') {
         alert('Tu navegador no soporta copiar imágenes al portapapeles');
         return;
       }
+
+      const width = Math.max(1, Math.round(plotElement.clientWidth || 1200));
+      const height = Math.max(1, Math.round(plotElement.clientHeight || 400));
+      const imageDataUrl = await Plotly.toImage(plotElement, {
+        format: 'png',
+        width,
+        height,
+        scale: 2,
+      });
+
+      const renderedChart = new Image();
+      await new Promise<void>((resolve, reject) => {
+        renderedChart.onload = () => resolve();
+        renderedChart.onerror = () => reject(new Error('No se pudo cargar la imagen exportada del gráfico'));
+        renderedChart.src = imageDataUrl;
+      });
 
       // Crear canvas temporal con espacio para el título
       const tempCanvas = document.createElement('canvas');
@@ -481,8 +498,8 @@ export function CampaignDataViewer({ campaignId, campaignName, sensors, allSenso
 
       // Configurar dimensiones (agregar 60px arriba para el título)
       const titleHeight = 60;
-      tempCanvas.width = originalCanvas.width;
-      tempCanvas.height = originalCanvas.height + titleHeight;
+      tempCanvas.width = renderedChart.width;
+      tempCanvas.height = renderedChart.height + titleHeight;
 
       // Fondo blanco
       ctx.fillStyle = '#ffffff';
@@ -533,7 +550,7 @@ export function CampaignDataViewer({ campaignId, campaignName, sensors, allSenso
           }
 
       // Dibujar el gráfico debajo del título
-      ctx.drawImage(originalCanvas, 0, titleHeight);
+      ctx.drawImage(renderedChart, 0, titleHeight);
 
       // Convertir a blob
       const blob = await new Promise<Blob | null>((resolve) => {

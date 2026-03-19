@@ -37,6 +37,7 @@ interface SpectrumChartProps {
 
 export function SpectrumChart({ data, series, markers, onMarkerAdd, activeStats, statColors, maxHold, minHold, zoomMode, zoomArea, onZoomAreaChange, vbw, rbw, freqUnit = 'MHz', powerUnit = 'dBm', antennaGain = 0, umbral, noiseFloor }: SpectrumChartProps) {
   const plotRef = useRef<HTMLDivElement>(null);
+  const resizeRafRef = useRef<number | null>(null);
   const [maxHoldData, setMaxHoldData] = useState<{ frequency: number; power: number }[]>([]);
   const [minHoldData, setMinHoldData] = useState<{ frequency: number; power: number }[]>([]);
   const lastFreqRangeRef = useRef<string>('');
@@ -242,8 +243,48 @@ export function SpectrumChart({ data, series, markers, onMarkerAdd, activeStats,
   // Cleanup Plotly on unmount
   useEffect(() => {
     return () => {
+      if (resizeRafRef.current !== null) {
+        cancelAnimationFrame(resizeRafRef.current);
+      }
       if (plotRef.current) {
         Plotly.purge(plotRef.current);
+      }
+    };
+  }, []);
+
+  // Keep Plotly canvas in sync with container size changes (sidebar toggle/fullscreen).
+  useEffect(() => {
+    const el = plotRef.current;
+    if (!el) return;
+
+    const scheduleResize = () => {
+      if (resizeRafRef.current !== null) {
+        cancelAnimationFrame(resizeRafRef.current);
+      }
+      resizeRafRef.current = requestAnimationFrame(() => {
+        if (plotRef.current) {
+          Plotly.Plots.resize(plotRef.current);
+        }
+      });
+    };
+
+    const observer = new ResizeObserver(() => {
+      scheduleResize();
+    });
+    observer.observe(el);
+
+    const handleFullscreenChange = () => {
+      scheduleResize();
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+
+    return () => {
+      observer.disconnect();
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      if (resizeRafRef.current !== null) {
+        cancelAnimationFrame(resizeRafRef.current);
+        resizeRafRef.current = null;
       }
     };
   }, []);
