@@ -1,3 +1,0 @@
-19-Mar-26(17:23:20)[STATUS]DEBUG     Sending payload: {'mac': 'd0:65:78:9c:dd:d0', 'ram_mb': 6334, 'swap_mb': 898, 'disk_mb': 20926, 'temp_c': 27.8, 'total_ram_mb': 15932, 'total_swap_mb': 7925, 'total_disk_mb': 141341, 'delta_t_ms': None, 'ping_ms': 13.9, 'timestamp_ms': 1773940999772, 'last_kal_ms': None, 'last_ntp_ms': 1773940956655, 'logs': 'Sistema operando normalmente', 'cpu_0': 16.667, 'cpu_1': 52.525, 'cpu_2': 56.122, 'cpu_3': 99.01}
-19-Mar-26(17:23:20)[STATUS]INFO      [HTTP] POST → http://localhost:3000/api/sensor/status
-19-Mar-26(17:23:20)[STATUS]INFO      Payload sent succesfully after 0 attempts
