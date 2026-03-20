@@ -338,7 +338,13 @@ export function CampaignDataViewer({ campaignId, campaignName, sensors, allSenso
         closest = currentSpectrumData[i];
       }
     }
-    return closest.power;
+    return Number.isFinite(closest?.power) ? closest.power : 0;
+  };
+
+  const getSafeConvertedMarkerPower = (frequency: number): number => {
+    const rawPower = getMarkerPowerAtFrequency(frequency);
+    const convertedPower = convertPower(Number.isFinite(rawPower) ? rawPower : 0, frequency);
+    return Number.isFinite(convertedPower) ? convertedPower : 0;
   };
 
   // Convertir potencia de dBm a otras unidades
@@ -1309,7 +1315,7 @@ export function CampaignDataViewer({ campaignId, campaignName, sensors, allSenso
                             <span className="font-semibold">{marker.id}:</span>
                             <span>{(marker.frequency / 1e6).toFixed(3)} MHz</span>
                           <span className="text-gray-500">|</span>
-                          <span>{convertPower(getMarkerPowerAtFrequency(marker.frequency), marker.frequency).toFixed(2)} {powerUnit}</span>
+                          <span>{getSafeConvertedMarkerPower(marker.frequency).toFixed(2)} {powerUnit}</span>
                         </div>
                         <button
                             onClick={() => setMarkers(markers.filter(m => m.id !== marker.id))}
@@ -1344,7 +1350,7 @@ export function CampaignDataViewer({ campaignId, campaignName, sensors, allSenso
                               <div>
                                 <span className="text-gray-600">Δ Potencia:</span>
                                 <p className="font-semibold text-gray-900">
-                                  {(convertPower(getMarkerPowerAtFrequency(markers[i + 1].frequency), markers[i + 1].frequency) - convertPower(getMarkerPowerAtFrequency(markers[i].frequency), markers[i].frequency)).toFixed(2)} {powerUnit}
+                                  {(getSafeConvertedMarkerPower(markers[i + 1].frequency) - getSafeConvertedMarkerPower(markers[i].frequency)).toFixed(2)} {powerUnit}
                                 </p>
                               </div>
                             </div>

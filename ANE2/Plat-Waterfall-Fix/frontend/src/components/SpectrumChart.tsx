@@ -434,8 +434,10 @@ export function SpectrumChart({ data, series, markers, onMarkerAdd, activeStats,
         textposition: 'top center',
         textfont: { size: 11, color: markers.map(m => m.color) },
         hovertemplate: markers.map(m => {
-          const val = convertPower(getPowerAtFrequency(m.frequency), m.frequency);
-          return `${m.id}<br>Freq: ${convertFrequency(m.frequency).toFixed(3)} ${freqUnit}<br>Power: ${val.toFixed(2)} ${powerUnit}<extra></extra>`;
+          const rawPower = getPowerAtFrequency(m.frequency);
+          const val = convertPower(Number.isFinite(rawPower) ? rawPower : 0, m.frequency);
+          const displayVal = Number.isFinite(val) ? val : 0;
+          return `${m.id}<br>Freq: ${convertFrequency(m.frequency).toFixed(3)} ${freqUnit}<br>Power: ${displayVal.toFixed(2)} ${powerUnit}<extra></extra>`;
         }),
         showlegend: false,
       });

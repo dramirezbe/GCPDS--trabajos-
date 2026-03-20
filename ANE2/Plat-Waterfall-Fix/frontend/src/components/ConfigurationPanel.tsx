@@ -637,32 +637,34 @@ export function ConfigurationPanel({
   };
 
   // Función para actualizar parámetros durante la adquisición sin detenerla
-  const handleUpdateConfig = async () => {
+  const handleUpdateConfig = async (overrides?: Partial<ConfigurationPanelProps['config']>) => {
     if (!selectedSensor || !isMonitoring) return;
 
     try {
+      const effectiveConfig = { ...config, ...(overrides || {}) };
+
       // Convertir RBW a Hz (puede ser 'auto' o un número)
       let rbwHz = 1000; // Valor por defecto si es 'auto'
-      if (config.rbw !== 'auto') {
-        rbwHz = typeof config.rbw === 'string' ? parseFloat(config.rbw) : config.rbw;
+      if (effectiveConfig.rbw !== 'auto') {
+        rbwHz = typeof effectiveConfig.rbw === 'string' ? parseFloat(effectiveConfig.rbw) : effectiveConfig.rbw;
       }
       
       // Preparar la configuración para enviar al sensor (NUEVO FORMATO JSON)
-      const antennaPort = config.antenna ? parseInt(config.antenna.replace('RX-', '')) : 1;
-      const spanHz = config.span * 1e6; // Convertir MHz a Hz
+      const antennaPort = effectiveConfig.antenna ? parseInt(effectiveConfig.antenna.replace('RX-', '')) : 1;
+      const spanHz = effectiveConfig.span * 1e6; // Convertir MHz a Hz
       
       const scanConfig: any = {
         mac: selectedSensor,
-        center_frequency: config.centerFrequency * 1e6, // Convertir MHz a Hz
+        center_frequency: effectiveConfig.centerFrequency * 1e6, // Convertir MHz a Hz
         sample_rate_hz: spanHz, // Ya no se envía 'span', solo sample_rate_hz
         resolution_hz: rbwHz, // RBW ya en Hz
-        vbw: config.vbw || 'auto', // Video Bandwidth
+        vbw: effectiveConfig.vbw || 'auto', // Video Bandwidth
         antenna_port: antennaPort, // Puerto real de la antena (1, 2, 3, 4)
         window: 'hann',
         overlap: 0.5,
-        lna_gain: (config as any).lna_gain || 0,
-        vga_gain: (config as any).vga_gain || 0,
-        antenna_amp: (config as any).antenna_amp !== false
+        lna_gain: (effectiveConfig as any).lna_gain || 0,
+        vga_gain: (effectiveConfig as any).vga_gain || 0,
+        antenna_amp: (effectiveConfig as any).antenna_amp !== false
       };
 
       // SOLO agregar filtro si está explícitamente habilitado Y tiene valores válidos
@@ -682,7 +684,7 @@ export function ConfigurationPanel({
       // Si filterEnabled es false, NO agregar la propiedad filter
 
       // Si es preset AM/FM, agregar configuración de demodulación (nuevo formato: string simple)
-      if (config.preset === 'amfm' && demodType) {
+      if (effectiveConfig.preset === 'amfm' && demodType) {
         scanConfig.demodulation = demodType.toLowerCase(); // "am" o "fm"
       }
 
@@ -1025,19 +1027,26 @@ export function ConfigurationPanel({
                       setLocalSpan(clampedSpan);
                       onConfigChange({ ...config, span: clampedSpan, sampleRate: clampedSpan });
                       onWaterfallResetRequested?.();
-                      handleUpdateConfig();
+                      handleUpdateConfig({ span: clampedSpan, sampleRate: clampedSpan });
                     }
                   }}
                   onBlur={() => {
                     // Al salir del campo, ajustar al rango si está fuera
                     const minSpan = config.preset === 'rmtdt' ? 6 : 8;
+                    let finalSpan = localSpan;
                     
                     if (localSpan < minSpan) {
+                      finalSpan = minSpan;
                       setLocalSpan(minSpan);
                       onConfigChange({ ...config, span: minSpan, sampleRate: minSpan });
                     } else if (localSpan > 20) {
+                      finalSpan = 20;
                       setLocalSpan(20);
                       onConfigChange({ ...config, span: 20, sampleRate: 20 });
+                    }
+
+                    if (isMonitoring) {
+                      handleUpdateConfig({ span: finalSpan, sampleRate: finalSpan });
                     }
                   }}
                   disabled={config.preset === 'amfm' || config.preset === 'rmtdt'}
@@ -1143,8 +1152,9 @@ export function ConfigurationPanel({
             <select
               value={config.rbw}
               onChange={(e) => {
-                handleChange('rbw', e.target.value);
-                if (isMonitoring) handleUpdateConfig();
+                const rbwValue = e.target.value;
+                handleChange('rbw', rbwValue);
+                if (isMonitoring) handleUpdateConfig({ rbw: rbwValue });
               }}
               disabled={config.preset !== 'custom' && config.preset !== 'rmtdt'}
               className={`w-full px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-orange-500 ${

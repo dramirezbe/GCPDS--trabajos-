@@ -71,7 +71,24 @@ export const AnalysisPanel = forwardRef<AnalysisPanelRef, AnalysisPanelProps>(({
     }
   }));
 
-  const handleAddMarker = (frequency: number, power: number) => {
+  const getPowerAtFrequency = (frequency: number): number => {
+    if (!data || data.length === 0) return 0;
+    let closest = data[0];
+    for (let i = 1; i < data.length; i++) {
+      if (Math.abs(data[i].frequency - frequency) < Math.abs(closest.frequency - frequency)) {
+        closest = data[i];
+      }
+    }
+    return Number.isFinite(closest?.power) ? closest.power : 0;
+  };
+
+  const getSafeConvertedPower = (powerDbm: number): number => {
+    const safePower = Number.isFinite(powerDbm) ? powerDbm : 0;
+    const converted = convertPower(safePower);
+    return Number.isFinite(converted) ? converted : 0;
+  };
+
+  const handleAddMarker = (frequency: number) => {
     if (markers.length >= 10) {
       alert('Máximo 10 marcadores permitidos');
       return;
@@ -90,6 +107,7 @@ export const AnalysisPanel = forwardRef<AnalysisPanelRef, AnalysisPanelProps>(({
       '#475569'  // Slate
     ];
     const labels = ['M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7', 'M8', 'M9', 'M10'];
+    const power = getPowerAtFrequency(frequency);
     const newMarker: Marker = {
       id: labels[markers.length],
       frequency,
@@ -499,7 +517,7 @@ export const AnalysisPanel = forwardRef<AnalysisPanelRef, AnalysisPanelProps>(({
                             <span className="font-semibold">{marker.id}:</span>
                             <span>{(marker.frequency / 1e6).toFixed(3)} MHz</span>
                             <span className="text-gray-500">|</span>
-                            <span>{convertPower(marker.power).toFixed(2)} {powerUnit}</span>
+                            <span>{getSafeConvertedPower(marker.power).toFixed(2)} {powerUnit}</span>
                           </div>
                           <button
                             onClick={() => setMarkers(markers.filter(m => m.id !== marker.id))}
@@ -534,7 +552,7 @@ export const AnalysisPanel = forwardRef<AnalysisPanelRef, AnalysisPanelProps>(({
                               <div>
                                 <span className="text-gray-600">Δ Potencia:</span>
                                 <p className="font-semibold text-gray-900">
-                                  {(convertPower(markers[i].power + delta.deltaPower) - convertPower(markers[i].power)).toFixed(2)} {powerUnit}
+                                  {(getSafeConvertedPower(markers[i].power + delta.deltaPower) - getSafeConvertedPower(markers[i].power)).toFixed(2)} {powerUnit}
                                 </p>
                               </div>
                             </div>
