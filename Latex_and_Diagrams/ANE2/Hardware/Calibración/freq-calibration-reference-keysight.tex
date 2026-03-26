@@ -1,0 +1,119 @@
+\documentclass[journal, a4paper]{IEEEtran}
+
+\usepackage{amsmath}
+\usepackage{tikz}
+\usepackage{circuitikz}
+\usepackage{graphicx}
+\usepackage{hyperref}
+
+\begin{document}
+
+\title{Experimental Procedure for Measuring Local Oscillator Frequency Offset in Software Defined Radios: A HackRF One Case Study}
+
+\author{Expert Radio Frequency Engineer}
+
+\maketitle
+
+\begin{abstract}
+This document outlines a rigorous experimental methodology to measure the Local Oscillator (LO) frequency shift, or offset, of a HackRF One Software Defined Radio (SDR). Utilizing a calibrated professional Spectrum Analyzer as the metrological reference and a Continuous Wave (CW) tone from a synthesized Signal Generator, the procedure isolates the hardware-induced frequency drift of the SDR. The methodology incorporates hardware protection protocols and specific software tuning techniques, such as offset tuning, to mitigate the inherent DC offset and LO leakage characteristic of Zero-IF architectures.
+\end{abstract}
+
+\section{Regulatory Framework (ITU \& Colombia)}
+
+The precise measurement of frequency offset is mandated by international and national regulatory bodies to ensure the efficient use of the radio spectrum and to prevent harmful interference. The International Telecommunication Union Radiocommunication Sector (ITU-R) establishes the foundational tolerances and measurement accuracies required for global compliance.
+
+Specifically, Recommendation ITU-R SM.1045 delineates the maximum permitted frequency tolerances for transmitters across various radio services and frequency bands, providing both currently achievable standards and long-term design objectives.[1] To verify compliance with these tolerances, spectrum monitoring stations must rely on highly accurate measurement equipment. Recommendation ITU-R SM.377-4 specifies the required accuracy of frequency measurements at international monitoring stations, stipulating a stringent accuracy limit of $\pm 10^{-8}$ for the frequency range of 29.7 MHz to 2450 MHz.[2]
+
+In Colombia, the Agencia Nacional del Espectro (ANE) is the regulatory authority responsible for spectrum management, surveillance, and control. The ANE harmonizes its national policies with ITU-R recommendations, integrating these global standards into the \textit{Manual de Gestión Nacional del Espectro Radioeléctrico}.[3] This manual establishes the technical procedures for spectrum monitoring, enforcing the frequency accuracy parameters and equipment calibration standards necessary to maintain spectral integrity nationwide.[3]
+
+\section{Experimental Setup \& Connection Diagram}
+
+The experimental setup is designed to simultaneously feed a highly stable CW tone into both the Device Under Test (DUT), which is the HackRF One, and the reference equipment, a professional Spectrum Analyzer. 
+
+The setup utilizes a calibrated Signal Generator to produce the reference CW tone. This signal is routed through a 50-$\Omega$ RF power divider (splitter) to ensure both receiving devices evaluate the exact same waveform. Because the HackRF One has a strict maximum receive power limit of -5 dBm, exceeding this threshold can result in permanent destruction of the RF front-end.[4] Therefore, a 20 dB RF attenuator must be inserted in series between the splitter and the HackRF One's SMA input to ensure the injected signal remains well within the safe operational envelope.
+
+The block diagram of this experimental configuration is illustrated in Figure \ref{fig:setup}.
+
+\begin{figure}[htbp]
+\centering
+\begin{circuitikz}[thick, node distance=2cm, >=latex]
+    % Define Nodes
+    \node[draw, rectangle, minimum height=1.2cm, minimum width=2.2cm, align=center] (sg) at (0,0) {Signal\\Generator};
+    
+    \node[draw, rectangle, minimum height=1.2cm, minimum width=1.5cm, align=center] (split) at (3.5,0) {50\,$\Omega$\\Splitter};
+    
+    \node[draw, rectangle, minimum height=1.2cm, minimum width=2.2cm, align=center] (sa) at (7,2) {Spectrum\\Analyzer\\(Reference)};
+    
+    \node[draw, rectangle, minimum height=1.2cm, minimum width=2cm, align=center] (atten) at (7,-2) {20\,dB\\Attenuator};
+    
+    \node[draw, rectangle, minimum height=1.2cm, minimum width=2cm, align=center] (hackrf) at (10.5,-2) {HackRF\\One\\(DUT)};
+    
+    \node[draw, rectangle, minimum height=1.2cm, minimum width=1.5cm, align=center] (pc) at (13.5,-2) {Host\\PC};
+
+    % Draw Connections
+    \draw[->] (sg) -- node[above] {CW Tone} (split);
+    
+    \draw[->] (split.north) |- (sa.west) node[pos=0.75, above] {Reference Path};
+    
+    \draw[->] (split.south) |- (atten.west) node[pos=0.75, above] {DUT Path};
+    
+    \draw[->] (atten) -- (hackrf);
+    
+    \draw[->] (hackrf) -- node[above] {USB} (pc);
+    
+\end{circuitikz}
+\caption{Block diagram of the experimental RF setup. The 20 dB attenuator is critical to protect the HackRF One from exceeding its -5 dBm maximum input threshold.}
+\label{fig:setup}
+\end{figure}
+
+\section{Mathematical Foundation}
+
+To quantify the Local Oscillator drift of the HackRF One, the observed frequency must be compared mathematically against the reference frequency. 
+
+Let $f_{\text{ref}}$ represent the true frequency of the CW tone as measured by the calibrated Spectrum Analyzer. Let $f_{\text{meas}}$ represent the peak frequency of the same CW tone as captured and digitized by the HackRF One. 
+
+The absolute frequency error, $\Delta f$, measured in Hertz (Hz), is defined as:
+\begin{equation}
+\Delta f = f_{\text{meas}} - f_{\text{ref}}
+\end{equation}
+
+Because absolute frequency error scales with the target frequency, it is standard metrological practice to express the oscillator's tolerance as a fractional frequency error in parts per million (ppm). The ppm offset is calculated using the following equation:
+\begin{equation}
+\text{Error (ppm)} = \left( \frac{\Delta f}{f_{\text{ref}}} \right) \times 10^6
+\end{equation}
+
+This normalized value allows for direct comparison against the manufacturer's specified crystal oscillator tolerance (typically around $\pm20$ ppm for an uncompensated HackRF One, or $\pm0.5$ ppm if an external TCXO is utilized).
+
+\section{Methodology}
+
+The experimental procedure must be executed with strict adherence to the following sequence to guarantee metrological accuracy and prevent hardware damage.
+
+\subsection{Hardware Initialization and Protection}
+\begin{enumerate}
+    \item Connect the output of the Signal Generator to the input port of the 50-$\Omega$ RF Splitter.
+    \item Connect Output 1 of the Splitter directly to the professional Spectrum Analyzer.
+    \item Connect Output 2 of the Splitter to the 20 dB Attenuator.
+    \item Connect the output of the 20 dB Attenuator to the SMA antenna port of the HackRF One.
+    \item Power on the Signal Generator and configure it to output a Continuous Wave (CW) tone at a specific test frequency (e.g., $f_c = 1.000$ GHz). Set the output power to -10 dBm. With the splitter loss ($\approx 3$ dB) and the 20 dB attenuator, the signal reaching the HackRF One will be approximately -33 dBm, safely below the -5 dBm maximum threshold.[4]
+\end{enumerate}
+
+\subsection{LO Leakage Mitigation (Offset Tuning)}
+Because the HackRF One utilizes a Zero-IF (Direct Conversion) architecture, it is susceptible to significant DC offset, which manifests as a large artificial spike at the exact center frequency (0 Hz in the baseband).[5] To ensure the CW tone is not obscured by this LO leakage:
+\begin{enumerate}
+    \item Do \textit{not} tune the HackRF One exactly to the CW tone frequency ($1.000$ GHz). 
+    \item Instead, apply an \textit{offset tuning} strategy. Tune the HackRF One's center frequency to $0.998$ GHz (2 MHz below the CW tone).
+    \item Configure the sample rate to $8$ Msps or higher. This places the expected CW tone comfortably within the passband, cleanly separated from the center-frequency DC spike.[5]
+\end{enumerate}
+
+\subsection{Signal Capture and Analysis}
+\begin{enumerate}
+    \item \textbf{Reference Measurement:} On the Spectrum Analyzer, set the center frequency to $1.000$ GHz, reduce the Resolution Bandwidth (RBW) to 1 Hz or 10 Hz for maximum precision, and activate the peak search function. Record this exact frequency as $f_{\text{ref}}$.
+    \item \textbf{DUT Capture:} Using a host software environment (e.g., GNU Radio or SDR\#), capture the raw I/Q data stream from the HackRF One.
+    \item \textbf{FFT Processing:} Perform a high-resolution Fast Fourier Transform (FFT) on the captured I/Q data. Apply a suitable windowing function (e.g., Hann or Blackman-Harris) to minimize spectral leakage.
+    \item \textbf{Peak Detection:} Identify the frequency bin containing the highest amplitude peak corresponding to the CW tone. Calculate the absolute frequency of this peak ($f_{\text{meas}}$) by adding the baseband offset to the HackRF's tuned LO frequency.
+\end{enumerate}
+
+\subsection{Error Calculation}
+Apply the equations detailed in Section III. Subtract $f_{\text{ref}}$ from $f_{\text{meas}}$ to find the absolute error $\Delta f$. Finally, compute the fractional error in ppm. If the calculated ppm exceeds the required tolerance for a specific application, the HackRF One will require software calibration correction or a hardware TCXO upgrade.
+
+\end{document}
