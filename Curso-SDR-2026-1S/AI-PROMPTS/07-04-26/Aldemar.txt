@@ -1,0 +1,733 @@
+A. Executive summary
+
+For this project, the requirements and feasibility phase should end with a very disciplined conclusion:
+
+The laboratory is feasible with a low-cost RTL-SDR, an FM whip antenna, and a personal computer.
+It is not feasible to promise professional-grade absolute accuracy in power, OBW, or carrier-frequency estimation without calibration, controlled gain policy, and explicit uncertainty bounds.
+The design must therefore be positioned as an educational receive-only FM sensing lab, not as a regulatory monitoring instrument and not as a transmitter under any circumstance. In Colombia, the FM broadcast band is allocated to radiodifusión sonora FM in 88–108 MHz, and spectrum use is subject to state control and permission frameworks; your project should stay strictly in passive reception and educational analysis.
+
+A realistic scope is:
+
+Scan and visualize the 88–108 MHz FM band.
+Detect channel presence/activity.
+Estimate center frequency, occupied bandwidth (OBW), and relative/approximate received power per detected station.
+Extract educational FM indicators such as stereo pilot visibility, noise floor behavior, PSD shape, adjacent-channel effects, and gain/saturation effects.
+Teach students the practical gap between theory and hardware reality: 8-bit ADC limits, tuner behavior, sample-rate tradeoffs, DC spike, IQ imbalance, aliasing, gain staging, and poor-signal-area effects. RTL-SDR-class devices are receive-only and typically operate stably around 2.56 MS/s, with 8-bit digitization and limited dynamic range relative to lab-grade instruments.
+
+The key systems-engineering decision in feasibility is this:
+
+Do not define the lab around “accurate FM station metrology everywhere.”
+Define it around repeatable educational sensing with quantified limitations.
+
+That choice prevents scope inflation, budget overruns, and user dissatisfaction.
+
+B. Requirements specification and warnings
+1. System mission
+
+Mission statement
+
+Design a receive-only educational SDR laboratory for sensing the 88–108 MHz FM broadcast band using RTL-SDR + whip antenna + COTS PC, in a poor reception area, producing repeatable measurements and educational workflows for PSD, occupancy, channel activity, FM characteristics, and approximate signal metrics.
+
+2. Stakeholders
+
+Primary users:
+
+students learning SDR, RF, and DSP
+instructors preparing labs and experiments
+project maintainers extending the platform
+
+Secondary stakeholders:
+
+institution/lab manager controlling cost and reproducibility
+legal/compliance reviewers ensuring receive-only operation
+3. Functional requirements
+
+The minimum viable functional requirements should be:
+
+ID	Requirement	Why it matters
+FR-1	Tune and scan the full 88–108 MHz FM band	Core mission
+FR-2	Display PSD/spectrum and optionally waterfall over time	Primary visualization
+FR-3	Detect candidate FM channels above a local noise floor	Occupancy/activity estimation
+FR-4	Estimate per-station center frequency	Educational spectral localization
+FR-5	Estimate per-station OBW from PSD using a defined algorithm	Required output
+FR-6	Estimate received power in a clearly defined way	Required output
+FR-7	Store measurements with metadata: gain, sample rate, FFT length, antenna, timestamp, calibration state	Reproducibility
+FR-8	Support laboratory exercises explaining hardware artifacts	Educational workflow
+FR-9	Run on a normal PC with openly reproducible software steps	Reproducibility
+FR-10	Modular processing chain so future extensions are possible	Long-term value
+4. Non-functional requirements
+
+These are just as important as the functional ones:
+
+ID	Requirement	Target
+NFR-1	Low cost	Use RTL-SDR-class receiver, simple antenna, standard PC
+NFR-2	Reproducibility	Same workflow on multiple personal computers
+NFR-3	Transparency	Every measurement must document assumptions
+NFR-4	Educational clarity	Students must see tradeoffs, not black-box outputs
+NFR-5	Stability	Avoid dropped samples and unstable settings
+NFR-6	Safety/legal	No transmission, no active RF generation
+NFR-7	Extensibility	Future upgrades: better antenna, preselector, calibration, classifier
+5. Measurement requirements
+
+You explicitly want OBW, center frequency, and power for each FM station. These must be written carefully.
+
+5.1 Center frequency
+
+Requirement:
+
+Estimate center frequency from PSD with a defined method such as:
+peak frequency after smoothing, or
+power centroid within detected station mask, or
+hybrid peak + centroid method
+
+Warning:
+
+In poor reception, multipath, low SNR, adjacent-channel overlap, and RTL tuner/frequency error can bias the estimate.
+5.2 Occupied bandwidth (OBW)
+
+Requirement:
+
+Define OBW as the bandwidth containing 99% of integrated power within the selected station span. That is the standard engineering definition used in many test contexts.
+
+Warning:
+
+On an RTL-SDR, OBW from PSD is highly sensitive to:
+FFT resolution
+windowing
+smoothing
+station-mask boundaries
+nearby channels
+gain saturation
+poor SNR
+
+So the requirement should be:
+
+Educational OBW estimate with documented uncertainty, not a compliance-grade OBW claim.
+5.3 Power
+
+Requirement:
+
+Report:
+relative power in dBFS or normalized dB
+optional approximate received power in dBm only after calibration
+
+Warning:
+
+Without a calibration chain, direct dBm claims are weak.
+RTL-SDR gain settings are coarse and front-end behavior is nonlinear under strong-signal conditions.
+A poor reception area reduces overload risk, but it increases uncertainty and false negatives.
+6. Explicit warnings that must appear in the requirements baseline
+
+These warnings should be part of the specification, not footnotes:
+
+Warning 1: Receive-only constraint
+
+Any design assumption involving RF transmission, replay, active probing, or rebroadcast is out of scope and should be rejected immediately.
+
+Warning 2: RTL-SDR measurement realism
+
+RTL-SDR-class hardware uses 8-bit ADC conversion and has practical sample-rate limits; stable operation is commonly around 2.56 MS/s, while higher rates may drop samples. That means limited dynamic range and vulnerability to overload, quantization effects, and measurement bias.
+
+Warning 3: Full-band capture is not instantaneous
+
+The FM band is 20 MHz wide, but the RTL-SDR instantaneous bandwidth is much smaller. So the band must be covered by:
+
+segmented scanning, or
+overlapping stepped acquisitions
+
+That introduces dwell-time and temporal-consistency tradeoffs.
+
+Warning 4: Poor reception area changes the design
+
+A poor reception area is not just a performance issue; it changes requirements:
+
+detection thresholds must be conservative
+false negatives become more likely
+antenna placement matters more
+long dwell and averaging become important
+“power per station” becomes less stable across time
+Warning 5: DC spike, IQ imbalance, and aliasing are mandatory design concerns
+
+Any architecture that ignores these is not acceptable. They directly affect center bins, symmetry, station detection, and power estimation.
+
+C. Analysis for the technical, financial, operational, legal, and scheduling constraints to prevent cost overruns, risks, and user dissatisfaction
+C1. Technical feasibility
+1. Is the system technically feasible?
+
+Yes, with an important caveat:
+
+It is feasible as an educational spectrum-sensing system
+It is not feasible as a precision regulatory measurement platform using only RTL-SDR + whip + PC
+
+That distinction is essential.
+
+2. Recommended sensing architecture
+
+Because the FM band is 88–108 MHz and the RTL-SDR cannot capture all 20 MHz at once, the technical baseline should be:
+
+Architecture option A — stepped wideband scan
+
+Divide 88–108 MHz into overlapping spans
+Example: center frequencies every 1.6 to 2.0 MHz with overlap
+At each step:
+acquire IQ
+apply DC mitigation
+FFT/PSD
+discard unreliable edge bins
+stitch spans into a band panorama
+
+Architecture option B — channelized scan
+
+Predefine channel centers or subbands
+Measure occupancy and station metrics per channel
+Better for stable classroom exercises, less good for exploratory spectrum view
+
+For education, I recommend:
+
+Panorama scan for visualization
+Channel-focused re-acquisition for per-station OBW/frequency/power
+
+That is more technically sound than trying to extract all station metrics from one coarse panorama.
+
+3. Required signal-processing chain
+
+A concrete chain should be part of the requirements phase:
+
+Acquisition
+fixed sample rate, e.g. 2.048 or 2.4 MS/s for conservative operation, or 2.56 MS/s if stable on the chosen PC and USB path
+manual gain mode
+fixed dwell per step
+Preprocessing
+remove DC offset in I/Q
+optional notch or bin suppression at DC if center-tuned artifact remains
+optional IQ imbalance mitigation if image asymmetry is severe
+Windowing + FFT
+Hann or Blackman-Harris window
+define FFT sizes such as 4096, 8192, or 16384 depending on dwell and CPU budget
+PSD estimation
+Welch averaging preferred for stability
+record RBW-equivalent bin width from Fs / NFFT
+Artifact control
+reject edge bins near tuner roll-off
+flag scans with clipping or overload symptoms
+detect abnormal symmetry or DC contamination
+Detection
+adaptive noise floor estimation
+station mask extraction
+peak grouping / connected-component logic on thresholded PSD
+Per-station metrics
+center frequency
+OBW
+channel power / relative power
+occupancy decision
+optional stereo-pilot evidence near 19 kHz in demodulated audio for teaching
+Validation/metadata
+store settings and confidence flags
+
+This is concrete enough to be implementable and still low-cost.
+
+4. Mandatory RTL-SDR limitations and how they affect requirements
+4.1 8-bit ADC behavior
+
+Effect:
+
+limited dynamic range
+quantization noise
+overload sensitivity
+weak discrimination between strong and weak stations in the same scene
+
+Requirement implication:
+
+define acceptable operation only in non-clipped conditions
+include overload detection in software
+do not promise absolute power accuracy without calibration
+4.2 Sample-rate constraints
+
+Effect:
+
+stable high-rate streaming is limited
+dropped samples corrupt PSD consistency
+
+Requirement implication:
+
+choose a validated sample rate and freeze it in baseline testing
+prioritize stability over maximum bandwidth
+4.3 Tuning limitations and LO-related artifacts
+
+Effect:
+
+center-frequency tuning may place strong stations near the DC artifact
+tuning step strategy matters
+edge-of-span response is not equally trustworthy
+
+Requirement implication:
+
+use overlapping spans
+crop center bins or shift tuning so stations are not always centered on DC
+crop edge bins before stitching
+4.4 Gain control limitations
+
+Effect:
+
+auto gain makes measurements non-reproducible
+manual gain too high causes clipping; too low loses weak stations
+
+Requirement implication:
+
+use a fixed manual gain policy
+define one or a few approved gain presets for lab experiments
+4.5 DC spike
+
+Effect:
+
+corrupts center bins
+biases station detection and power
+can look like a false narrowband emission
+
+Requirement implication:
+
+DC mitigation is mandatory
+never trust center bins blindly
+tune so suspected stations are not exactly on DC whenever possible
+4.6 IQ imbalance
+
+Effect:
+
+mirrored artifacts
+asymmetrical spectra
+possible false station interpretations
+
+Requirement implication:
+
+include a simple IQ-balance diagnostic
+document that image artifacts are hardware-induced, not necessarily real stations
+4.7 Aliasing and out-of-band contamination
+
+Effect:
+
+misleading spectral energy
+especially risky with cheap front ends and strong nearby signals
+
+Requirement implication:
+
+edge-bin rejection
+optional FM broadcast bandpass filter only if justified by observed interference
+do not add expensive front-end hardware unless the baseline fails
+5. Poor reception area: feasibility impact
+
+This constraint is central.
+
+In a poor reception area, the system is still educationally useful, but the success criteria must shift from “see all stations strongly” to:
+
+detect available stations above threshold
+observe how antenna position changes PSD
+study dwell-time and averaging tradeoffs
+compare weak-signal detection performance under different gains and windows
+analyze false negatives and time variability
+
+This actually strengthens the educational value, because students will learn:
+
+propagation
+noise floor variability
+antenna placement sensitivity
+detection threshold design
+measurement uncertainty
+6. Suggested technical acceptance targets
+
+These are realistic targets for the requirements phase:
+
+Metric	Realistic target
+Band coverage	88–108 MHz via stepped scan
+Stable runtime	30–60 min without crashes or repeated sample drops
+Scan repeatability	Similar panorama shape across repeated scans under same setup
+Center-frequency estimate	within a few kHz to tens of kHz for strong stations, depending on calibration and SNR
+OBW repeatability	within a defined tolerance band for strong isolated stations
+Power repeatability	better for relative comparisons than absolute dBm
+Educational usability	students can explain at least 5 hardware artifacts from observed data
+
+Be careful: exact numeric accuracy for frequency and power depends heavily on calibration and local signal conditions, so any tighter target should be validated experimentally first.
+
+C2. Financial feasibility
+1. Low-cost baseline
+
+A financially sound baseline should be:
+
+RTL-SDR dongle
+simple FM whip or dipole
+existing PC
+free/open-source software stack
+no expensive RF generator in phase 1
+no lab-grade spectrum analyzer in phase 1
+
+This satisfies your reproducibility and cost constraints.
+
+2. What not to buy early
+
+These should be penalized unless justified by a measured failure mode:
+
+expensive lab-grade SDRs
+costly active antennas
+mast-mounted LNA without evidence it is needed
+wideband preselectors before proving interference problems
+professional spectrum analyzers for basic educational scanning
+3. Reasonable phased budget logic
+
+Phase 1: minimum viable lab
+
+RTL-SDR
+whip/dipole antenna
+adapters/cabling
+software tools
+printed lab guide
+
+Phase 2: targeted improvements only if baseline fails
+
+FM band filter or bandpass
+attenuator set
+better antenna mounting
+optional reference source for calibration
+
+Phase 3: accuracy improvements
+
+calibration workflow
+known reference signal source
+optional second receiver for comparison
+
+This phased strategy prevents buying hardware to solve problems that may not actually exist in your poor-reception environment.
+
+4. Main financial risk
+
+The biggest hidden cost is not the dongle. It is:
+
+engineering time spent compensating for unrealistic requirements
+
+If stakeholders demand “accurate professional FM metrology” from this hardware, the project will overrun in time and effort long before it overruns in equipment cost.
+
+C3. Operational feasibility
+1. Can students and instructors actually use it?
+
+Yes, if the workflow is explicit and modular.
+
+The lab should not start with abstract theory only. It should start with a repeatable workflow:
+
+connect hardware
+verify device and sample-rate stability
+tune one known FM station
+inspect PSD and waterfall
+adjust gain and observe overload/underload
+scan whole band
+detect candidate stations
+measure center frequency, OBW, and relative power
+compare repeated scans
+document uncertainty and artifacts
+
+That makes the system operationally feasible in a classroom.
+
+2. Educational workflow requirement
+
+This must be formalized as a requirement, not a suggestion.
+
+A good laboratory sequence is:
+
+Lab 1 — SDR basics
+
+sample rate
+FFT
+PSD
+gain
+noise floor
+
+Lab 2 — FM band scan
+
+stepped scan
+panorama stitching
+occupancy map
+
+Lab 3 — Artifact analysis
+
+DC spike
+IQ imbalance
+clipping
+aliasing
+edge-bin roll-off
+
+Lab 4 — Station metrics
+
+center frequency
+OBW
+received power
+threshold sensitivity
+
+Lab 5 — Validation
+
+repeatability over time
+antenna placement comparison
+confidence scoring
+
+Lab 6 — Extensions
+
+stereo pilot study
+channel quality
+future classifier/module design
+
+A design without this workflow should be penalized because it fails your educational objective.
+
+3. Human factors and user dissatisfaction risks
+
+Users will be dissatisfied if:
+
+stations appear/disappear unpredictably without explanation
+outputs show dBm without calibration warning
+the UI hides gain/sample-rate settings
+the system crashes at aggressive sample rates
+results differ between computers with no metadata trail
+
+So operational requirements should include:
+
+visible configuration state
+saved metadata
+confidence/quality flags
+warnings when measurements are unreliable
+C4. Legal feasibility
+
+The legal framing should be conservative.
+
+1. Receive-only legal posture
+
+Your stated use is correct:
+
+passive sensing
+educational/laboratory use
+no transmission
+
+That must be enforced in both documentation and implementation.
+
+In Colombia, the spectrum is a public resource under state management, and the FM band is allocated to broadcasting services. Your project should therefore remain strictly on the side of passive reception and analysis, not operation of transmitting equipment or imitation of official monitoring authority.
+
+2. Legal requirements for the feasibility phase
+
+The requirements set should include:
+
+no RF transmission capability in the design
+no recommendation to radiate test signals on-air
+no claims of regulatory enforcement-grade measurement
+no publication of results as official spectrum compliance findings
+respect for local rules on use of recorded content, privacy, and institutional policies if audio is demodulated or stored
+3. Important legal caution
+
+Pure FM broadcast reception is generally lower risk than transmitting, but legal issues may still arise around:
+
+redistribution of demodulated content
+institutional use of recordings
+presenting measurements as official evidence
+adding active emitters for testing without authorization
+
+So the legal baseline should say:
+
+The laboratory is for passive signal observation, academic analysis, and internal educational use. It is not an authorized spectrum-enforcement platform and must not radiate RF signals.
+
+C5. Scheduling feasibility
+1. Realistic schedule structure
+
+A realistic schedule should separate requirements, prototype, validation, and teaching material.
+
+Stage 1 — Requirements and feasibility
+
+Duration: 1–2 weeks
+
+define use cases
+define measurable outputs
+freeze scope
+identify risks
+produce acceptance criteria
+Stage 2 — Baseline prototype
+
+Duration: 2–4 weeks
+
+set up SDR software
+tune one station
+implement PSD
+implement stepped scan
+verify stable acquisition
+Stage 3 — Metric extraction
+
+Duration: 2–4 weeks
+
+station detection
+center frequency
+OBW
+relative power
+metadata saving
+Stage 4 — Validation
+
+Duration: 2–3 weeks
+
+repeatability tests
+gain tests
+antenna placement tests
+weak-signal tests
+calibration sanity checks
+Stage 5 — Educational packaging
+
+Duration: 1–2 weeks
+
+student guide
+lab instructions
+example datasets
+grading rubric
+2. Schedule risks
+
+The biggest schedule risks are:
+
+unstable drivers or sample-rate settings
+underestimating artifact-mitigation work
+trying to implement automatic station classification too early
+attempting absolute-power calibration before the basic scan is stable
+C6. Avoiding requirements creep
+
+This project is especially vulnerable to scope creep because SDR invites endless extensions.
+
+1. Freeze the phase-1 scope
+
+Phase 1 should include only:
+
+FM band scanning
+PSD/waterfall
+station detection
+center frequency
+OBW
+relative power
+educational labs
+metadata and validation
+2. Explicitly postpone these items
+
+These are good future ideas, but they should be excluded from phase 1:
+
+automatic modulation classification beyond FM broadcast
+multi-band sensing outside 88–108 MHz
+networked remote sensing nodes
+compliance-grade measurements
+advanced ML models
+cloud dashboards
+geolocation
+multiple synchronized SDRs
+3. Change-control rule
+
+Every new requested feature should answer:
+
+Does it support the phase-1 educational objectives?
+Does it work on the same low-cost PC-based platform?
+Does it preserve reproducibility?
+Does it require new hardware?
+Does it compromise validation time?
+
+If the answer is unfavorable, defer it.
+
+C7. Risk management
+
+A proper risk register should exist in the feasibility phase.
+
+Risk	Likelihood	Impact	Mitigation
+Weak or absent stations due to poor reception	High	High	antenna placement tests, longer dwell, averaging, realistic success criteria
+Sample drops at aggressive sample rates	Medium	High	validate and freeze stable Fs
+Overload/clipping from local strong interferers	Medium	High	manual gain policy, clipping detection, optional attenuation
+DC spike corrupts station metrics	High	High	DC mitigation, off-center tuning, center-bin exclusion
+IQ imbalance produces false mirror features	Medium	Medium	artifact detection and student explanation
+Power estimates interpreted as absolute truth	High	High	default to relative power; require calibration for dBm
+Scope creep	High	High	freeze MVP and defer extras
+Cross-PC reproducibility problems	Medium	Medium	documented software versions and metadata
+Legal misunderstanding about transmission/testing	Low	Very high	receive-only documentation, no RF emission steps
+User dissatisfaction from unstable outputs	Medium	High	confidence flags, validation reports, tutorial workflow
+2. Top three risks to prioritize
+
+The first three risks to actively manage are:
+
+weak-signal environment
+artifact-corrupted measurements
+overpromising accuracy
+
+Those three dominate user dissatisfaction.
+
+C8. Validation plan
+
+A design that skips validation should be rejected.
+
+1. Validation philosophy
+
+Validation here does not mean “certify like a regulator.”
+It means:
+
+prove the lab is repeatable
+quantify error sources
+show when outputs are trustworthy
+show when they are not
+2. Required validation tests
+Test V1 — Device stability
+run repeated acquisitions at selected sample rates
+measure dropped samples, crashes, or corrupted scans
+accept only stable configurations
+Test V2 — Repeatability
+same setup, same antenna position, multiple scans
+compare PSD panorama and extracted station list
+Test V3 — Gain sensitivity
+repeat scans at several manual gain settings
+observe station count, power ranking, and saturation behavior
+Test V4 — Antenna placement sensitivity
+indoor positions near window / away from window / elevated position
+quantify how poor reception area affects performance
+Test V5 — DC spike robustness
+place strong station near center-tuned bin
+verify the algorithm does not report false OBW/power
+Test V6 — Frequency estimate sanity
+compare detected station frequencies against known broadcast allocations or stable observed carrier locations in the local band
+document offsets and repeatability
+Test V7 — OBW consistency
+for strong isolated stations, repeat OBW estimate over time
+report spread of estimated bandwidth
+Test V8 — Power reporting validity
+confirm that “relative power” is stable enough for comparison
+only enable dBm reporting after calibration evidence
+3. Validation metrics to require
+
+Minimum metrics:
+
+scan completion success rate
+dropped-sample incidence
+station detection repeatability
+frequency-estimation repeatability
+OBW repeatability
+relative-power repeatability
+false-detection count
+number of scans flagged as unreliable
+4. Confidence labeling
+
+Each station measurement should carry a confidence class such as:
+
+High confidence: isolated strong station, no clipping, low DC contamination
+Medium confidence: moderate SNR or minor adjacency
+Low confidence: near DC, near edge, weak, or overlap-contaminated
+
+That is realistic and educational.
+
+Final consistency check against your objectives and penalty rules
+
+This proposal is internally consistent with your constraints because it:
+
+stays strictly receive-only
+explicitly includes RTL-SDR limitations
+avoids unnecessary expensive hardware
+includes a formal validation plan
+includes a concrete educational workflow
+is reproducible on a standard PC
+gives a specific signal-processing chain
+explicitly treats DC spike, IQ imbalance, dynamic range, sample rate, and gain staging
+respects the Colombian broadcast allocation and spectrum-control context
+Final recommendation
+
+For the requirements and feasibility phase, your best decision is to approve the project only under this wording:
+
+A low-cost, reproducible, PC-based educational FM sensing laboratory that provides repeatable PSD-based analysis and approximate per-station metrics with explicit uncertainty, not a compliance-grade measurement system.
+
+That is the formulation most likely to keep the project low-cost, technically honest, and successful.
+
+I can turn this next into a formal requirements document with numbered SHALL/SHOULD statements.

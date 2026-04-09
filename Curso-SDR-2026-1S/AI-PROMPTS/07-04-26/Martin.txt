@@ -1,0 +1,242 @@
+## 1) Requirements and feasibility
+
+### 1.1 Scope, mission, and explicit assumptions
+
+This system is **receive-only** and is intended for **educational FM broadcast spectrum sensing and monitoring** in the **88–108 MHz** broadcast band. In the FCC channelization model, that band is organized into **200 kHz FM channels** with center frequencies from **88.1 MHz to 107.9 MHz** in 200 kHz steps. The chosen SDR platform class is the RTL2832U-based RTL-SDR, whose mainstream variants are **receive-only**, with a typical stable usable bandwidth around **2.56 MHz** and an **8-bit ADC**; the RTL-SDR Blog V4 datasheet explicitly lists **“Transmit Capability: None.”** ([FCC Documentation][1])
+
+I will therefore treat the design problem as:
+
+* passive observation of FM broadcast activity,
+* low-cost laboratory instrumentation,
+* reproducible on a normal PC,
+* accurate enough for education and comparative measurements,
+* **not** a certified regulatory spectrum analyzer,
+* **not** a transmitter,
+* **not** a lab-grade calibrated RF power meter. 
+
+Two assumptions are necessary at this stage:
+
+1. The laboratory is located in an area where at least a few FM broadcast stations are receivable with a simple VHF broadcast antenna.
+2. The objective is **channel activity and relative spectral analysis**, not legal-grade absolute field-strength enforcement.
+
+Those assumptions are realistic for an SDR teaching lab.
+
+---
+
+### 1.2 Top-level requirement statement
+
+The system shall enable students to:
+
+1. observe the FM broadcast band,
+2. compute and visualize PSD / waterfall / channel occupancy,
+3. identify active FM channels,
+4. compare weak and strong stations,
+5. study practical SDR limitations,
+6. progress from simulation to recorded IQ to live capture,
+7. do all of the above on low-cost commercial hardware and a standard PC.
+
+That is the correct requirement envelope for an educational spectrum-sensing platform.
+
+---
+
+### 1.3 Requirements specification
+
+#### A. Mission requirements
+
+| ID | Requirement                                      | Engineering interpretation                                                            |
+| -- | ------------------------------------------------ | ------------------------------------------------------------------------------------- |
+| R1 | Monitor the FM broadcast band from 88 to 108 MHz | The system must support coverage of the full 20 MHz span, even if not instantaneously |
+| R2 | Detect and visualize active broadcast channels   | Outputs must include PSD and channel-activity decisions                               |
+| R3 | Remain strictly receive-only                     | No transmit chain, no RF power amplifier, no radiating function                       |
+| R4 | Be educational                                   | Students must be able to inspect raw IQ, FFTs, thresholds, and detection logic        |
+| R5 | Be low-cost and reproducible                     | Must run on an ordinary personal computer with commodity SDR hardware                 |
+
+These requirements are aligned with the FM band definition and with RTL-SDR-class receiver capabilities. ([FCC Documentation][1])
+
+---
+
+#### B. Functional requirements
+
+The system shall provide at minimum the following functions:
+
+**F1. Wideband band survey**
+A user must be able to inspect the 88–108 MHz band as a sequence of sweeped or stitched measurements. This is necessary because the FM band spans **20 MHz**, while a typical RTL-SDR can only capture about **2.56 MHz stably** at once, with **3.2 MHz** possible but prone to dropped samples. Therefore, **true instantaneous full-band capture is not feasible** with this hardware class; the design must use **segmented tuning/sweeping**. 
+
+**F2. Narrower live observation**
+A user must be able to observe a local sub-band continuously, for example a 2.0–2.4 MHz window containing several adjacent FM channels, with live PSD and waterfall. The `rtl_sdr` tooling itself defaults to **2.048 MS/s**, which is a sensible nominal operating point for stability on ordinary PCs. ([Arch Manual Pages][2])
+
+**F3. Channel activity estimation**
+The system must convert spectral estimates into per-channel occupancy decisions. Since FM channels are nominally **200 kHz wide**, the channel-activity logic must operate on that channel raster, not just on arbitrary FFT peaks. ([FCC Documentation][1])
+
+**F4. Relative signal-quality observables**
+For each detected channel, the system should expose relative observables such as:
+
+* channel power above local noise floor,
+* estimated occupied bandwidth,
+* temporal persistence,
+* optional per-station fine analysis later (e.g., stereo pilot presence or demodulated-quality indicators).
+
+**F5. Reproducible data products**
+The system must support:
+
+* simulated baseband signals,
+* recorded IQ files,
+* live RTL-SDR captures,
+* saved PSD / occupancy logs for repeatable student analysis.
+
+This requirement is essential because the educational workflow must progress from idealized to real hardware conditions.
+
+---
+
+#### C. Non-functional requirements
+
+**N1. Standard-PC reproducibility**
+The design must run on a personal computer using GNU Radio, Python, and RTL-SDR tooling. This is feasible because GNU Radio provides QT GUI sinks for **PSD / frequency / waterfall** visualization, and the RTL-SDR toolchain already includes `rtl_power`, explicitly described as a **wideband spectrum monitor utility**, with a documented FM-band example `rtl_power -f 88M:108M:125k`. ([gnuradio.org][3])
+
+**N2. Low-cost COTS constraint**
+The design must avoid unnecessary hardware such as lab spectrum analyzers, premium SDRs, masthead LNAs, or precision references unless they are justified by a later validation need. At this stage, the RTL-SDR class is feasible and cost-appropriate.
+
+**N3. Transparency of DSP steps**
+All signal-processing stages must be inspectable by students: windowing, FFT length, averaging, thresholds, occupancy rules, and calibration constants.
+
+**N4. Safety and compliance**
+The system must remain passive. It may receive and analyze public FM broadcasts, but it must not inject signals into the spectrum, intentionally radiate test carriers, or be described as a transmitter.
+
+---
+
+### 1.4 Hard RTL-SDR constraints that must appear in the requirements
+
+This part is non-negotiable. If these are omitted, the project definition is technically weak.
+
+#### 1) Limited instantaneous bandwidth
+
+An RTL-SDR cannot see the whole 88–108 MHz band at once. The hardware’s stable bandwidth is about **2.56 MHz**, so a full-band monitor must be specified as a **swept monitor** or **multi-segment stitched analyzer**. 
+
+**Requirement implication:**
+The system shall support at least two operating modes:
+
+* **survey mode:** stepped sweep across the full 20 MHz FM band,
+* **focus mode:** continuous observation of one sub-band.
+
+#### 2) 8-bit ADC and limited usable dynamic range
+
+Because the receiver uses an **8-bit ADC**, the system will have limited tolerance to strong-signal environments compared with lab-grade instruments. In practice, this means strong nearby FM stations can compress the front end, elevate the noise floor, or produce images if gain is poorly chosen. The requirements must therefore explicitly include **gain staging**, **clipping avoidance**, and **relative rather than absolute precision**. The 8-bit ADC itself is stated in the RTL-SDR V4 datasheet. 
+
+**Requirement implication:**
+The system shall support manual gain selection and commissioning measurements to choose a non-saturated operating point.
+
+#### 3) Tuning-center DC spike
+
+RTL-SDR-class zero-IF receivers are known to exhibit a center-frequency DC artifact. Therefore, channel detection logic must not trust bins near DC when a station is placed at the exact tuning center.
+
+**Requirement implication:**
+The system shall include one of these strategies:
+
+* intentional LO offset plus digital frequency translation,
+* center-bin masking / notch exclusion,
+* retune-and-confirm logic for ambiguous detections.
+
+A subtle but important implementation caveat exists on some RTL-SDR Blog V4 software paths: the GUI control labeled **“Offset Tuning”** may be repurposed to control the **bias tee**, so the design must **not depend solely on that checkbox** for DC mitigation. DC-spike handling must also be achievable by frequency planning in software. ([RTL-SDR][4])
+
+#### 4) IQ imbalance and mirror artifacts
+
+The requirements must acknowledge that mirror responses can appear because of IQ mismatch and front-end nonidealities.
+
+**Requirement implication:**
+The detector shall include an artifact-rejection rule, for example:
+
+* confirm suspicious signals after a small retune,
+* compare mirrored bins,
+* reject detections that move as if they are image products rather than real RF channels.
+
+#### 5) Gain-control limitations
+
+RTL-SDR gain is not an instrument-grade calibrated RF attenuator. Automatic gain control may be acceptable for exploratory listening, but not for repeatable PSD comparison.
+
+**Requirement implication:**
+The educational measurement mode shall use **fixed manual gain** after an initial gain sweep.
+
+#### 6) Sample-rate and aliasing risk
+
+Sample-rate selection affects visible bandwidth, host stability, and edge quality. Since edge bins are more vulnerable to filter roll-off and alias contamination, the requirements must include **overlap/cropping** between adjacent sweep segments.
+
+`rtl_power` itself exposes crop options and is meant for wideband monitoring, which reinforces that sweep design must account for edge effects rather than blindly stitching raw segment edges. ([Debian Manpages][5])
+
+**Requirement implication:**
+The sweep planner shall use overlapping sub-bands and discard or de-weight edge regions during stitching.
+
+---
+
+### 1.5 Measurable performance targets for the feasibility stage
+
+At the requirements stage, targets should be ambitious but realistic for RTL-SDR-class hardware.
+
+| Metric                               | Feasible target                                  | Notes                                                       |
+| ------------------------------------ | ------------------------------------------------ | ----------------------------------------------------------- |
+| Band coverage                        | 88–108 MHz                                       | Full band via sweep, not instantaneous                      |
+| Instantaneous view                   | 2.0–2.56 MHz nominal                             | Use conservative stable rates on normal PCs                 |
+| Full-band refresh                    | On the order of seconds, not milliseconds        | Suitable for teaching occupancy, not fast transient capture |
+| Channel granularity                  | 200 kHz FM channels                              | Natural for FM occupancy decisions                          |
+| Spectral bin width                   | ~5–25 kHz depending mode                         | Fine enough for channel-level analysis                      |
+| Frequency accuracy after calibration | A few kHz or better                              | Requires PPM correction / known-station calibration         |
+| Occupancy reporting                  | Per-channel active/inactive plus confidence      | Relative, educational, not legal-grade                      |
+| Repeatability                        | Consistent results under same gain/antenna setup | Must be verified later                                      |
+
+These are realistic because the platform is good enough for **band survey, occupancy estimation, and comparative analysis**, but not for instrument-grade absolute metrology.
+
+---
+
+### 1.6 Feasibility assessment
+
+#### What is clearly feasible
+
+The following is technically feasible with an RTL-SDR, FM antenna, PC, GNU Radio, and Python:
+
+1. **Live PSD and waterfall visualization** of a sub-band in the FM broadcast spectrum. GNU Radio QT GUI sinks are explicitly intended for PSD / FFT / spectrogram-style displays. ([gnuradio.org][3])
+
+2. **Whole-band FM surveys** through stepped sweeps. The RTL-SDR toolchain already includes `rtl_power`, described as a wideband spectrum monitor, with a documented **88M:108M** example for FM-band scanning. ([Debian Manpages][5])
+
+3. **Channel occupancy estimation** on a 200 kHz raster, because FM channels are naturally channelized at 200 kHz and the band contains strong, persistent broadcast carriers suitable for classroom detection exercises. ([FCC Documentation][1])
+
+4. **Educational progression from ideal to real signals**, because the same DSP chain can be exercised first on simulation, then on stored IQ, then on live dongle data.
+
+5. **Relative signal-quality studies**, such as why some stations dominate, how gain setting changes the floor, and how DC or IQ imbalance corrupts naive detectors.
+
+#### What is feasible only with explicit caveats
+
+1. **Quantitative power comparison across channels** is feasible only as a **relative** measurement unless a careful calibration procedure is introduced later.
+
+2. **Fine FM-broadcast characterization** such as stereo pilot detection, occupied bandwidth, or coarse modulation-quality indicators is feasible for **selected channels**, but not as a high-fidelity simultaneous full-band measurement.
+
+3. **Urban environments with very strong local stations** are feasible only if the requirements enforce careful gain selection and possibly simple front-end attenuation if overload is observed.
+
+#### What is not feasible with this platform
+
+1. **Instantaneous 20 MHz capture of the whole FM band** with one RTL-SDR.
+2. **Certified spectrum-analyzer-grade amplitude accuracy.**
+3. **High-dynamic-range monitoring in harsh RF environments without careful mitigation.**
+4. **Any transmit, beacon, test carrier, or over-the-air emission role.**
+
+---
+
+### 1.7 Feasibility verdict
+
+**Verdict: proceed.** The project is feasible and well matched to an educational laboratory, **provided the requirements explicitly define it as a swept, receive-only, low-cost spectrum-sensing system rather than a full-band instantaneously sampled spectrum analyzer**.
+
+The design is strongest if phase 1 locks in these truths:
+
+* the system is **receive-only**,
+* the band is **88–108 MHz with 200 kHz channel logic**,
+* the RTL-SDR is **bandwidth-limited and 8-bit**,
+* **DC spike, IQ imbalance, gain staging, and segment overlap are mandatory design constraints**,
+* outputs are **PSD, occupancy, and relative FM-channel observables**,
+* the educational workflow must progress from **simulation → recorded IQ → live capture**,
+* validation later must focus on **frequency accuracy, repeatability, and occupancy detection performance**, not unrealistic instrument-grade claims. ([FCC Documentation][1])
+
+The next section should therefore be **2) System architecture and component selection**, built on this exact requirement baseline.
+
+[1]: https://docs.fcc.gov/public/attachments/DOC-405225A1.pdf?utm_source=chatgpt.com "The First Report and Order authorizes FM stations"
+[2]: https://man.archlinux.org/man/extra/rtl-sdr/rtl_sdr.1.en "rtl_sdr(1) — Arch manual pages"
+[3]: https://www.gnuradio.org/doc/sphinx-3.7.2/qtgui/qtgui.html?utm_source=chatgpt.com "gnuradio.qtgui: Sinks — GNU Radio 3.7.2 documentation"
+[4]: https://www.rtl-sdr.com/v4/?utm_source=chatgpt.com "RTL-SDR Blog V4 Users Guide"
+[5]: https://manpages.debian.org/testing/rtl-sdr/rtl_power.1.en.html "rtl_power(1) — rtl-sdr — Debian testing — Debian Manpages"

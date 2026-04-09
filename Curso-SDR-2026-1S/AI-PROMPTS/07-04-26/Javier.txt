@@ -1,0 +1,620 @@
+# Educational Spectrum Sensing System for FM Broadcasting
+## Complete Design Document for RTL-SDR Based Laboratory Platform
+
+---
+
+## A. Executive Summary
+
+This design proposes a **receive-only, educational spectrum monitoring system** for the 88–108 MHz FM broadcast band using commodity RTL-SDR hardware. The system targets university laboratory environments where students progress from simulation through recorded data to live RF capture. Key technical constraints include managing the RTL-SDR's 8-bit ADC dynamic range (~48 dB), DC spike removal, IQ imbalance compensation, and careful gain staging to avoid intermodulation.
+
+The architecture centers on a Python/GNU Radio software stack with modular signal processing blocks: calibration → DC/null rejection → channelized filtering → Welch PSD estimation → energy detection → occupancy visualization. Performance targets include ±50 kHz frequency accuracy, >20 dB SNR for local FM stations, and real-time spectrum update rates >10 Hz on standard PC hardware.
+
+**Total hardware cost: <$50 USD** (RTL-SDR v3 + dipole antenna kit). The design explicitly excludes transmission capability and assumes indoor laboratory use with local broadcast signals.
+
+---
+
+## B. Requirements Specification
+
+### B.1 Functional Requirements
+
+| ID | Requirement | Priority | Verification |
+|:---|:---|:---|:---|
+| FR-01 | Receive and digitize 88–108 MHz FM broadcast band | Critical | Signal presence in GNU Radio |
+| FR-02 | Compute real-time power spectral density (PSD) with ≥1024-point FFT | Critical | FFT sink display |
+| FR-03 | Detect channel occupancy via energy detection threshold | Critical | Binary mask output |
+| FR-04 | Visualize spectrum waterfall and instantaneous PSD | Critical | GUI verification |
+| FR-05 | Log spectrum occupancy statistics over time | High | File output verification |
+| FR-06 | Support three operational modes: simulation, recorded IQ, live RTL-SDR | Critical | Mode switching test |
+| FR-07 | Export captured IQ data for offline analysis | Medium | File I/O test |
+
+### B.2 Technical Requirements (RTL-SDR Constraints)
+
+| Parameter | Specification | Rationale |
+|:---|:---|:---|
+| Frequency range | 88–108 MHz (centered at 98 MHz) | FM broadcast band |
+| Instantaneous bandwidth | 2.4 MHz (max stable for RTL-SDR) | Covers ~20 FM channels |
+| Sample rate | 2.4 Msps (complex) | Nyquist + guard band |
+| ADC resolution | 8-bit | RTL-SDR fixed; manage dynamic range via gain |
+| Tuning step | ≤1 kHz | PLL step size |
+| Gain control | Manual or AGC (with caveats) | Avoid AGC pumping on burst signals |
+| DC spike handling | Explicit cancellation required | RTL-SDR artifact at center frequency |
+| IQ imbalance | Compensate via calibration | Typical image rejection 30–40 dB |
+| Aliasing protection | External bandpass filter recommended | SDR front-end preselectors inadequate |
+
+### B.3 Regulatory & Safety Constraints
+
+- **Receive-only operation**: No transmission capability; complies with FCC Part 15 (listening) and equivalent international regulations
+- **Indoor laboratory use**: Assumes controlled electromagnetic environment
+- **No decryption**: FM broadcast is unencrypted public transmission
+- **Spectrum monitoring**: Educational/research purpose falls under permissible radio astronomy/spectrum monitoring exceptions in most jurisdictions
+
+---
+
+## C. Functional and Non-Functional Objectives
+
+### C.1 Functional Objectives
+
+1. **Spectrum Visualization**: Real-time display of 20 MHz span with 10 kHz resolution bandwidth
+2. **Channel Detection**: Automatic identification of active FM channels (200 kHz spacing)
+3. **Signal Quality Metrics**: Estimate SNR, bandwidth, and center frequency offset for detected signals
+4. **Occupancy Analysis**: Time-series logging of channel utilization statistics
+5. **Educational Progression**: Structured learning path from MATLAB/Python simulation to hardware
+
+### C.2 Non-Functional Objectives
+
+| Objective | Target | Measurement |
+|:---|:---|:---|
+| Cost | <$50 hardware | BOM verification |
+| PC compatibility | Windows 10/11, Ubuntu 20.04+, macOS (limited) | Test matrix |
+| Real-time performance | >10 spectrum updates/second | Frame rate measurement |
+| Learning curve | <4 hours to first live spectrum | Student assessment |
+| Extensibility | Modular GNU Radio blocks | API documentation |
+| Reproducibility | Identical results across identical hardware | Cross-platform test |
+
+### C.3 Performance Targets (Validation Criteria)
+
+| Metric | Target | Acceptance Criteria |
+|:---|:---|:---|
+| Frequency accuracy | ±50 kHz | GPSDO or known station reference |
+| Sensitivity | -80 dBm (for 20 dB SNR) | Signal generator test |
+| Dynamic range | >40 dB (limited by 8-bit ADC) | Two-tone test |
+| Spurious-free dynamic range (SFDR) | >35 dB | Harmonic measurement |
+| Occupancy detection accuracy | >90% | Ground truth comparison |
+| False alarm rate | <5% | Statistical test over 24 hours |
+
+---
+
+## D. System Architecture
+
+### D.1 High-Level Block Diagram
+
+```
+┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
+│   FM Broadcast  │    │   RTL-SDR v3     │    │   PC Workstation │
+│   88-108 MHz    │───→│   (R820T2 Tuner) │───→│   USB 2.0       │
+│   Air Interface │    │   8-bit ADC      │    │   GNU Radio/    │
+│                 │    │   2.4 Msps       │    │   Python Stack    │
+└─────────────────┘    └──────────────────┘    └─────────────────┘
+         ↑                                              ↓
+    ┌─────────────┐                            ┌─────────────────┐
+    │  Dipole     │                            │  Visualization  │
+    │  Antenna    │                            │  PSD/Waterfall  │
+    │  (~100 MHz) │                            │  Occupancy GUI  │
+    └─────────────┘                            └─────────────────┘
+```
+
+### D.2 RF Front End (Antenna & Passive Components)
+
+| Component | Specification | Purpose |
+|:---|:---|:---|
+| Antenna | 1/2-wave dipole or telescopic whip, ~75 cm elements | Resonant at 98 MHz center |
+| Coaxial cable | RG-174 or RG-316, <3m length | Minimize loss (≈0.5 dB/m at 100 MHz) |
+| Optional BPF | 88–108 MHz ceramic filter (Murata SFECF10M7HA00) | Image rejection, aliasing protection |
+| ESD protection | Optional TVS diode | Laboratory safety |
+
+**Tradeoff Analysis**: The optional bandpass filter adds $2–5 cost but provides:
+- Image frequency rejection (signals at 78–88 MHz aliasing into passband)
+- Out-of-band interference suppression (cellular, pager signals)
+- Reduced ADC overload risk from strong nearby transmitters
+
+Without filter: System works for strong local FM stations (>−60 dBm) in benign RF environments.
+
+### D.3 RTL-SDR Chain Detailed
+
+| Stage | Component | Parameters |
+|:---|:---|:---|
+| LNA | R820T2 integrated | 0–49 dB gain, programmable |
+| Mixer | Zero-IF (direct conversion) | Generates I/Q baseband |
+| Low-pass filter | ~1.2 MHz analog (tunable) | Anti-aliasing |
+| ADC | RTL2832U 8-bit | 2.4 Msps max, complex sampling |
+| USB interface | USB 2.0 bulk transfer | ~30 MB/s theoretical |
+
+**Critical RTL-SDR Limitations & Mitigations**:
+
+| Limitation | Impact | Mitigation Strategy |
+|:---|:---|:---|
+| **8-bit ADC** | ~48 dB theoretical dynamic range; quantization noise | Manual gain optimization; avoid AGC on weak signals; accept reduced dynamic range |
+| **Zero-IF DC spike** | Strong artifact at center frequency | Frequency offset tuning (tune 500 kHz away from signal of interest); DC cancellation block |
+| **IQ imbalance** | Image signals at negative frequencies | Calibration with known CW signal; software IQ correction |
+| **Phase noise** | ~−80 dBc/Hz at 10 kHz offset | Acceptable for FM broadcast; use external reference for precision |
+| **Sample rate quantization** | Only specific rates stable (e.g., 2.4, 1.92, 1.024 Msps) | Use 2.4 Msps with decimation |
+| **Gain step resolution** | ~1 dB steps, not continuous | Fine-tune near compression point |
+| **Aliasing** | Inadequate front-end filtering | External BPF or accept limited performance |
+
+### D.4 PC Software Stack
+
+| Layer | Component | Version/Notes |
+|:---|:---|:---|
+| Hardware driver | RTL-SDR library (librtlsdr) | v0.6 or later |
+| SDR framework | GNU Radio | v3.8+ (maintained compatibility) |
+| Python API | PyRTLSDR, GNU Radio Python bindings | For custom scripts |
+| DSP library | NumPy, SciPy, Matplotlib | Standard scientific stack |
+| Visualization | PyQtGraph or matplotlib | Real-time waterfall |
+| Optional GUI | GNU Radio Companion (GRC) | Visual flowgraph design |
+| Data logging | HDF5 or binary IQ format | Efficient storage |
+
+### D.5 Data Flow Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                         DATA FLOW PIPELINE                          │
+├─────────────────────────────────────────────────────────────────────┤
+│  Stage 1: CAPTURE                                                   │
+│  ┌─────────────┐   ┌─────────────┐   ┌─────────────┐               │
+│  │ RTL-SDR HW  │→→→│ librtlsdr   │→→→│ GNU Radio   │               │
+│  │ 2.4 Msps    │   │ driver      │   │ source block│               │
+│  │ Complex I/Q │   │ USB bulk    │   │ (gr-osmosdr)│               │
+│  └─────────────┘   └─────────────┘   └─────────────┘               │
+│                           ↓                                         │
+│  Stage 2: CALIBRATION & PREPROCESSING                               │
+│  ┌─────────────┐   ┌─────────────┐   ┌─────────────┐               │
+│  │ DC Offset   │→→→│ IQ Balance  │→→→│ Gain        │               │
+│  │ Cancellation│   │ Correction  │   │ Normalization│               │
+│  │ (moving avg)│   │ (corr coeff)│   │ (to dBFS)   │               │
+│  └─────────────┘   └─────────────┘   └─────────────┘               │
+│                           ↓                                         │
+│  Stage 3: CHANNELIZATION                                            │
+│  ┌─────────────┐   ┌─────────────┐                                  │
+│  │ Frequency   │→→→│ Decimation  │                                  │
+│  │ Translation │   │ (polyphase) │                                  │
+│  │ (shift DC)  │   │ to 200 kHz  │                                  │
+│  └─────────────┘   └─────────────┘                                  │
+│                           ↓                                         │
+│  Stage 4: SPECTRAL ANALYSIS                                         │
+│  ┌─────────────┐   ┌─────────────┐   ┌─────────────┐               │
+│  │ Welch PSD   │→→→│ 1024-pt FFT │→→→│ Log scale   │               │
+│  │ (50% overlap│   │ Hamming win │   │ (dBm/Hz)    │               │
+│  │ 16 averages)│   │             │   │             │               │
+│  └─────────────┘   └─────────────┘   └─────────────┘               │
+│                           ↓                                         │
+│  Stage 5: DETECTION & VISUALIZATION                                 │
+│  ┌─────────────┐   ┌─────────────┐   ┌─────────────┐               │
+│  │ Energy      │→→→│ Occupancy   │→→│ GUI Display │               │
+│  │ Detection   │   │ Mask Gen    │   │ (PSD/       │               │
+│  │ (CFAR or    │   │             │   │  waterfall) │               │
+│  │  fixed thr) │   │             │   │             │               │
+│  └─────────────┘   └─────────────┘   └─────────────┘               │
+│                           ↓                                         │
+│  Stage 6: LOGGING                                                   │
+│  ┌─────────────┐   ┌─────────────┐                                  │
+│  │ IQ Recording│   │ Occupancy   │                                  │
+│  │ (optional)  │   │ Statistics  │                                  │
+│  │ .bin/.hdf5  │   │ CSV/JSON    │                                  │
+│  └─────────────┘   └─────────────┘                                  │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## E. Signal-Processing Pipeline (Detailed)
+
+### E.1 Capture Stage
+
+**Parameters**:
+- Sample rate: 2.4 Msps (complex baseband)
+- Center frequency: 98.0 MHz (band center)
+- Gain mode: Manual (start with 30 dB, adjust for −20 to −10 dBFS peak)
+- Frequency correction: Apply PPM offset (typically 0–50 ppm for RTL-SDR)
+
+**Concrete Implementation (Python pseudocode)**:
+```python
+from rtlsdr import RtlSdr
+
+sdr = RtlSdr()
+sdr.center_freq = 98e6      # 98 MHz center
+sdr.sample_rate = 2.4e6     # 2.4 Msps
+sdr.gain = 30               # Manual gain, dB
+sdr.freq_correction = 20    # PPM correction (calibrate against known station)
+samples = sdr.read_samples(256*1024)  # 0.1 second capture
+```
+
+### E.2 Calibration Stage
+
+**E.2.1 DC Spike Cancellation**
+The RTL-SDR zero-IF architecture produces a strong DC component at the tuner center frequency. Two mitigation approaches:
+
+1. **Frequency Offset Method (Preferred)**: Tune 500 kHz away from band center, digitally shift to baseband
+   - Tune to 97.5 MHz or 98.5 MHz
+   - Complex multiply by exp(−j2πΔft) to shift spectrum
+
+2. **Digital DC Block**: IIR notch filter at 0 Hz
+   - Transfer function: H(z) = (1−z⁻¹)/(1−αz⁻¹), α ≈ 0.99
+   - Attenuates DC but creates null at center (acceptable if no signal there)
+
+**E.2.2 IQ Imbalance Correction**
+Estimate and compensate gain/phase imbalance using statistical methods:
+
+```python
+# IQ imbalance estimation
+I = np.real(samples)
+Q = np.imag(samples)
+gain_imbalance = np.std(Q) / np.std(I)
+phase_error = np.mean(I * Q) / (np.std(I) * np.std(Q))
+
+# Correction
+Q_corrected = (Q - phase_error * I) / gain_imbalance
+samples_cal = I + 1j * Q_corrected
+```
+
+**E.2.3 Gain Staging Strategy**
+Target: Peak signal at −10 to −6 dBFS (leaves 6–10 dB headroom for fades, avoids clipping).
+
+- Start with 20 dB LNA gain
+- Capture 10k samples, measure peak magnitude
+- If peak < −30 dBFS: increase gain by 10 dB steps
+- If peak > −3 dBFS: decrease gain (risk of intermodulation)
+- **Never exceed 40 dB gain in high-RF environments** (urban/campus)
+
+### E.3 Filtering Stage
+
+**Anti-aliasing & Channel Selection**:
+- Input sample rate: 2.4 Msps (bandwidth 2.4 MHz)
+- FM channel bandwidth: ~200 kHz (including guard bands)
+- Decimation factor: 12 → output rate 200 ksps per channel
+
+**Polyphase Channelizer** (efficient implementation):
+```python
+# Design prototype lowpass filter (FIR, 200 kHz cutoff)
+taps = scipy.signal.firwin(240, 0.083, window='hamming')  # 240 taps, 2.4M→200k
+
+# Polyphase decomposition
+channels = 12
+poly_taps = taps.reshape(channels, -1)
+
+# Channel selection via complex exponential mixing
+channel_centers = np.arange(88, 108, 0.2)  # 200 kHz grid
+```
+
+### E.4 FFT / PSD Computation
+
+**Welch Method Parameters**:
+- FFT size: 1024 points → frequency resolution 2.34 kHz (at 2.4 Msps)
+- Window: Hamming (good compromise between mainlobe width and sidelobe attenuation)
+- Overlap: 50%
+- Averaging: 16–32 periodograms for stable estimate
+
+**Power Calculation**:
+```python
+# PSD in dBm/Hz (assuming 50Ω impedance, RTL-SDR full scale ~0 dBm)
+def compute_psd(samples, sample_rate):
+    nfft = 1024
+    f, Pxx = scipy.signal.welch(samples, fs=sample_rate, 
+                                window='hamming', nperseg=nfft,
+                                noverlap=nfft//2, scaling='density')
+    # Convert to dBm (assuming 0 dBFS = 0 dBm for simplicity; calibrate with source)
+    psd_dbm = 10 * np.log10(Pxx * 1000)  # W to mW
+    return f, psd_dbm
+```
+
+**Calibration Note**: RTL-SDR absolute power calibration requires a known reference source. For educational purposes, use relative dB scale normalized to noise floor, or calibrate against a signal generator at −50 dBm.
+
+### E.5 Occupancy Detection
+
+**Energy Detection Algorithm**:
+1. Compute noise floor: Median of PSD over time (robust to outliers)
+2. Set detection threshold: Noise floor + 10 dB (empirical; adjustable)
+3. Binary mask: PSD > threshold → channel occupied
+4. Hysteresis: 3 dB gap between detect/on and release/off to prevent chatter
+
+**FM Channel Grid Alignment**:
+- Standard FM spacing: 200 kHz (US/Europe) or 100 kHz (some regions)
+- Channel bandwidth detection: Find −20 dB points around peak
+- Center frequency estimation: Centroid of occupied bins
+
+```python
+def detect_occupancy(psd_dbm, freq_axis, threshold_db):
+    # Threshold based on noise floor estimate
+    noise_floor = np.median(psd_dbm)
+    threshold = noise_floor + threshold_db
+    
+    occupied = psd_dbm > threshold
+    
+    # Find contiguous regions
+    from scipy.ndimage import label
+    labeled, n_features = label(occupied)
+    
+    channels = []
+    for i in range(1, n_features + 1):
+        mask = labeled == i
+        if np.sum(mask) > 5:  # Minimum 5 bins (~12 kHz)
+            center = np.average(freq_axis[mask], weights=psd_dbm[mask])
+            bw = freq_axis[mask][-1] - freq_axis[mask][0]
+            channels.append({'center': center, 'bandwidth': bw, 'peak_db': np.max(psd_dbm[mask])})
+    
+    return channels
+```
+
+### E.6 Visualization
+
+**Real-Time Display Elements**:
+1. **Spectrum Plot**: PSD vs frequency, with channel markers
+2. **Waterfall**: Time-frequency intensity (spectrogram)
+3. **Occupancy Bar**: Binary indicators per 200 kHz channel
+4. **Metrics Panel**: Number of active channels, total bandwidth utilization, strongest signal frequency/power
+
+**Update Rate Target**: 10–20 Hz (limited by FFT computation and USB throughput)
+
+---
+
+## F. Educational Lab Plan
+
+### F.1 Three-Stage Progression
+
+| Stage | Duration | Learning Objectives | Deliverables |
+|:---|:---|:---|:---|
+| **1. Simulation** | 2 hours | DSP fundamentals, FFT, windowing, synthetic FM generation | Python script generating synthetic FM + noise, displaying PSD |
+| **2. Recorded Data** | 2 hours | Real signal characteristics, file I/O, offline analysis | Analysis of provided IQ recording; identify stations; measure SNR |
+| **3. Live Hardware** | 4 hours | RF hardware interaction, calibration, real-time constraints | Working live spectrum display; calibrated power measurements |
+
+### F.2 Stage 1: Simulation (No Hardware Required)
+
+**Objective**: Establish signal processing foundation before introducing hardware complexity.
+
+**Lab Tasks**:
+1. Generate synthetic FM signal in Python:
+   ```python
+   # FM signal generation
+   fs = 2400000
+   t = np.arange(0, 0.1, 1/fs)
+   fc = 100000  # 100 kHz baseband offset
+   fm = 1000    # 1 kHz audio tone
+   beta = 5     # Modulation index
+   audio = np.sin(2*np.pi*fm*t)
+   fm_signal = np.exp(1j*beta*np.sin(2*np.pi*fm*t)) * np.exp(1j*2*np.pi*fc*t)
+   noise = (np.random.randn(len(t)) + 1j*np.random.randn(len(t))) / np.sqrt(2)
+   rx_signal = fm_signal + noise * 0.1  # 20 dB SNR
+   ```
+
+2. Implement and compare FFT windows (rectangular, Hamming, Hann, Blackman)
+3. Measure spectral leakage effects
+4. Add IQ imbalance and DC offset; implement correction algorithms
+
+**Assessment**: Student submits plot comparing window functions with quantitative sidelobe measurements.
+
+### F.3 Stage 2: Recorded Signal Analysis
+
+**Objective**: Work with real-world captured data without hardware logistics.
+
+**Provided Materials**:
+- 10-second IQ recording (2.4 Msps, 98 MHz center) from campus location
+- Ground truth: List of known local FM stations with frequencies
+
+**Lab Tasks**:
+1. Load binary IQ file (interleaved 8-bit I/Q or 32-bit float)
+2. Compute and display PSD; identify visible stations
+3. Measure occupied bandwidth per station
+4. Estimate SNR for each detection
+5. Apply detection algorithm; compare to ground truth; compute false alarm/miss rates
+
+**Assessment**: Report with detection accuracy statistics and annotated spectrum plot.
+
+### F.4 Stage 3: Live Hardware Operation
+
+**Objective**: Integrate RTL-SDR and achieve real-time spectrum monitoring.
+
+**Setup Procedure**:
+1. Hardware connection: Antenna → RTL-SDR → USB → PC
+2. Driver verification: `rtl_test -t` (test tuner and PPM drift)
+3. Gain optimization: Iterate manual gain for best SNR without clipping
+4. Frequency calibration: Tune to known station (e.g., local NPR at exact known frequency), adjust PPM correction until centered
+
+**Lab Tasks**:
+1. Implement live capture loop with PyRTLSDR
+2. Add real-time PSD computation and display (PyQtGraph for speed)
+3. Implement channel detection and logging
+4. 24-hour logging exercise: Capture occupancy statistics, identify peak usage times
+5. **Advanced**: Demodulate one FM channel to audio (verify with headphones)
+
+**Assessment Checklist**:
+- [ ] Live spectrum display functional
+- [ ] At least 5 FM stations detected simultaneously
+- [ ] Frequency accuracy within ±50 kHz of known allocations
+- [ ] DC spike visibly suppressed or avoided
+- [ ] 1-hour occupancy log generated and analyzed
+
+### F.5 Assessment Tasks for Students
+
+| Task | Weight | Evaluation Criteria |
+|:---|:---|:---|
+| Simulation code quality | 15% | Correct FFT implementation, proper scaling, commented code |
+| Detection algorithm performance | 20% | Accuracy on test dataset, threshold selection justification |
+| Hardware integration | 25% | Successful live capture, proper gain staging, calibration |
+| Final report | 25% | Technical depth, measurement analysis, troubleshooting discussion |
+| Extension exercise | 15% | Implement one enhancement (e.g., waterfall display, audio demodulation, direction finding with two RTL-SDRs) |
+
+---
+
+## G. Component Selection
+
+### G.1 RTL-SDR Class Device
+
+| Option | Cost | Features | Recommendation |
+|:---|:---|:---|:---|
+| RTL-SDR Blog v3 (R820T2) | $25–30 | TCXO (1 PPM), bias tee, aluminum case | **Primary choice** – best stability |
+| Nooelec NESDR Smart v4 | $25 | Similar to v3, good quality | Alternative if v3 unavailable |
+| Generic RTL2832U+R820T | $10–15 | No TCXO, plastic case, variable quality | Budget option; requires PPM calibration |
+| RTL-SDR Blog v4 (newer) | $35 | Improved filtering, lower noise | Premium option |
+
+**Selection Rationale**: The RTL-SDR Blog v3/v4 is selected for:
+- Temperature-compensated crystal oscillator (TCXO) reduces frequency drift to ~1 ppm (±100 Hz at 100 MHz) vs. 50–100 ppm for generic devices
+- Better front-end filtering reduces interference
+- Aluminum case provides shielding
+- Extensive community support and documentation
+
+### G.2 Antenna Considerations
+
+| Type | Cost | Performance | Use Case |
+|:---|:---|:---|:---|
+| Telescopic dipole (kit included) | Included | Moderate, omnidirectional | General lab use, quick setup |
+| 1/2-wave dipole DIY (copper wire) | <$5 | Good, resonant at 98 MHz | Optimized for FM band |
+| FM Yagi (3-element) | $15–25 | High gain, directional | Weak signal areas, direction finding |
+| Discone (wideband) | $30–50 | Wideband 50–800 MHz | Multi-band monitoring beyond FM |
+
+**Recommendation**: Start with included telescopic dipole adjusted to ~75 cm per element (resonant at 98 MHz). For weak signal areas or advanced labs, build 3-element Yagi for ~12 dBd gain.
+
+### G.3 PC Requirements
+
+| Specification | Minimum | Recommended |
+|:---|:---|:---|
+| Processor | Intel i3 / AMD Ryzen 3 (2 cores) | Intel i5 / AMD Ryzen 5 (4 cores) |
+| RAM | 4 GB | 8 GB |
+| Storage | 10 GB free | 50 GB (for IQ recording) |
+| USB | USB 2.0 port | USB 3.0 (better power delivery) |
+| OS | Ubuntu 20.04, Windows 10 | Ubuntu 22.04 LTS |
+
+**Note**: Real-time processing at 2.4 Msps with 1024-point FFT is lightweight; even Raspberry Pi 4 can handle it. PC requirements are driven by GUI responsiveness and data logging needs.
+
+### G.4 Software Tools
+
+| Tool | Purpose | Installation |
+|:---|:---|:---|
+| GNU Radio | SDR framework, visual flowgraphs | `apt install gnuradio` or Windows installer |
+| GNU Radio Companion | Visual design tool | Included with GNU Radio |
+| PyRTLSDR | Python RTL-SDR interface | `pip install pyrtlsdr` |
+| NumPy/SciPy | DSP computations | `pip install numpy scipy` |
+| Matplotlib | Static plotting | Standard scientific Python |
+| PyQtGraph | Real-time visualization | `pip install pyqtgraph` |
+| Inspectrum | Offline IQ analysis | `apt install inspectrum` |
+
+---
+
+## H. Validation Plan
+
+### H.1 Test Equipment Required
+
+| Equipment | Purpose | Alternative |
+|:---|:---|:---|
+| RF signal generator | Sensitivity, linearity, frequency accuracy | Commercial FM transmitter (known frequency/power) |
+| Power meter/Spectrum analyzer | Absolute power calibration | Calibrated RTL-SDR comparison |
+| Attenuators (10, 20, 30 dB) | Dynamic range testing | Resistive pad DIY |
+| Known FM broadcast station | Frequency reference | Online database (radio-locator.com) |
+
+### H.2 Validation Procedures
+
+**H.2.1 Sensitivity Test**
+1. Connect signal generator to RTL-SDR via 40 dB attenuator (protects front end)
+2. Generate FM signal at 98 MHz, 75 kHz deviation, 1 kHz tone
+3. Adjust generator output for 20 dB SNR in 200 kHz bandwidth
+4. Record minimum detectable signal level
+   - **Target**: ≤−80 dBm for 20 dB SNR
+   - **Acceptance**: ≤−75 dBm
+
+**H.2.2 Dynamic Range Test**
+1. Two-tone test: Generate strong signal at 98 MHz (−30 dBm) and weak signal at 98.2 MHz (−70 dBm)
+2. Measure intermodulation products (2f1−f2, 2f2−f1)
+3. Adjust gain to minimize IM3 while maintaining weak signal visibility
+   - **Target**: IM3 < −40 dBc
+   - **Acceptance**: IM3 < −30 dBc
+
+**H.2.3 Frequency Accuracy**
+1. Tune to known station with published exact frequency (e.g., 88.5 MHz NPR affiliate)
+2. Measure received center frequency via FFT centroid
+3. Calculate error: (measured − actual) / actual × 1e6
+   - **Target**: < ±5 ppm (±500 Hz at 100 MHz) with TCXO
+   - **Acceptance**: < ±50 ppm (±5 kHz)
+
+**H.2.4 Occupancy Detection Accuracy**
+1. Collect 24-hour ground truth: Manual logging of station activity or reference receiver
+2. Run automated detection on same dataset
+3. Compute metrics:
+   - True Positive Rate (TPR) = Detected active / Actually active
+   - False Positive Rate (FPR) = Detected inactive / Actually inactive
+   - **Target**: TPR > 90%, FPR < 5%
+
+**H.2.5 Repeatability**
+1. Five identical setups (same hardware batch, same software version)
+2. Same location, same time, same antenna
+3. Measure PSD of strong local station; coefficient of variation < 10%
+
+---
+
+## I. Risks and Mitigations
+
+| Risk | Likelihood | Impact | Mitigation |
+|:---|:---|:---|:---|
+| Strong out-of-band interference overloads front end | Medium | High – desensitization, spurious responses | External BPF; manual gain reduction; relocate antenna |
+| DC spike masks signal at center frequency | High | Medium – blind spot | Frequency offset tuning; digital DC cancellation |
+| USB buffer overruns (dropouts) | Low | Medium – data loss | Reduce sample rate; use USB 3.0 port; close background apps |
+| PPM drift causes frequency error | Medium | Medium – misidentification | TCXO-based RTL-SDR; periodic recalibration |
+| Student error damages RTL-SDR (ESD, overvoltage) | Low | High – hardware loss | ESD wrist straps; supervised hardware sessions; cheap spares |
+| Python/GNU Radio installation issues | Medium | Medium – lab delays | Pre-configured VM image; Docker container; lab PCs pre-installed |
+| Weak signal environment (rural campus) | Medium | High – no signals to detect | Provide recorded dataset fallback; FM transmitter for testing |
+
+---
+
+## J. Implementation Roadmap
+
+### Phase 1: Preparation (Week 1–2)
+- [ ] Procure 10× RTL-SDR v3 kits (bulk discount ~$20/unit)
+- [ ] Prepare pre-configured Ubuntu VM with all software
+- [ ] Generate synthetic test signals and reference IQ recordings
+- [ ] Document installation procedures
+
+### Phase 2: Validation (Week 3)
+- [ ] Characterize one reference unit (sensitivity, dynamic range, PPM stability)
+- [ ] Calibrate against signal generator
+- [ ] Verify educational workflow with teaching assistant pilot
+
+### Phase 3: Deployment (Week 4)
+- [ ] Lab session 1: Simulation (all students)
+- [ ] Lab session 2: Recorded data analysis
+- [ ] Lab session 3: Hardware checkout and live capture
+
+### Phase 4: Documentation (Week 5)
+- [ ] Student troubleshooting guide
+- [ ] Video tutorials for software setup
+- [ ] Assessment rubric finalization
+
+---
+
+## K. Final Recommendation
+
+**Proceed with the RTL-SDR Blog v3-based design** as specified. This architecture satisfies all constraints:
+
+✅ **Receive-only**: No transmission capability, fully compliant  
+✅ **Educational**: Three-stage progression from simulation to hardware  
+✅ **Low-cost**: ~$30 hardware, free software  
+✅ **Technically sound**: Addresses all RTL-SDR limitations (8-bit ADC, DC spike, IQ imbalance, gain staging)  
+✅ **Reproducible**: Standard PC, well-documented software stack  
+✅ **Validated**: Quantifiable performance targets and test procedures included  
+✅ **Extensible**: Modular GNU Radio blocks support future enhancements (direction finding, multi-SDR correlation, other bands via upconverter)
+
+**Critical Success Factors**:
+1. **Mandatory external bandpass filter** for labs in high-RF environments (urban campuses, near broadcast transmitters)
+2. **Manual gain mode** – disable RTL-SDR AGC for consistent measurements
+3. **Frequency offset strategy** – never place signals of interest at exact center frequency
+4. **Pre-lab software validation** – provide VM/container to eliminate installation barriers
+
+**Future Extensions** (maintaining receive-only constraint):
+- Multi-SDR phase coherence for direction finding (KerberosSDR or synchronized units)
+- ISM band monitoring (433 MHz, 915 MHz) with appropriate antennas
+- ADS-B aircraft monitoring (1090 MHz) as complementary exercise
+- Satellite reception (NOAA APT, Meteor M2) with L-band downconverter
+
+This design provides a robust foundation for RF education while maintaining strict adherence to regulatory constraints and pedagogical best practices.
+
+---
+
+*Document version: 1.0*  
+*Date: 2026-04-07*  
+*Author: Senior SDR Systems Architect*
