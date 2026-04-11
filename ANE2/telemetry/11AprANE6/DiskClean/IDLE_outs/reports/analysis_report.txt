@@ -1,0 +1,34 @@
+Telemetry Undervoltage Analysis (IDLE Referenced)
+================================================
+
+Input CSV (Test): DiskClean/IDLE.csv
+Input CSV (IDLE Baseline): DiskClean/IDLE.csv
+Rows analyzed: 562
+Voltage rails analyzed: 14
+Estimated sample period: 2.000 s
+Undervoltage threshold drop: 3.00%
+Critical drop threshold: 6.00%
+
+Top rails by undervoltage ratio:
+- BATT_V: 1.957% samples below threshold, min=0.0077V idle_baseline=0.0085V
+- 3V7_WL_SW_V: 0.000% samples below threshold, min=3.6961V idle_baseline=3.6998V
+- 1V8_SYS_V: 0.000% samples below threshold, min=1.7875V idle_baseline=1.7993V
+- DDR_VDD2_V: 0.000% samples below threshold, min=1.1000V idle_baseline=1.1070V
+- DDR_VDDQ_V: 0.000% samples below threshold, min=0.6037V idle_baseline=0.6161V
+- 3V3_SYS_V: 0.000% samples below threshold, min=3.2943V idle_baseline=3.3100V
+- 1V1_SYS_V: 0.000% samples below threshold, min=1.1000V idle_baseline=1.1040V
+- 0V8_SW_V: 0.000% samples below threshold, min=0.7982V idle_baseline=0.8000V
+
+Undervoltage events detected: 11
+Top 12 events by severity/drop:
+- [critical] BATT_V from 2026-04-11 10:39:36 to 2026-04-11 10:39:36 drop=10.00% min=0.0077V duration=2.00s
+- [critical] BATT_V from 2026-04-11 10:39:47 to 2026-04-11 10:39:47 drop=10.00% min=0.0077V duration=2.00s
+- [critical] BATT_V from 2026-04-11 10:39:53 to 2026-04-11 10:39:53 drop=10.00% min=0.0077V duration=2.00s
+- [critical] BATT_V from 2026-04-11 10:39:57 to 2026-04-11 10:39:57 drop=10.00% min=0.0077V duration=2.00s
+- [critical] BATT_V from 2026-04-11 10:40:25 to 2026-04-11 10:40:25 drop=10.00% min=0.0077V duration=2.00s
+- [critical] BATT_V from 2026-04-11 10:40:31 to 2026-04-11 10:40:31 drop=10.00% min=0.0077V duration=2.00s
+- [critical] BATT_V from 2026-04-11 10:40:42 to 2026-04-11 10:40:42 drop=10.00% min=0.0077V duration=2.00s
+- [critical] BATT_V from 2026-04-11 10:41:57 to 2026-04-11 10:41:57 drop=10.00% min=0.0077V duration=2.00s
+- [critical] BATT_V from 2026-04-11 10:42:01 to 2026-04-11 10:42:01 drop=10.00% min=0.0077V duration=2.00s
+- [critical] BATT_V from 2026-04-11 10:42:14 to 2026-04-11 10:42:14 drop=10.00% min=0.0077V duration=2.00s
+- [critical] BATT_V from 2026-04-11 10:53:30 to 2026-04-11 10:53:30 drop=10.00% min=0.0077V duration=2.00s

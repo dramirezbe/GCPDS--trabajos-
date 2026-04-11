@@ -385,7 +385,7 @@ def plot_global_analysis(df_global: pd.DataFrame, datos_hw: pd.DataFrame, datos_
 def main() -> None:
     args = parse_args()
     base_path = args.base_path.resolve()
-    db_path = base_path / "db" / "ane8"
+    db_path = base_path / "db" / "ane7"
     output_dir = build_results_dir(base_path, args.results_root)
 
     print(f"Base path: {base_path}")

@@ -1,0 +1,22 @@
+Telemetry Undervoltage Analysis (IDLE Referenced)
+================================================
+
+Input CSV (Test): DiskClean/HACKRF_MAX.csv
+Input CSV (IDLE Baseline): DiskClean/IDLE.csv
+Rows analyzed: 587
+Voltage rails analyzed: 14
+Estimated sample period: 2.000 s
+Undervoltage threshold drop: 3.00%
+Critical drop threshold: 6.00%
+
+Top rails by undervoltage ratio:
+- 3V7_WL_SW_V: 0.000% samples below threshold, min=3.6339V idle_baseline=3.6998V
+- 3V3_SYS_V: 0.000% samples below threshold, min=3.2933V idle_baseline=3.3100V
+- 1V8_SYS_V: 0.000% samples below threshold, min=1.7875V idle_baseline=1.7993V
+- DDR_VDD2_V: 0.000% samples below threshold, min=1.1011V idle_baseline=1.1070V
+- DDR_VDDQ_V: 0.000% samples below threshold, min=0.6000V idle_baseline=0.6161V
+- 1V1_SYS_V: 0.000% samples below threshold, min=1.0982V idle_baseline=1.1040V
+- 0V8_SW_V: 0.000% samples below threshold, min=0.7960V idle_baseline=0.8000V
+- VDD_CORE_V: 0.000% samples below threshold, min=0.7202V idle_baseline=0.7204V
+
+No undervoltage events detected with the configured IDLE threshold.

@@ -1,0 +1,9 @@
+flag,active_samples,active_ratio_pct
+SoftTempLimit_occured,587,100.0
+ArmFreqCap_occured,587,100.0
+UV,0,0.0
+ArmFreqCap,0,0.0
+SoftTempLimit,0,0.0
+CurThrottle,0,0.0
+UV_occured,0,0.0
+Throttle_occured,0,0.0
