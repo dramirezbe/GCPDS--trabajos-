@@ -1,0 +1,58 @@
+variable,label,unit,description
+cpu_percent,CPU Utilization,%,Total CPU usage percentage
+arm_mhz,ARM Clock,MHz,ARM core clock frequency
+core_mhz,Core Clock,MHz,Core frequency
+h264_mhz,H264 Clock,MHz,H264 block frequency
+isp_mhz,ISP Clock,MHz,Image Signal Processor frequency
+v3d_mhz,V3D Clock,MHz,3D engine frequency
+uart_mhz,UART Clock,MHz,UART clock frequency
+pwm_mhz,PWM Clock,MHz,PWM block frequency
+emmc_mhz,eMMC Clock,MHz,eMMC interface frequency
+pixel_mhz,Pixel Clock,MHz,Pixel clock
+vec_mhz,VEC Clock,MHz,VEC block frequency
+hdmi_mhz,HDMI Clock,MHz,HDMI subsystem frequency
+dpi_mhz,DPI Clock,MHz,Display Parallel Interface frequency
+arm_temp,ARM Temperature,C,CPU/SoC temperature
+core_volt,Core Voltage,V,Core voltage reported by firmware
+sdram_c_volt,SDRAM C Voltage,V,SDRAM controller voltage
+sdram_i_volt,SDRAM I Voltage,V,SDRAM IO voltage
+sdram_p_volt,SDRAM P Voltage,V,SDRAM PHY voltage
+3V7_WL_SW_A,3V7 Wl Sw Current,A,Measured rail current draw
+3V3_SYS_A,3V3 Sys Current,A,Measured rail current draw
+1V8_SYS_A,1V8 Sys Current,A,Measured rail current draw
+DDR_VDD2_A,Ddr Vdd2 Current,A,Measured rail current draw
+DDR_VDDQ_A,Ddr Vddq Current,A,Measured rail current draw
+1V1_SYS_A,1V1 Sys Current,A,Measured rail current draw
+0V8_SW_A,0V8 Sw Current,A,Measured rail current draw
+VDD_CORE_A,Vdd Core Current,A,Measured rail current draw
+3V3_DAC_A,3V3 Dac Current,A,Measured rail current draw
+3V3_ADC_A,3V3 Adc Current,A,Measured rail current draw
+0V8_AON_A,0V8 Aon Current,A,Measured rail current draw
+HDMI_A,Hdmi Current,A,Measured rail current draw
+3V7_WL_SW_V,3V7 Wl Sw Voltage,V,Measured power rail voltage
+3V3_SYS_V,3V3 Sys Voltage,V,Measured power rail voltage
+1V8_SYS_V,1V8 Sys Voltage,V,Measured power rail voltage
+DDR_VDD2_V,Ddr Vdd2 Voltage,V,Measured power rail voltage
+DDR_VDDQ_V,Ddr Vddq Voltage,V,Measured power rail voltage
+1V1_SYS_V,1V1 Sys Voltage,V,Measured power rail voltage
+0V8_SW_V,0V8 Sw Voltage,V,Measured power rail voltage
+VDD_CORE_V,Vdd Core Voltage,V,Measured power rail voltage
+3V3_DAC_V,3V3 Dac Voltage,V,Measured power rail voltage
+3V3_ADC_V,3V3 Adc Voltage,V,Measured power rail voltage
+0V8_AON_V,0V8 Aon Voltage,V,Measured power rail voltage
+HDMI_V,Hdmi Voltage,V,Measured power rail voltage
+EXT5V_V,Ext5V Voltage,V,Measured power rail voltage
+BATT_V,Batt Voltage,V,Measured power rail voltage
+readmr_4,Readmr 4,,Telemetry variable
+readmr_5,Readmr 5,,Telemetry variable
+readmr_6,Readmr 6,,Telemetry variable
+readmr_8,Readmr 8,,Telemetry variable
+throttle_hex,Throttle Hex,,Telemetry variable
+UV,Undervoltage Flag,bool,Current undervoltage state
+ArmFreqCap,ARM Freq Capped,bool,Current ARM frequency cap state
+CurThrottle,Current Throttle,bool,Current throttling state
+SoftTempLimit,Soft Temp Limit,bool,Current soft temperature limit state
+UV_occured,Undervoltage Occurred,bool,Undervoltage occurred since boot
+ArmFreqCap_occured,ARM Freq Cap Occurred,bool,ARM frequency cap occurred since boot
+Throttle_occured,Throttle Occurred,bool,Throttle occurred since boot
+SoftTempLimit_occured,Soft Temp Limit Occurred,bool,Soft temperature limit occurred since boot

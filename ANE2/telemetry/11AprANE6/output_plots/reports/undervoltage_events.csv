@@ -1,0 +1,2 @@
+rail,start,end,samples,duration_s,baseline_v,threshold_v,min_v,avg_v,drop_pct,severity,avg_cpu_percent,avg_arm_temp,avg_VDD_CORE_A
+BATT_V,2026-04-11 15:24:02,2026-04-11 15:24:02,1,2.0,0.008547,0.008291,0.007692,0.007692,10.0,critical,0.0,51.0,1.2055

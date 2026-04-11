@@ -1,0 +1,24 @@
+Telemetry Undervoltage Analysis (IDLE Referenced)
+================================================
+
+Input CSV (Test): DiskClean/ALL_PERIPH_DOWNLOADWIFI_UNDERVOLTAGE.csv
+Input CSV (IDLE Baseline): DiskClean/IDLE.csv
+Rows analyzed: 580
+Voltage rails analyzed: 14
+Estimated sample period: 2.000 s
+Undervoltage threshold drop: 3.00%
+Critical drop threshold: 6.00%
+
+Top rails by undervoltage ratio:
+- BATT_V: 0.172% samples below threshold, min=0.0077V idle_baseline=0.0085V
+- 3V7_WL_SW_V: 0.000% samples below threshold, min=3.6812V idle_baseline=3.6998V
+- 1V8_SYS_V: 0.000% samples below threshold, min=1.7875V idle_baseline=1.7993V
+- DDR_VDD2_V: 0.000% samples below threshold, min=1.1011V idle_baseline=1.1070V
+- DDR_VDDQ_V: 0.000% samples below threshold, min=0.6004V idle_baseline=0.6161V
+- 3V3_SYS_V: 0.000% samples below threshold, min=3.2915V idle_baseline=3.3100V
+- 1V1_SYS_V: 0.000% samples below threshold, min=1.0978V idle_baseline=1.1040V
+- 0V8_SW_V: 0.000% samples below threshold, min=0.7952V idle_baseline=0.8000V
+
+Undervoltage events detected: 1
+Top 12 events by severity/drop:
+- [critical] BATT_V from 2026-04-11 15:24:02 to 2026-04-11 15:24:02 drop=10.00% min=0.0077V duration=2.00s
