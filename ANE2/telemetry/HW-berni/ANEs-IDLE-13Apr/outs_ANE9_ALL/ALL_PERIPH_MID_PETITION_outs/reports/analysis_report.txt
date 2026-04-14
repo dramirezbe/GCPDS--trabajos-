@@ -1,0 +1,29 @@
+Telemetry Undervoltage Analysis (IDLE Referenced)
+================================================
+
+Input CSV (Test): ANE9-ALL/ALL_PERIPH_IDLE.csv
+Input CSV (IDLE Baseline): ANE6-DiskClean/IDLE.csv
+Rows analyzed: 563
+Voltage rails analyzed: 14
+Estimated sample period: 2.000 s
+Undervoltage threshold drop: 3.00%
+Critical drop threshold: 6.00%
+
+Top rails by undervoltage ratio:
+- BATT_V: 100.000% samples below threshold, min=0.0026V idle_baseline=0.0085V
+- 3V7_WL_SW_V: 0.888% samples below threshold, min=3.5365V idle_baseline=3.6998V
+- 1V8_SYS_V: 0.000% samples below threshold, min=1.7875V idle_baseline=1.7993V
+- DDR_VDD2_V: 0.000% samples below threshold, min=1.1004V idle_baseline=1.1070V
+- DDR_VDDQ_V: 0.000% samples below threshold, min=0.5996V idle_baseline=0.6161V
+- 3V3_SYS_V: 0.000% samples below threshold, min=3.2915V idle_baseline=3.3100V
+- 1V1_SYS_V: 0.000% samples below threshold, min=1.0971V idle_baseline=1.1040V
+- 0V8_SW_V: 0.000% samples below threshold, min=0.7967V idle_baseline=0.8000V
+
+Undervoltage events detected: 6
+Top 12 events by severity/drop:
+- [critical] BATT_V from 2026-04-13 10:50:30 to 2026-04-13 11:10:30 drop=70.00% min=0.0026V duration=1202.00s
+- [warning] 3V7_WL_SW_V from 2026-04-13 11:01:00 to 2026-04-13 11:01:00 drop=4.41% min=3.5365V duration=2.00s
+- [info] 3V7_WL_SW_V from 2026-04-13 11:05:12 to 2026-04-13 11:05:12 drop=3.49% min=3.5708V duration=2.00s
+- [info] 3V7_WL_SW_V from 2026-04-13 11:01:42 to 2026-04-13 11:01:42 drop=3.36% min=3.5754V duration=2.00s
+- [info] 3V7_WL_SW_V from 2026-04-13 11:01:55 to 2026-04-13 11:01:55 drop=3.34% min=3.5764V duration=2.00s
+- [info] 3V7_WL_SW_V from 2026-04-13 10:58:22 to 2026-04-13 10:58:22 drop=3.04% min=3.5875V duration=2.00s
