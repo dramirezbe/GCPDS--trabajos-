@@ -1,0 +1,23 @@
+
+# IDLE_NO_PROCESSING
+
+- NO PCB
+- NO HACKRF
+- NO PROCESSING
+
+# HACKRF_PROCESSING
+
+- NO PCB
+- HACKRF PROCESSING MAX (timeout 5m hackrf_transfer -r /dev/null -f 6000000000 -s 20000000 -a 1 -l 40 -g 62 -b 28000000)
+
+# LTE_PROCESSING
+
+- PCB
+- NO HACKRF
+- LTE PROCESSING
+
+# COMBINED
+
+- PCB
+- HACKRF PROCESSING MAX (timeout 5m hackrf_transfer -r /dev/null -f 6000000000 -s 20000000 -a 1 -l 40 -g 62 -b 28000000)
+- LTE PROCESSING

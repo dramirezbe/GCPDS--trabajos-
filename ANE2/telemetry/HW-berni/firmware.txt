@@ -36,13 +36,12 @@ arm_64bit=1
 # Disable compensation for displays with overscan
 disable_overscan=1
 
-# Run as fast as firmware / board allows
-arm_boost=1
+# Configuración de CPU personalizada
+arm_boost=0
+arm_freq=2000
 
 [cm4]
 # Enable host mode on the 2711 built-in XHCI USB controller.
-# This line should be removed if the legacy DWC2 controller is required
-# (e.g. for USB device mode) or if USB support is not required.
 otg_mode=1
 
 [cm5]
@@ -51,9 +50,16 @@ dtoverlay=dwc2,dr_mode=host
 [all]
 dtparam=uart0=on
 
+# Configuración de GPIOs para el Nodo ANE
 gpio=4,10,22,24,27=op,dl
 gpio=23=op,dh
 gpio=17,18=pn/np
 force_turbo=0
 start_x=0
 dtoverlay=disable-bt
+
+# --- POWER MANAGEMENT (PPS / 5A) ---
+# Habilita el límite de 1.6A en puertos USB
+usb_max_current_enable=1
+# Ignora la detección de handshake y fuerza el perfil de 5000mA
+psu_max_current=5000

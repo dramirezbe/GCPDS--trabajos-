@@ -4,7 +4,7 @@ import logging
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Iterator, Optional, Dict
+from typing import Any, Iterator, Optional, Dict, List, Set
 
 # Configuración básica de logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -89,6 +89,22 @@ class TelemetryRecord:
     voltages: Voltages
     currents: Currents
     status: SystemStatus
+
+
+@dataclass
+class ReducedTelemetryRecord:
+    timestamp: datetime
+    time_sec: float
+    time_min: float
+    values: Dict[str, Any]
+
+    def get(self, key: str, default: Any = None) -> Any:
+        return self.values.get(key, default)
+
+    def __getattr__(self, key: str) -> Any:
+        if key in self.values:
+            return self.values[key]
+        raise AttributeError(f"{self.__class__.__name__} no tiene el campo '{key}'")
 
 
 # ==========================================
@@ -231,3 +247,226 @@ class TelemetryParser:
                     yield self._parse_row(row)
                 except Exception as e:
                     logging.warning(f"Error parseando la línea {line_num}: {e}. Fila omitida.")
+
+
+class GroupTelemetryParser(TelemetryParser):
+    EMPTY_TOKENS = {"", "na", "n/a", "null", "none", "nan", "-", "--", "?"}
+
+    # Estas columnas suelen ser de estado/metadata y se excluyen del análisis global.
+    DEFAULT_EXCLUDED_COLUMNS = {
+        "timestamp",
+        "throttle_hex",
+        "UV",
+        "ArmFreqCap",
+        "CurThrottle",
+        "SoftTempLimit",
+        "UV_occured",
+        "ArmFreqCap_occured",
+        "Throttle_occured",
+        "SoftTempLimit_occured",
+    }
+
+    @staticmethod
+    def _open_reader(target_file: Path):
+        f = open(target_file, mode="r", encoding="utf-8", newline="", errors="replace")
+        sample = f.read(4096)
+        f.seek(0)
+        try:
+            dialect = csv.Sniffer().sniff(sample, delimiters=",;\t|")
+        except csv.Error:
+            dialect = csv.excel
+        return f, csv.DictReader(f, dialect=dialect)
+
+    @classmethod
+    def _is_empty_value(cls, value: Optional[str]) -> bool:
+        if value is None:
+            return True
+        return value.strip().lower() in cls.EMPTY_TOKENS
+
+    @staticmethod
+    def _record_has_invalid_values(value) -> bool:
+        if value is None:
+            return True
+
+        if isinstance(value, datetime):
+            return value == datetime.min
+
+        if isinstance(value, str):
+            return value.strip() == ""
+
+        if isinstance(value, dict):
+            return any(GroupTelemetryParser._record_has_invalid_values(v) for v in value.values())
+
+        if hasattr(value, "__dict__"):
+            return any(
+                GroupTelemetryParser._record_has_invalid_values(v)
+                for v in vars(value).values()
+            )
+
+        return False
+
+    def _to_reduced_value(self, value: Optional[str]) -> Any:
+        if self._is_empty_value(value):
+            return None
+
+        clean = value.strip()
+        maybe_number = self._safe_float(clean)
+        if maybe_number is not None:
+            return maybe_number
+
+        return clean
+
+    def _is_clean_record(self, record: TelemetryRecord) -> bool:
+        return not self._record_has_invalid_values(record)
+
+    def load_clean_group(
+        self,
+        folder: Path,
+        recursive: bool = False,
+        threshold: float = 0.75,
+        excluded_columns: Optional[Set[str]] = None,
+        skip_filenames: Optional[Set[str]] = None,
+    ) -> Dict[str, List[ReducedTelemetryRecord]]:
+        if not folder.exists() or not folder.is_dir():
+            raise FileNotFoundError(f"Carpeta no encontrada: {folder}")
+
+        pattern = "**/*.csv" if recursive else "*.csv"
+        files = sorted(
+            p
+            for p in folder.glob(pattern)
+            if p.is_file() and (not skip_filenames or p.name not in skip_filenames)
+        )
+        if not files:
+            raise FileNotFoundError(f"No se encontraron CSVs en: {folder}")
+
+        analysis = self.analyze_columns(
+            folder=folder,
+            threshold=threshold,
+            recursive=recursive,
+            excluded_columns=excluded_columns,
+            skip_filenames=skip_filenames,
+        )
+        columns_to_drop = set(analysis["mas_75_vacias"]) | set(analysis["no_cambian_en_ningun_csv"])
+
+        grouped: Dict[str, List[ReducedTelemetryRecord]] = {}
+        for csv_file in files:
+            self._first_timestamp = None
+            f, reader = self._open_reader(csv_file)
+            try:
+                if not reader.fieldnames:
+                    grouped[csv_file.name] = []
+                    continue
+
+                kept_columns = [
+                    col
+                    for col in reader.fieldnames
+                    if col and col not in columns_to_drop
+                ]
+
+                clean_records: List[ReducedTelemetryRecord] = []
+                for line_num, row in enumerate(reader, start=2):
+                    try:
+                        parsed_record = self._parse_row(row)
+                    except Exception as e:
+                        logging.warning(
+                            f"Error parseando la línea {line_num} de {csv_file.name}: {e}. Fila omitida."
+                        )
+                        continue
+
+                    # El timestamp es obligatorio; datetime.min indica parseo fallido.
+                    if parsed_record.timestamp == datetime.min:
+                        continue
+
+                    values = {
+                        col: self._to_reduced_value(row.get(col))
+                        for col in kept_columns
+                    }
+
+                    # Evita conservar filas sin ningún dato útil luego de la reducción.
+                    if not any(value is not None for value in values.values()):
+                        continue
+
+                    clean_records.append(
+                        ReducedTelemetryRecord(
+                            timestamp=parsed_record.timestamp,
+                            time_sec=parsed_record.time_sec,
+                            time_min=parsed_record.time_min,
+                            values=values,
+                        )
+                    )
+
+                grouped[csv_file.name] = clean_records
+            finally:
+                f.close()
+
+        return grouped
+
+    def analyze_columns(
+        self,
+        folder: Path,
+        threshold: float = 0.75,
+        recursive: bool = False,
+        excluded_columns: Optional[Set[str]] = None,
+        skip_filenames: Optional[Set[str]] = None,
+    ) -> Dict[str, List[str]]:
+        if not folder.exists() or not folder.is_dir():
+            raise FileNotFoundError(f"Carpeta no encontrada: {folder}")
+
+        pattern = "**/*.csv" if recursive else "*.csv"
+        files = sorted(
+            p
+            for p in folder.glob(pattern)
+            if p.is_file() and (not skip_filenames or p.name not in skip_filenames)
+        )
+        if not files:
+            raise FileNotFoundError(f"No se encontraron CSVs en: {folder}")
+
+        excluded = set(self.DEFAULT_EXCLUDED_COLUMNS)
+        if excluded_columns:
+            excluded.update(excluded_columns)
+
+        total_by_column: Dict[str, int] = {}
+        empty_by_column: Dict[str, int] = {}
+        constant_in_all_files: Optional[Set[str]] = None
+
+        for csv_file in files:
+            f, reader = self._open_reader(csv_file)
+            try:
+                if not reader.fieldnames:
+                    continue
+
+                fieldnames = [c for c in reader.fieldnames if c and c not in excluded]
+                distinct_values: Dict[str, Set[str]] = {col: set() for col in fieldnames}
+
+                for row in reader:
+                    for col in fieldnames:
+                        raw_value = row.get(col)
+                        total_by_column[col] = total_by_column.get(col, 0) + 1
+                        if self._is_empty_value(raw_value):
+                            empty_by_column[col] = empty_by_column.get(col, 0) + 1
+                        else:
+                            distinct_values[col].add(raw_value.strip())
+
+                constant_this_file = {
+                    col for col, values in distinct_values.items() if len(values) <= 1
+                }
+
+                if constant_in_all_files is None:
+                    constant_in_all_files = constant_this_file
+                else:
+                    constant_in_all_files &= constant_this_file
+            finally:
+                f.close()
+
+        columns_75_empty = sorted(
+            col
+            for col, total in total_by_column.items()
+            if total > 0 and (empty_by_column.get(col, 0) / total) >= threshold
+        )
+
+        columns_constant = sorted(constant_in_all_files or set())
+
+        return {
+            "mas_75_vacias": columns_75_empty,
+            "no_cambian_en_ningun_csv": columns_constant,
+        }
