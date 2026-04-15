@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 
 from csv_dataclasses import GroupTelemetryParser, ReducedTelemetryRecord
 
-SKIP_FILES_DEFAULT = {"LTE_1-stress-test.csv", "LTE_2-stress-test.csv"}
+SKIP_FILES_DEFAULT = {}
 
 
 def collect_numeric_series(
