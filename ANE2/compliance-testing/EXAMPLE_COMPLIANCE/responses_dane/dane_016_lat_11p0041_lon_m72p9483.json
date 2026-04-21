@@ -1,0 +1,83 @@
+{
+  "meta": {
+    "index": 16,
+    "lat": 11.0041,
+    "lon": -72.9483,
+    "timestamp_utc": "2026-04-21T20:08:03.763538+00:00",
+    "source": "api_dane_from_coords_via_tunnel._query_location_via_tunnel",
+    "status": "ok"
+  },
+  "raw_response": {
+    "encontrado": true,
+    "resultado": {
+      "central": {
+        "departamento": "LA GUAJIRA",
+        "municipio": "DISTRACCIÓN",
+        "codigo_dane": "44098"
+      },
+      "radio_km": 30.0,
+      "adyacentes": [
+        {
+          "departamento": "LA GUAJIRA",
+          "municipio": "RIOHACHA",
+          "codigo_dane": "44001"
+        },
+        {
+          "departamento": "LA GUAJIRA",
+          "municipio": "FONSECA",
+          "codigo_dane": "44279"
+        },
+        {
+          "departamento": "LA GUAJIRA",
+          "municipio": "SAN JUAN DEL CESAR",
+          "codigo_dane": "44650"
+        },
+        {
+          "departamento": "CESAR",
+          "municipio": "VALLEDUPAR",
+          "codigo_dane": "20001"
+        },
+        {
+          "departamento": "LA GUAJIRA",
+          "municipio": "ALBANIA",
+          "codigo_dane": "44035"
+        },
+        {
+          "departamento": "LA GUAJIRA",
+          "municipio": "BARRANCAS",
+          "codigo_dane": "44078"
+        },
+        {
+          "departamento": "LA GUAJIRA",
+          "municipio": "DIBULLA",
+          "codigo_dane": "44090"
+        },
+        {
+          "departamento": "LA GUAJIRA",
+          "municipio": "EL MOLINO",
+          "codigo_dane": "44110"
+        },
+        {
+          "departamento": "LA GUAJIRA",
+          "municipio": "HATONUEVO",
+          "codigo_dane": "44378"
+        },
+        {
+          "departamento": "LA GUAJIRA",
+          "municipio": "MAICAO",
+          "codigo_dane": "44430"
+        },
+        {
+          "departamento": "LA GUAJIRA",
+          "municipio": "MANAURE",
+          "codigo_dane": "44560"
+        },
+        {
+          "departamento": "LA GUAJIRA",
+          "municipio": "VILLANUEVA",
+          "codigo_dane": "44874"
+        }
+      ]
+    }
+  }
+}

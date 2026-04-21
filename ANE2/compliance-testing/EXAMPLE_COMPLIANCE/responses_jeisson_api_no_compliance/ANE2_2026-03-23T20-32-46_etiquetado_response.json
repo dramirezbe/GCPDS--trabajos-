@@ -1,0 +1,25 @@
+{
+  "correction_applied": false,
+  "cumplimiento": 0,
+  "mode": "all_emissions",
+  "num_emissions": 1,
+  "picos": [],
+  "picos_count": 0,
+  "results": [
+    {
+      "bw_hz": 5264476.880095303,
+      "bw_khz": 5264.476880095303,
+      "fc_hz": 479000000.0,
+      "fc_mhz": 479.0,
+      "nearest_bin": 2077,
+      "ocupacion_pct": 0.017995874026296606,
+      "power_dbm": -37.01633842856875,
+      "rni": 87.80345888760814,
+      "rni_v_m": 0.024556866224462962,
+      "status": "emision"
+    }
+  ],
+  "timestamp": 1774297966000,
+  "umbral": -41.57710704833856,
+  "umbral_db": 5.0
+}

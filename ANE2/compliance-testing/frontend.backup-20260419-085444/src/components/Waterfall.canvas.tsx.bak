@@ -1,0 +1,441 @@
+import { useEffect, useRef, useState } from 'react';
+
+interface WaterfallProps {
+  data: { frequency: number; power: number }[];
+  history: { frequency: number; power: number }[][];
+  freqUnit?: 'Hz' | 'kHz' | 'MHz' | 'GHz';
+  powerUnit?: string;
+  stepRatio?: number; // Ratio of height per step (e.g. 1/n or 0.1)
+  minFreq?: number;
+  maxFreq?: number;
+}
+
+export function Waterfall({ history, powerUnit = 'dBm', stepRatio, minFreq, maxFreq }: WaterfallProps) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const offscreenCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const rowCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const lastHistoryLengthRef = useRef(0);
+  const historyHashRef = useRef<string>('');
+  const lastMinFreqRef = useRef<number | undefined>(undefined);
+  const lastMaxFreqRef = useRef<number | undefined>(undefined);
+  
+  const [showColorScale, setShowColorScale] = useState(false);
+  const [powerRange, setPowerRange] = useState({ min: -100, max: -10 });
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // Padding para alinear con el gráfico de espectro
+    // Debe coincidir con el padding dinámico de SpectrumChart si es posible,
+    // pero SpectrumChart tiene padding dinámico. 
+    // Por ahora usamos 60/40 que es el default, pero si hay unidades largas se desalineará.
+    // TODO: Recibir padding como prop o calcularlo igual.
+    // Asumimos que el usuario quiere alineación, así que deberíamos intentar coincidir.
+    // Si la unidad es larga, SpectrumChart usa 100.
+    const longUnits = ['W/m²', 'mV/m', 'dBuV/m', 'dBmV/m', 'V/m', 'W/m2'];
+    const isLongUnit = powerUnit && (powerUnit.length > 5 || longUnits.includes(powerUnit));
+    const leftPadding = isLongUnit ? 100 : 60;
+
+    const padding = { left: leftPadding, right: 40 };
+    const width = canvas.width;
+    const height = canvas.height;
+    const plotWidth = width - padding.left - padding.right;
+
+    // Inicializar rowCanvas si no existe o si cambió el ancho
+    if (!rowCanvasRef.current || rowCanvasRef.current.width !== plotWidth) {
+      rowCanvasRef.current = document.createElement('canvas');
+      rowCanvasRef.current.width = plotWidth;
+      rowCanvasRef.current.height = 1;
+    }
+    const rowCtx = rowCanvasRef.current.getContext('2d');
+
+    // Inicializar offscreenCanvas si no existe o si cambió el ancho
+    if (!offscreenCanvasRef.current || offscreenCanvasRef.current.width !== plotWidth) {
+      offscreenCanvasRef.current = document.createElement('canvas');
+      offscreenCanvasRef.current.width = plotWidth;
+      offscreenCanvasRef.current.height = height;
+      
+      const offCtx = offscreenCanvasRef.current.getContext('2d');
+      if (offCtx) {
+        // Llenar con blanco inicial
+        offCtx.fillStyle = '#ffffff';
+        offCtx.fillRect(0, 0, plotWidth, height);
+      }
+      // Forzar reset si cambia el tamaño
+      lastHistoryLengthRef.current = 0;
+    }
+    const offCtx = offscreenCanvasRef.current.getContext('2d');
+    if (!offCtx) return;
+
+    // Detectar cambio de sensor/fuente de datos
+    const currentHash = history.length > 0 && history[0] && history[0].length > 0 ? 
+      `${history[0].length}-${Number(history[0][0]?.frequency).toFixed(0)}-${Number(history[0][Math.floor(history[0].length/2)]?.frequency).toFixed(0)}` : '';
+    
+    const sensorChanged = historyHashRef.current !== '' && 
+                         currentHash !== '' && 
+                         historyHashRef.current !== currentHash;
+    
+    const historyReset = history.length > 0 && 
+                        lastHistoryLengthRef.current > 0 && 
+                        history.length < lastHistoryLengthRef.current * 0.3;
+
+    // Detectar cuando el historial se vacía (ej: al detener la adquisición).
+    // Esto limpia el canvas para que al iniciar una nueva adquisición no se sobreponga
+    // el waterfall anterior con el nuevo.
+    const historyCleared = history.length === 0 && lastHistoryLengthRef.current > 0;
+
+    // Detectar cambio de rango (zoom/pan)
+    // Usamos una pequeña tolerancia para evitar comparaciones flotantes estrictas
+    // IMPORTANTE: solo detectar cambio si los refs tienen un valor previo definido.
+    // Si son undefined (después de un reset limpio), NO disparar rangeChanged
+    // para evitar un doble-reset que causa el salto visual.
+    const rangeChanged = (minFreq !== undefined && lastMinFreqRef.current !== undefined && Math.abs(minFreq - lastMinFreqRef.current) > 1e-6) ||
+                         (maxFreq !== undefined && lastMaxFreqRef.current !== undefined && Math.abs(maxFreq - lastMaxFreqRef.current) > 1e-6);
+    
+    const needsReset = sensorChanged || historyReset || historyCleared || rangeChanged;
+    
+    if (needsReset) {
+      // Si cambia el rango, el sensor, o se vacía el historial, reseteamos para
+      // redibujar TODO el historial con la nueva escala / empezar limpio.
+      lastHistoryLengthRef.current = 0;
+      historyHashRef.current = currentHash;
+      // Si el historial se vació (reset de config), limpiar refs de rango para que
+      // el primer frame con la nueva configuración no dispare un rangeChanged.
+      if (historyCleared) {
+        lastMinFreqRef.current = undefined;
+        lastMaxFreqRef.current = undefined;
+      } else {
+        lastMinFreqRef.current = minFreq;
+        lastMaxFreqRef.current = maxFreq;
+      }
+      
+      // Limpiar buffer persistente
+      offCtx.fillStyle = '#ffffff';
+      offCtx.fillRect(0, 0, plotWidth, height);
+    } else {
+      // Actualizar referencias de rango incluso si no hubo reset mayor
+      if (minFreq !== undefined) lastMinFreqRef.current = minFreq;
+      if (maxFreq !== undefined) lastMaxFreqRef.current = maxFreq;
+    }
+
+    // Calcular rango de potencia de los datos (global para colorear)
+    if (history && history.length > 0) {
+      let minPower = Infinity;
+      let maxPower = -Infinity;
+      
+      // Muestrear algunos snapshots para no iterar todo si es muy grande
+      const step = Math.max(1, Math.floor(history.length / 50));
+      for (let i = 0; i < history.length; i += step) {
+        const snapshot = history[i];
+        for (const point of snapshot) {
+          if (point && isFinite(point.power)) {
+            if (point.power < minPower) minPower = point.power;
+            if (point.power > maxPower) maxPower = point.power;
+          }
+        }
+      }
+      
+      if (isFinite(minPower) && isFinite(maxPower)) {
+        const newMin = Math.floor(minPower / 10) * 10;
+        const newMax = Math.ceil(maxPower / 10) * 10;
+        setPowerRange({ min: newMin, max: newMax });
+      }
+    }
+
+    const resizeToExactWidth = (
+      snapshot: { frequency: number; power: number }[],
+      targetWidth: number
+    ): number[] => {
+      const result: number[] = new Array(targetWidth);
+      const sourceLength = snapshot.length;
+      
+      if (sourceLength === 0) {
+        return result.fill(-100);
+      }
+
+      // Determinar índices de inicio y fin basados en el rango de frecuencia
+      let startIndex = 0;
+      let endIndex = sourceLength - 1;
+
+      // Si tenemos rango definido, buscar los índices correspondientes
+      if (minFreq !== undefined && maxFreq !== undefined && minFreq < maxFreq) {
+        // Optimización: asumiendo que snapshot está ordenado por frecuencia
+        // Búsqueda simple o binaria. Dado que sourceLength puede ser grande, búsqueda binaria sería mejor,
+        // pero lineal es aceptable si no se llama demasiado frecuente.
+        // Vamos a usar una aproximación basada en el rango total si conocemos min/max del snapshot
+        
+        const snapshotMinFreq = snapshot[0].frequency;
+        const snapshotMaxFreq = snapshot[sourceLength - 1].frequency;
+        const snapshotRange = snapshotMaxFreq - snapshotMinFreq;
+
+        if (snapshotRange > 0) {
+          // Estimación de índices
+          startIndex = Math.floor(((minFreq - snapshotMinFreq) / snapshotRange) * (sourceLength - 1));
+          endIndex = Math.ceil(((maxFreq - snapshotMinFreq) / snapshotRange) * (sourceLength - 1));
+
+          // Clamping
+          startIndex = Math.max(0, Math.min(startIndex, sourceLength - 1));
+          endIndex = Math.max(0, Math.min(endIndex, sourceLength - 1));
+        }
+      }
+      
+      const rangeSpan = endIndex - startIndex;
+      
+      for (let x = 0; x < targetWidth; x++) {
+        // Mapear pixel x al índice dentro del rango seleccionado
+        const offset = (x / targetWidth) * rangeSpan;
+        const sourceIndex = startIndex + offset;
+        
+        const lowerIndex = Math.floor(sourceIndex);
+        const upperIndex = Math.min(lowerIndex + 1, sourceLength - 1);
+        
+        // Asegurar que índices estén dentro de bounds
+        const safeLowerIndex = Math.max(0, Math.min(lowerIndex, sourceLength - 1));
+        const safeUpperIndex = Math.max(0, Math.min(upperIndex, sourceLength - 1));
+        
+        if (safeLowerIndex === safeUpperIndex) {
+          result[x] = snapshot[safeLowerIndex]?.power ?? -100;
+        } else {
+          const fraction = sourceIndex - lowerIndex;
+          const lowerPower = snapshot[safeLowerIndex]?.power ?? -100;
+          const upperPower = snapshot[safeUpperIndex]?.power ?? -100;
+          result[x] = lowerPower + (upperPower - lowerPower) * fraction;
+        }
+      }
+      return result;
+    };
+    
+    // Función para normalizar una fila de datos
+    const normalizeRow = (row: number[]): number[] => {
+      let minVal = Infinity;
+      let maxVal = -Infinity;
+      
+      for (const value of row) {
+        if (isFinite(value)) {
+          if (value < minVal) minVal = value;
+          if (value > maxVal) maxVal = value;
+        }
+      }
+      
+      if (!isFinite(minVal) || !isFinite(maxVal) || minVal === maxVal) {
+        return row.map(() => 0.5);
+      }
+      
+      const range = maxVal - minVal;
+      return row.map(value => {
+        if (!isFinite(value)) return 0;
+        return (value - minVal) / range;
+      });
+    };
+
+    // Detectar nuevos datos en el historial
+    const currentHistoryLength = history.length;
+    const newDataCount = currentHistoryLength - lastHistoryLengthRef.current;
+    
+    // Si hubo reset, newDataCount será negativo o igual a length, forzamos redibujado completo
+    const isFullRedraw = lastHistoryLengthRef.current === 0;
+
+    if ((newDataCount > 0 || isFullRedraw) && currentHistoryLength > 0) {
+      // Si es redibujado completo, procesamos TODO el historial
+      // Si son datos nuevos, solo los nuevos
+      const snapshotsToProcess = isFullRedraw ? history : history.slice(lastHistoryLengthRef.current);
+      
+      // Si estamos redibujando todo, necesitamos dibujar de abajo hacia arriba (más reciente arriba)
+      // Ojo: la lógica actual dibuja nuevos datos arriba y desplaza lo viejo abajo.
+      // Si redibujamos todo el historial, podemos iterar desde el final hacia el principio
+      // y dibujar línea por línea, O iterar en orden y simular la llegada.
+      
+      // Para eficiencia en redibujado completo:
+      // Mapear historial al canvas directamente sin usar drawImage recursivo
+      
+      if (isFullRedraw) {
+        // Redibujado optimizado
+        const imageData = offCtx.createImageData(plotWidth, height);
+        // Llenar con blanco/transparente
+        for(let i=0; i<imageData.data.length; i++) imageData.data[i] = 255;
+
+        // Iterar sobre el historial. 
+        // El historial[0] es el más reciente. Debería ir en y=0.
+        // El historial[k] va en y=k * stepHeight (aprox)
+        // Pero waterfall normalmente fluye hacia abajo.
+        
+        // La implementación original hacía:
+        // 1. Desplazar buffer abajo
+        // 2. Dibujar nuevo en y=0
+        
+        // Entonces history[0] (más reciente) está en y=0.
+        // history[1] está en y=1...
+        
+        // Si redibujamos todo, podemos iterar y=0 hasta height
+        // y tomar history[y].
+        
+        // Ajustar stepHeight si queremos que el historial ocupe todo el alto o velocidad fija
+        // Si stepRatio está definido lo usamos, sino 1px por muestra
+        const stepHeight = stepRatio ? Math.max(1, height * stepRatio) : 1;
+        
+        // Iterar sobre píxeles verticales del canvas
+        for (let y = 0; y < height; y++) {
+            // Encontrar qué índice del historial corresponde a esta línea Y
+            // Si stepHeight es 1, y=0 -> history[0]
+            // Si stepHeight es 2, y=0,1 -> history[0]
+            
+            const histIndex = Math.floor(y / stepHeight);
+            
+            if (histIndex < history.length) {
+                const snapshot = history[histIndex];
+                if (!snapshot || snapshot.length === 0) continue;
+
+                // Solo calcular si estamos en el inicio de un bloque stepHeight (optimización)
+                // O calcular para cada línea si queremos interpolación vertical (no implementado)
+                // Aquí calculamos para cada línea para simplicidad
+                
+                // Pero es muy costoso llamar resizeToExactWidth para cada línea si son iguales.
+                // Mejor iterar por snapshots.
+            }
+        }
+        
+        // Mejor aproximación: iterar por snapshots disponibles y dibujar rectángulos
+        let currentY = 0;
+        const stepH = stepRatio ? Math.max(0.01, height * stepRatio) : 1;
+        
+        for (let i = 0; i < history.length && currentY < height; i++) {
+            const snapshot = history[i];
+            if (!snapshot || snapshot.length === 0) continue;
+            
+            const resizedRow = resizeToExactWidth(snapshot, plotWidth);
+            const normalizedRow = normalizeRow(resizedRow);
+            
+            // Generar línea de píxeles
+            const rowImg = rowCtx.createImageData(plotWidth, 1);
+            for (let x = 0; x < plotWidth; x++) {
+                const normalized = normalizedRow[x];
+                let r, g, b;
+                if (normalized < 0.5) {
+                  r = 0;
+                  g = Math.floor(normalized * 2 * 255);
+                  b = Math.floor((1 - normalized * 2) * 255);
+                } else {
+                  r = Math.floor((normalized - 0.5) * 2 * 255);
+                  g = Math.floor((1 - (normalized - 0.5) * 2) * 255);
+                  b = 0;
+                }
+                const idx = x * 4;
+                rowImg.data[idx] = r;
+                rowImg.data[idx+1] = g;
+                rowImg.data[idx+2] = b;
+                rowImg.data[idx+3] = 255;
+            }
+            
+            // Dibujar esta línea estirada según stepH
+            // Usamos un canvas temporal para la fila para poder estirarla con drawImage
+            rowCtx.putImageData(rowImg, 0, 0);
+            
+            // Dibujar en offscreen
+            offCtx.imageSmoothingEnabled = false; // Pixelado para nitidez
+            offCtx.drawImage(rowCanvasRef.current, 0, 0, plotWidth, 1, 0, currentY, plotWidth, stepH);
+            
+            currentY += stepH;
+        }
+        
+      } else {
+        // Modo incremental (solo nuevos datos)
+        const stepHeight = stepRatio ? Math.max(0.01, height * stepRatio) : 1;
+
+        for (const snapshot of snapshotsToProcess) {
+            if (!snapshot || snapshot.length === 0) continue;
+
+            // 1. Desplazar abajo
+            offCtx.drawImage(offscreenCanvasRef.current!, 0, 0, plotWidth, height - stepHeight, 0, stepHeight, plotWidth, height - stepHeight);
+            
+            // 2. Procesar nueva línea
+            const resizedRow = resizeToExactWidth(snapshot, plotWidth);
+            const normalizedRow = normalizeRow(resizedRow);
+            
+            // 3. Dibujar
+            if (rowCtx && rowCanvasRef.current) {
+                const rowImageData = rowCtx.createImageData(plotWidth, 1);
+                for (let x = 0; x < plotWidth; x++) {
+                    const normalized = normalizedRow[x];
+                    let r, g, b;
+                    if (normalized < 0.5) {
+                        r = 0;
+                        g = Math.floor(normalized * 2 * 255);
+                        b = Math.floor((1 - normalized * 2) * 255);
+                    } else {
+                        r = Math.floor((normalized - 0.5) * 2 * 255);
+                        g = Math.floor((1 - (normalized - 0.5) * 2) * 255);
+                        b = 0;
+                    }
+                    const pixelIndex = x * 4;
+                    rowImageData.data[pixelIndex] = r;
+                    rowImageData.data[pixelIndex + 1] = g;
+                    rowImageData.data[pixelIndex + 2] = b;
+                    rowImageData.data[pixelIndex + 3] = 255;
+                }
+                rowCtx.putImageData(rowImageData, 0, 0);
+                
+                offCtx.imageSmoothingEnabled = stepHeight < 1;
+                offCtx.drawImage(rowCanvasRef.current, 0, 0, plotWidth, 1, 0, 0, plotWidth, stepHeight);
+            }
+        }
+      }
+      
+      lastHistoryLengthRef.current = currentHistoryLength;
+      historyHashRef.current = currentHash;
+    }
+
+    // Dibujar fondo blanco en el canvas visible
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, width, height);
+    
+    // Copiar del buffer persistente al canvas visible
+    if (offscreenCanvasRef.current) {
+      ctx.drawImage(offscreenCanvasRef.current, 0, 0, plotWidth, height, padding.left, 0, plotWidth, height);
+    }
+  }, [history, minFreq, maxFreq, powerUnit, stepRatio]); // Dependencias actualizadas
+
+  return (
+    <div className="-mt-3">
+      <div className="relative">
+        <canvas
+          ref={canvasRef}
+          width={1200}
+          height={200}
+          className="w-full border border-gray-300 rounded bg-white"
+          style={{ maxWidth: '100%', height: '200px' }}
+        />
+        
+        {/* Escala de colores superpuesta a la derecha */}
+        {showColorScale && (
+          <div className="absolute top-2 right-2 bg-white rounded-lg p-3 border border-gray-300 shadow-md" style={{ width: '80px', height: '180px' }}>
+            <div className="text-xs text-gray-800 font-bold mb-1 text-center">{powerUnit}</div>
+            <div className="flex items-stretch gap-2" style={{ height: 'calc(100% - 24px)' }}>
+              <div className="flex flex-col justify-between text-xs text-gray-700 font-semibold">
+                <span>{powerRange.max}</span>
+                <span>{Math.round((powerRange.max + powerRange.min) / 2)}</span>
+                <span>{powerRange.min}</span>
+              </div>
+              <div 
+                className="w-6 rounded"
+                style={{
+                  background: 'linear-gradient(to bottom, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff)'
+                }}
+              ></div>
+            </div>
+          </div>
+        )}
+      </div>
+      
+      <button
+        onClick={() => setShowColorScale(!showColorScale)}
+        className="text-xs text-gray-600 hover:text-gray-800 mt-1"
+      >
+        {showColorScale ? 'Ocultar' : 'Mostrar'} escala
+      </button>
+    </div>
+  );
+}
