@@ -1,0 +1,168 @@
+{
+  "meta": {
+    "index": 8,
+    "lat": 4.4389,
+    "lon": -75.2322,
+    "timestamp_utc": "2026-04-21T20:07:51.554290+00:00",
+    "source": "api_dane_from_coords_via_tunnel._query_location_via_tunnel",
+    "status": "ok"
+  },
+  "raw_response": {
+    "encontrado": true,
+    "resultado": {
+      "central": {
+        "departamento": "TOLIMA",
+        "municipio": "IBAGUÉ",
+        "codigo_dane": "73001"
+      },
+      "radio_km": 30.0,
+      "adyacentes": [
+        {
+          "departamento": "QUINDIO",
+          "municipio": "SALENTO",
+          "codigo_dane": "63690"
+        },
+        {
+          "departamento": "TOLIMA",
+          "municipio": "ALVARADO",
+          "codigo_dane": "73026"
+        },
+        {
+          "departamento": "TOLIMA",
+          "municipio": "ANZOÁTEGUI",
+          "codigo_dane": "73043"
+        },
+        {
+          "departamento": "TOLIMA",
+          "municipio": "CAJAMARCA",
+          "codigo_dane": "73124"
+        },
+        {
+          "departamento": "TOLIMA",
+          "municipio": "COELLO",
+          "codigo_dane": "73200"
+        },
+        {
+          "departamento": "TOLIMA",
+          "municipio": "PIEDRAS",
+          "codigo_dane": "73547"
+        },
+        {
+          "departamento": "TOLIMA",
+          "municipio": "ROVIRA",
+          "codigo_dane": "73624"
+        },
+        {
+          "departamento": "TOLIMA",
+          "municipio": "SAN LUIS",
+          "codigo_dane": "73678"
+        },
+        {
+          "departamento": "CUNDINAMARCA",
+          "municipio": "BELTRÁN",
+          "codigo_dane": "25086"
+        },
+        {
+          "departamento": "CUNDINAMARCA",
+          "municipio": "GIRARDOT",
+          "codigo_dane": "25307"
+        },
+        {
+          "departamento": "CUNDINAMARCA",
+          "municipio": "GUATAQUÍ",
+          "codigo_dane": "25324"
+        },
+        {
+          "departamento": "CUNDINAMARCA",
+          "municipio": "NARIÑO",
+          "codigo_dane": "25483"
+        },
+        {
+          "departamento": "QUINDIO",
+          "municipio": "ARMENIA",
+          "codigo_dane": "63001"
+        },
+        {
+          "departamento": "QUINDIO",
+          "municipio": "CALARCÁ",
+          "codigo_dane": "63130"
+        },
+        {
+          "departamento": "QUINDIO",
+          "municipio": "CIRCASIA",
+          "codigo_dane": "63190"
+        },
+        {
+          "departamento": "QUINDIO",
+          "municipio": "CÓRDOBA",
+          "codigo_dane": "63212"
+        },
+        {
+          "departamento": "QUINDIO",
+          "municipio": "FILANDIA",
+          "codigo_dane": "63272"
+        },
+        {
+          "departamento": "QUINDIO",
+          "municipio": "PIJAO",
+          "codigo_dane": "63548"
+        },
+        {
+          "departamento": "RISARALDA",
+          "municipio": "PEREIRA",
+          "codigo_dane": "66001"
+        },
+        {
+          "departamento": "TOLIMA",
+          "municipio": "ESPINAL",
+          "codigo_dane": "73268"
+        },
+        {
+          "departamento": "TOLIMA",
+          "municipio": "FLANDES",
+          "codigo_dane": "73275"
+        },
+        {
+          "departamento": "TOLIMA",
+          "municipio": "GUAMO",
+          "codigo_dane": "73319"
+        },
+        {
+          "departamento": "TOLIMA",
+          "municipio": "ORTEGA",
+          "codigo_dane": "73504"
+        },
+        {
+          "departamento": "TOLIMA",
+          "municipio": "RONCESVALLES",
+          "codigo_dane": "73622"
+        },
+        {
+          "departamento": "TOLIMA",
+          "municipio": "SALDAÑA",
+          "codigo_dane": "73671"
+        },
+        {
+          "departamento": "TOLIMA",
+          "municipio": "SAN ANTONIO",
+          "codigo_dane": "73675"
+        },
+        {
+          "departamento": "TOLIMA",
+          "municipio": "SANTA ISABEL",
+          "codigo_dane": "73686"
+        },
+        {
+          "departamento": "TOLIMA",
+          "municipio": "VALLE DE SAN JUAN",
+          "codigo_dane": "73854"
+        },
+        {
+          "departamento": "TOLIMA",
+          "municipio": "VENADILLO",
+          "codigo_dane": "73861"
+        }
+      ]
+    }
+  }
+}

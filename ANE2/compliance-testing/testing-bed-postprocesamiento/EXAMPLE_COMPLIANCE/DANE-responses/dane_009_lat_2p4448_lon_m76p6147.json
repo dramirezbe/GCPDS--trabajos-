@@ -1,0 +1,133 @@
+{
+  "meta": {
+    "index": 9,
+    "lat": 2.4448,
+    "lon": -76.6147,
+    "timestamp_utc": "2026-04-21T20:07:52.966361+00:00",
+    "source": "api_dane_from_coords_via_tunnel._query_location_via_tunnel",
+    "status": "ok"
+  },
+  "raw_response": {
+    "encontrado": true,
+    "resultado": {
+      "central": {
+        "departamento": "CAUCA",
+        "municipio": "POPAYÁN",
+        "codigo_dane": "19001"
+      },
+      "radio_km": 30.0,
+      "adyacentes": [
+        {
+          "departamento": "CAUCA",
+          "municipio": "CAJIBÍO",
+          "codigo_dane": "19130"
+        },
+        {
+          "departamento": "CAUCA",
+          "municipio": "EL TAMBO",
+          "codigo_dane": "19256"
+        },
+        {
+          "departamento": "CAUCA",
+          "municipio": "PURACÉ",
+          "codigo_dane": "19585"
+        },
+        {
+          "departamento": "CAUCA",
+          "municipio": "SOTARÁ PAISPAMBA",
+          "codigo_dane": "19760"
+        },
+        {
+          "departamento": "CAUCA",
+          "municipio": "TIMBÍO",
+          "codigo_dane": "19807"
+        },
+        {
+          "departamento": "CAUCA",
+          "municipio": "TOTORÓ",
+          "codigo_dane": "19824"
+        },
+        {
+          "departamento": "CAUCA",
+          "municipio": "ARGELIA",
+          "codigo_dane": "19050"
+        },
+        {
+          "departamento": "CAUCA",
+          "municipio": "INZÁ",
+          "codigo_dane": "19355"
+        },
+        {
+          "departamento": "CAUCA",
+          "municipio": "LA SIERRA",
+          "codigo_dane": "19392"
+        },
+        {
+          "departamento": "CAUCA",
+          "municipio": "LA VEGA",
+          "codigo_dane": "19397"
+        },
+        {
+          "departamento": "CAUCA",
+          "municipio": "LÓPEZ DE MICAY",
+          "codigo_dane": "19418"
+        },
+        {
+          "departamento": "CAUCA",
+          "municipio": "MORALES",
+          "codigo_dane": "19473"
+        },
+        {
+          "departamento": "CAUCA",
+          "municipio": "PATÍA",
+          "codigo_dane": "19532"
+        },
+        {
+          "departamento": "CAUCA",
+          "municipio": "PIENDAMÓ - TUNÍA",
+          "codigo_dane": "19548"
+        },
+        {
+          "departamento": "CAUCA",
+          "municipio": "ROSAS",
+          "codigo_dane": "19622"
+        },
+        {
+          "departamento": "CAUCA",
+          "municipio": "SILVIA",
+          "codigo_dane": "19743"
+        },
+        {
+          "departamento": "CAUCA",
+          "municipio": "TIMBIQUÍ",
+          "codigo_dane": "19809"
+        },
+        {
+          "departamento": "HUILA",
+          "municipio": "ISNOS",
+          "codigo_dane": "41359"
+        },
+        {
+          "departamento": "HUILA",
+          "municipio": "LA ARGENTINA",
+          "codigo_dane": "41378"
+        },
+        {
+          "departamento": "HUILA",
+          "municipio": "LA PLATA",
+          "codigo_dane": "41396"
+        },
+        {
+          "departamento": "HUILA",
+          "municipio": "SALADOBLANCO",
+          "codigo_dane": "41660"
+        },
+        {
+          "departamento": "HUILA",
+          "municipio": "SAN AGUSTÍN",
+          "codigo_dane": "41668"
+        }
+      ]
+    }
+  }
+}

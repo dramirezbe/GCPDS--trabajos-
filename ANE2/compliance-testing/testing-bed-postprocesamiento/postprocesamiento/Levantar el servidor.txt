@@ -1,0 +1,42 @@
+Levantar el servidor:
+python server_flask.py --host 127.0.0.1 --port 8000
+
+
+Terminal B:
+
+# ============================
+# TERMINAL B (cliente) — envía el JSON COMPLETO en "frame" (NO ruta)
+# Requisitos: ya tienes el JSON de medición guardado localmente (simula lo que enviaría el sensor)
+# ============================
+
+# 1) Archivos / parámetros
+$jsonFile = "C:\Users\USUARIO\Desktop\spectrum_ANE6_2025-12-12T02-03-55.json"   # JSON de medición (estructura del sensor)
+$licFile  = "D:\universidad\Proyecto ANE\consolidado_bbdd_asignación\consolidado_bbdd_asignación.csv"  # CSV licencias
+$dane     = "11001"
+
+# 2) Cargar JSON completo como objeto (esto será el "frame" que mandas al server)
+$frameObj = Get-Content -Raw -Encoding UTF8 $jsonFile | ConvertFrom-Json
+
+# 3) Payload: frame + parámetros (cumplimiento=1)
+$payloadObj = [ordered]@{
+  frame        = $frameObj
+  cumplimiento = 1
+  lic          = $licFile
+  dane         = $dane
+}
+
+# 4) Serializar (PowerShell máximo Depth=100)
+$payloadJson = $payloadObj | ConvertTo-Json -Depth 100
+$utf8 = [System.Text.Encoding]::UTF8.GetBytes($payloadJson)
+
+# 5) POST al servidor y mostrar TODO (raw + pretty)
+$resp = Invoke-WebRequest -Method POST `
+  -Uri "http://127.0.0.1:8000/analyze" `
+  -ContentType "application/json; charset=utf-8" `
+  -Body $utf8
+
+"====== RAW (completo) ======"
+$resp.Content
+
+"`n====== PRETTY (completo) ======"
+($resp.Content | ConvertFrom-Json) | ConvertTo-Json -Depth 100

@@ -1,0 +1,133 @@
+{
+  "meta": {
+    "index": 14,
+    "lat": 4.142,
+    "lon": -73.6266,
+    "timestamp_utc": "2026-04-21T20:07:59.929267+00:00",
+    "source": "api_dane_from_coords_via_tunnel._query_location_via_tunnel",
+    "status": "ok"
+  },
+  "raw_response": {
+    "encontrado": true,
+    "resultado": {
+      "central": {
+        "departamento": "META",
+        "municipio": "VILLAVICENCIO",
+        "codigo_dane": "50001"
+      },
+      "radio_km": 30.0,
+      "adyacentes": [
+        {
+          "departamento": "CUNDINAMARCA",
+          "municipio": "GUAYABETAL",
+          "codigo_dane": "25335"
+        },
+        {
+          "departamento": "META",
+          "municipio": "ACACÍAS",
+          "codigo_dane": "50006"
+        },
+        {
+          "departamento": "META",
+          "municipio": "EL CALVARIO",
+          "codigo_dane": "50245"
+        },
+        {
+          "departamento": "META",
+          "municipio": "PUERTO LÓPEZ",
+          "codigo_dane": "50573"
+        },
+        {
+          "departamento": "META",
+          "municipio": "RESTREPO",
+          "codigo_dane": "50606"
+        },
+        {
+          "departamento": "META",
+          "municipio": "SAN CARLOS DE GUAROA",
+          "codigo_dane": "50680"
+        },
+        {
+          "departamento": "CUNDINAMARCA",
+          "municipio": "FÓMEQUE",
+          "codigo_dane": "25279"
+        },
+        {
+          "departamento": "CUNDINAMARCA",
+          "municipio": "FOSCA",
+          "codigo_dane": "25281"
+        },
+        {
+          "departamento": "CUNDINAMARCA",
+          "municipio": "GUTIÉRREZ",
+          "codigo_dane": "25339"
+        },
+        {
+          "departamento": "CUNDINAMARCA",
+          "municipio": "MEDINA",
+          "codigo_dane": "25438"
+        },
+        {
+          "departamento": "CUNDINAMARCA",
+          "municipio": "QUETAME",
+          "codigo_dane": "25594"
+        },
+        {
+          "departamento": "META",
+          "municipio": "CABUYARO",
+          "codigo_dane": "50124"
+        },
+        {
+          "departamento": "META",
+          "municipio": "CASTILLA LA NUEVA",
+          "codigo_dane": "50150"
+        },
+        {
+          "departamento": "META",
+          "municipio": "CUMARAL",
+          "codigo_dane": "50226"
+        },
+        {
+          "departamento": "META",
+          "municipio": "GUAMAL",
+          "codigo_dane": "50318"
+        },
+        {
+          "departamento": "META",
+          "municipio": "PUERTO GAITÁN",
+          "codigo_dane": "50568"
+        },
+        {
+          "departamento": "META",
+          "municipio": "SAN JUANITO",
+          "codigo_dane": "50686"
+        },
+        {
+          "departamento": "META",
+          "municipio": "SAN MARTÍN",
+          "codigo_dane": "50689"
+        },
+        {
+          "departamento": "CASANARE",
+          "municipio": "MANÍ",
+          "codigo_dane": "85139"
+        },
+        {
+          "departamento": "CASANARE",
+          "municipio": "TAURAMENA",
+          "codigo_dane": "85410"
+        },
+        {
+          "departamento": "CASANARE",
+          "municipio": "VILLANUEVA",
+          "codigo_dane": "85440"
+        },
+        {
+          "departamento": "CUNDINAMARCA",
+          "municipio": "PARATEBUENO",
+          "codigo_dane": "25530"
+        }
+      ]
+    }
+  }
+}

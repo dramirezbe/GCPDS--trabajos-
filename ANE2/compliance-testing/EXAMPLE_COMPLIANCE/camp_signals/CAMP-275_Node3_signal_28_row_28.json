@@ -1094,7 +1094,7 @@
     "25769"
   ],
   "picos": [],
-  "umbral_db": 0,
+  "umbral_db": 5,
   "delta_fc_khz": 100,
   "delta_bw_khz": 10
 }

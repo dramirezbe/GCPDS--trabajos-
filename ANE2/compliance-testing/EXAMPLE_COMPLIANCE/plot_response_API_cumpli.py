@@ -14,14 +14,24 @@ from matplotlib.patches import Patch
 
 
 BASE_DIR = Path(__file__).resolve().parent
-DEFAULT_SIGNALS_DIR = BASE_DIR / "camp_signals"
-DEFAULT_RESPONSES_DIR = BASE_DIR / "camp-278-new-API"
+DEFAULT_CAMPAIGN_NUMBER = 275
 
 
 @dataclass(frozen=True)
 class PlotPair:
     signal_path: Path
     response_path: Path
+
+
+def _campaign_dir_name(campaign_number: int, suffix: str) -> str:
+    return f"camp-{campaign_number}-{suffix}"
+
+
+def _resolve_data_dir(folder_arg: Optional[Path], default_name: str) -> Path:
+    if folder_arg is None:
+        return (BASE_DIR / default_name).resolve()
+
+    return folder_arg.expanduser().resolve()
 
 
 def _load_json(path: Path) -> Dict[str, Any]:
@@ -46,6 +56,22 @@ def _response_to_signal_path(response_path: Path, signals_dir: Path) -> Path:
     if stem.endswith("_response"):
         stem = stem[:-9]
     return signals_dir / f"{stem}.json"
+
+
+def _build_plot_title(pair: PlotPair, response_json: Dict[str, Any]) -> str:
+    stem = pair.response_path.stem
+    if stem.endswith("_response"):
+        stem = stem[:-9]
+
+    parts = stem.split("_")
+    if len(parts) >= 6 and parts[2] == "signal" and parts[4] == "row":
+        title = f"{parts[0]} | {parts[1]} | signal {parts[3]} | row {parts[5]}"
+    else:
+        title = stem.replace("_", " ")
+
+    mode = _format_text_value(response_json.get("mode"))
+    emissions = _format_text_value(response_json.get("num_emissions"))
+    return f"{title}\nmode={mode} | emissions={emissions}"
 
 
 def _build_pairs(signals_dir: Path, responses_dir: Path, pattern: Optional[str]) -> List[PlotPair]:
@@ -100,6 +126,57 @@ def _format_value(value: Optional[float], fmt: str) -> str:
     return format(value, fmt)
 
 
+def _format_text_value(value: Any) -> str:
+    if value is None:
+        return "-"
+    text = str(value).strip()
+    return text if text else "-"
+
+
+def _resolve_result_dane_codes(response_json: Dict[str, Any], results: List[Dict[str, Any]]) -> List[str]:
+    default_dane = response_json.get("dane")
+    if default_dane is None:
+        danes = response_json.get("danes") or []
+        default_dane = danes[0] if danes else None
+    default_dane_text = _format_text_value(default_dane)
+
+    if not results:
+        return []
+
+    row_level_codes = [
+        row.get("dane") or row.get("codigo_dane") or row.get("dane_code")
+        for row in results
+    ]
+    if any(code is not None for code in row_level_codes):
+        return [_format_text_value(code or default_dane) for code in row_level_codes]
+
+    results_by_dane = response_json.get("results_by_dane")
+    if isinstance(results_by_dane, dict):
+        for dane_code, dane_rows in results_by_dane.items():
+            if dane_rows == results:
+                return [str(dane_code)] * len(results)
+
+        resolved_codes: List[str] = []
+        for idx, row in enumerate(results):
+            matched_code = None
+
+            for dane_code, dane_rows in results_by_dane.items():
+                if idx < len(dane_rows) and dane_rows[idx] == row:
+                    matched_code = dane_code
+                    break
+
+            if matched_code is None:
+                for dane_code, dane_rows in results_by_dane.items():
+                    if row in dane_rows:
+                        matched_code = dane_code
+                        break
+
+            resolved_codes.append(_format_text_value(matched_code or default_dane))
+        return resolved_codes
+
+    return [default_dane_text] * len(results)
+
+
 def _build_summary_lines(response_path: Path, response_json: Dict[str, Any], results: List[Dict[str, Any]]) -> List[str]:
     threshold = _as_float(response_json.get("umbral"))
     lines = [
@@ -111,26 +188,28 @@ def _build_summary_lines(response_path: Path, response_json: Dict[str, Any], res
             f"danes={len(response_json.get('danes', []))}"
         ),
         "",
-        "id  lic  FC/BW/P   fc_med(MHz)  bw_med(kHz)  p_med(dBm)  fc_nom(MHz)  bw_nom(kHz)",
-        "--  ---  -------   -----------  -----------  ----------  -----------  -----------",
+        "id  lic   dane  FC/BW/P   fc_med(MHz)  bw_med(kHz)  p_med(dBm)  fc_nom(MHz)  bw_nom(kHz)",
+        "--  ---  -----  -------   -----------  -----------  ----------  -----------  -----------",
     ]
+    dane_codes = _resolve_result_dane_codes(response_json, results)
 
-    for idx, row in enumerate(results, start=1):
+    for idx, (row, dane_code) in enumerate(zip(results, dane_codes), start=1):
         fc_med = _as_float(row.get("fc_medida_MHz", row.get("fc_mhz")))
         bw_med = _as_float(row.get("bw_medido_kHz", row.get("bw_khz")))
         p_med = _as_float(row.get("p_medida_dBm", row.get("power_dbm")))
         fc_nom = _as_float(row.get("fc_nominal_MHz"))
         bw_nom = _as_float(row.get("bw_nominal_kHz"))
 
-        lic = str(row.get("Licencia", "-"))
+        lic = _format_text_value(row.get("Licencia"))
         flags = (
-            f"{str(row.get('Cumple_FC', '-'))}/"
-            f"{str(row.get('Cumple_BW', '-'))}/"
-            f"{str(row.get('Cumple_P', '-'))}"
+            f"{_format_text_value(row.get('Cumple_FC'))}/"
+            f"{_format_text_value(row.get('Cumple_BW'))}/"
+            f"{_format_text_value(row.get('Cumple_P'))}"
         )
         lines.append(
             f"{idx:02d}  "
             f"{lic:>3}  "
+            f"{_format_text_value(dane_code):>5}  "
             f"{flags:>7}   "
             f"{_format_value(fc_med, '11.4f'):>11}  "
             f"{_format_value(bw_med, '11.1f'):>11}  "
@@ -193,9 +272,10 @@ def _plot_pair(pair: PlotPair, signal_json: Dict[str, Any], response_json: Dict[
     frame_json = signal_json.get("frame", {})
     freqs_mhz, pxx = _build_freq_axis_mhz(frame_json)
     results = sorted(response_json.get("results", []), key=_result_sort_key)
+    plot_title = _build_plot_title(pair, response_json)
 
-    fig = plt.figure(figsize=(16, 9), constrained_layout=True)
-    grid = fig.add_gridspec(2, 1, height_ratios=[3.2, 1.8], hspace=0.18)
+    fig = plt.figure(figsize=(17, 9.4), constrained_layout=True)
+    grid = fig.add_gridspec(2, 1, height_ratios=[3.1, 2.0], hspace=0.14)
     ax = fig.add_subplot(grid[0, 0])
     ax_info = fig.add_subplot(grid[1, 0])
 
@@ -207,12 +287,6 @@ def _plot_pair(pair: PlotPair, signal_json: Dict[str, Any], response_json: Dict[
 
     _add_result_overlays(ax, freqs_mhz, pxx, results)
 
-    ax.set_title(
-        f"{pair.response_path.name} | mode={response_json.get('mode')} | "
-        f"emissions={response_json.get('num_emissions')}",
-        fontsize=13,
-        fontweight="bold",
-    )
     ax.set_xlabel("Frequency (MHz)")
     ax.set_ylabel("Pxx")
     ax.grid(True, alpha=0.22)
@@ -231,7 +305,7 @@ def _plot_pair(pair: PlotPair, signal_json: Dict[str, Any], response_json: Dict[
 
     ax_info.axis("off")
     summary_lines = _build_summary_lines(pair.response_path, response_json, results)
-    fontsize = 8 if len(summary_lines) <= 24 else 7
+    fontsize = 9 if len(summary_lines) <= 24 else 8
     ax_info.text(
         0.01,
         0.98,
@@ -240,6 +314,7 @@ def _plot_pair(pair: PlotPair, signal_json: Dict[str, Any], response_json: Dict[
         ha="left",
         family="monospace",
         fontsize=fontsize,
+        linespacing=1.15,
         transform=ax_info.transAxes,
     )
 
@@ -247,10 +322,12 @@ def _plot_pair(pair: PlotPair, signal_json: Dict[str, Any], response_json: Dict[
         fig.canvas.manager.set_window_title(pair.response_path.name)
 
     fig.suptitle(
-        f"Signal: {pair.signal_path.name}",
+        plot_title,
         x=0.5,
-        y=0.995,
-        fontsize=11,
+        y=0.992,
+        fontsize=14,
+        fontweight="bold",
+        linespacing=1.25,
     )
     return fig
 
@@ -262,8 +339,27 @@ def _parse_args() -> argparse.Namespace:
             "sobre la Pxx original."
         )
     )
-    parser.add_argument("--signals-dir", type=Path, default=DEFAULT_SIGNALS_DIR)
-    parser.add_argument("--responses-dir", type=Path, default=DEFAULT_RESPONSES_DIR)
+    parser.add_argument(
+        "-n",
+        "--campaign-number",
+        "--number-camp",
+        dest="campaign_number",
+        type=int,
+        default=DEFAULT_CAMPAIGN_NUMBER,
+        help=f"Numero de campana para resolver camp-<n>-signals y camp-<n>-responses (default: {DEFAULT_CAMPAIGN_NUMBER}).",
+    )
+    parser.add_argument(
+        "--signals-dir",
+        type=Path,
+        default=None,
+        help="Ruta manual a la carpeta de senales. Si se omite, usa camp-<n>-signals.",
+    )
+    parser.add_argument(
+        "--responses-dir",
+        type=Path,
+        default=None,
+        help="Ruta manual a la carpeta de respuestas. Si se omite, usa camp-<n>-responses.",
+    )
     parser.add_argument("--pattern", type=str, default=None, help="Filtra por nombre de archivo.")
     parser.add_argument("--start-index", type=int, default=0, help="Indice inicial dentro de la lista ordenada.")
     parser.add_argument("--limit", type=int, default=None, help="Cantidad maxima de plots a mostrar.")
@@ -277,8 +373,14 @@ def _parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = _parse_args()
-    signals_dir = args.signals_dir.expanduser().resolve()
-    responses_dir = args.responses_dir.expanduser().resolve()
+    signals_dir = _resolve_data_dir(
+        args.signals_dir,
+        _campaign_dir_name(args.campaign_number, "signals"),
+    )
+    responses_dir = _resolve_data_dir(
+        args.responses_dir,
+        _campaign_dir_name(args.campaign_number, "responses"),
+    )
 
     if not signals_dir.exists():
         raise SystemExit(f"Signals directory not found: {signals_dir}")

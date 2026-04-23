@@ -1,0 +1,148 @@
+{
+  "meta": {
+    "index": 6,
+    "lat": 7.1193,
+    "lon": -73.1227,
+    "timestamp_utc": "2026-04-21T20:07:48.702552+00:00",
+    "source": "api_dane_from_coords_via_tunnel._query_location_via_tunnel",
+    "status": "ok"
+  },
+  "raw_response": {
+    "encontrado": true,
+    "resultado": {
+      "central": {
+        "departamento": "SANTANDER",
+        "municipio": "BUCARAMANGA",
+        "codigo_dane": "68001"
+      },
+      "radio_km": 30.0,
+      "adyacentes": [
+        {
+          "departamento": "SANTANDER",
+          "municipio": "CHARTA",
+          "codigo_dane": "68169"
+        },
+        {
+          "departamento": "SANTANDER",
+          "municipio": "FLORIDABLANCA",
+          "codigo_dane": "68276"
+        },
+        {
+          "departamento": "SANTANDER",
+          "municipio": "GIRÓN",
+          "codigo_dane": "68307"
+        },
+        {
+          "departamento": "SANTANDER",
+          "municipio": "MATANZA",
+          "codigo_dane": "68444"
+        },
+        {
+          "departamento": "SANTANDER",
+          "municipio": "RIONEGRO",
+          "codigo_dane": "68615"
+        },
+        {
+          "departamento": "SANTANDER",
+          "municipio": "TONA",
+          "codigo_dane": "68820"
+        },
+        {
+          "departamento": "CESAR",
+          "municipio": "SAN ALBERTO",
+          "codigo_dane": "20710"
+        },
+        {
+          "departamento": "CESAR",
+          "municipio": "SAN MARTÍN",
+          "codigo_dane": "20770"
+        },
+        {
+          "departamento": "NORTE DE SANTANDER",
+          "municipio": "CÁCHIRA",
+          "codigo_dane": "54128"
+        },
+        {
+          "departamento": "NORTE DE SANTANDER",
+          "municipio": "LA ESPERANZA",
+          "codigo_dane": "54385"
+        },
+        {
+          "departamento": "NORTE DE SANTANDER",
+          "municipio": "SILOS",
+          "codigo_dane": "54743"
+        },
+        {
+          "departamento": "SANTANDER",
+          "municipio": "BARRANCABERMEJA",
+          "codigo_dane": "68081"
+        },
+        {
+          "departamento": "SANTANDER",
+          "municipio": "BETULIA",
+          "codigo_dane": "68092"
+        },
+        {
+          "departamento": "SANTANDER",
+          "municipio": "CALIFORNIA",
+          "codigo_dane": "68132"
+        },
+        {
+          "departamento": "SANTANDER",
+          "municipio": "EL PLAYÓN",
+          "codigo_dane": "68255"
+        },
+        {
+          "departamento": "SANTANDER",
+          "municipio": "LEBRIJA",
+          "codigo_dane": "68406"
+        },
+        {
+          "departamento": "SANTANDER",
+          "municipio": "LOS SANTOS",
+          "codigo_dane": "68418"
+        },
+        {
+          "departamento": "SANTANDER",
+          "municipio": "PIEDECUESTA",
+          "codigo_dane": "68547"
+        },
+        {
+          "departamento": "SANTANDER",
+          "municipio": "PUERTO WILCHES",
+          "codigo_dane": "68575"
+        },
+        {
+          "departamento": "SANTANDER",
+          "municipio": "SABANA DE TORRES",
+          "codigo_dane": "68655"
+        },
+        {
+          "departamento": "SANTANDER",
+          "municipio": "SAN VICENTE DE CHUCURÍ",
+          "codigo_dane": "68689"
+        },
+        {
+          "departamento": "SANTANDER",
+          "municipio": "SANTA BÁRBARA",
+          "codigo_dane": "68705"
+        },
+        {
+          "departamento": "SANTANDER",
+          "municipio": "SURATÁ",
+          "codigo_dane": "68780"
+        },
+        {
+          "departamento": "SANTANDER",
+          "municipio": "VETAS",
+          "codigo_dane": "68867"
+        },
+        {
+          "departamento": "SANTANDER",
+          "municipio": "ZAPATOCA",
+          "codigo_dane": "68895"
+        }
+      ]
+    }
+  }
+}

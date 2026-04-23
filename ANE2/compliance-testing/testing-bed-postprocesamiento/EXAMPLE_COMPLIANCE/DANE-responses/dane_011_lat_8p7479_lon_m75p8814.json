@@ -1,0 +1,158 @@
+{
+  "meta": {
+    "index": 11,
+    "lat": 8.7479,
+    "lon": -75.8814,
+    "timestamp_utc": "2026-04-21T20:07:55.782785+00:00",
+    "source": "api_dane_from_coords_via_tunnel._query_location_via_tunnel",
+    "status": "ok"
+  },
+  "raw_response": {
+    "encontrado": true,
+    "resultado": {
+      "central": {
+        "departamento": "CÓRDOBA",
+        "municipio": "MONTERÍA",
+        "codigo_dane": "23001"
+      },
+      "radio_km": 30.0,
+      "adyacentes": [
+        {
+          "departamento": "ANTIOQUIA",
+          "municipio": "ARBOLETES",
+          "codigo_dane": "05051"
+        },
+        {
+          "departamento": "ANTIOQUIA",
+          "municipio": "SAN PEDRO DE URABÁ",
+          "codigo_dane": "05665"
+        },
+        {
+          "departamento": "CÓRDOBA",
+          "municipio": "CANALETE",
+          "codigo_dane": "23090"
+        },
+        {
+          "departamento": "CÓRDOBA",
+          "municipio": "CERETÉ",
+          "codigo_dane": "23162"
+        },
+        {
+          "departamento": "CÓRDOBA",
+          "municipio": "LOS CÓRDOBAS",
+          "codigo_dane": "23419"
+        },
+        {
+          "departamento": "CÓRDOBA",
+          "municipio": "PLANETA RICA",
+          "codigo_dane": "23555"
+        },
+        {
+          "departamento": "CÓRDOBA",
+          "municipio": "PUERTO ESCONDIDO",
+          "codigo_dane": "23574"
+        },
+        {
+          "departamento": "CÓRDOBA",
+          "municipio": "SAN CARLOS",
+          "codigo_dane": "23678"
+        },
+        {
+          "departamento": "CÓRDOBA",
+          "municipio": "SAN PELAYO",
+          "codigo_dane": "23686"
+        },
+        {
+          "departamento": "CÓRDOBA",
+          "municipio": "TIERRALTA",
+          "codigo_dane": "23807"
+        },
+        {
+          "departamento": "CÓRDOBA",
+          "municipio": "VALENCIA",
+          "codigo_dane": "23855"
+        },
+        {
+          "departamento": "ANTIOQUIA",
+          "municipio": "APARTADÓ",
+          "codigo_dane": "05045"
+        },
+        {
+          "departamento": "ANTIOQUIA",
+          "municipio": "CAREPA",
+          "codigo_dane": "05147"
+        },
+        {
+          "departamento": "ANTIOQUIA",
+          "municipio": "CHIGORODÓ",
+          "codigo_dane": "05172"
+        },
+        {
+          "departamento": "ANTIOQUIA",
+          "municipio": "ITUANGO",
+          "codigo_dane": "05361"
+        },
+        {
+          "departamento": "ANTIOQUIA",
+          "municipio": "MUTATÁ",
+          "codigo_dane": "05480"
+        },
+        {
+          "departamento": "ANTIOQUIA",
+          "municipio": "NECOCLÍ",
+          "codigo_dane": "05490"
+        },
+        {
+          "departamento": "ANTIOQUIA",
+          "municipio": "SAN JUAN DE URABÁ",
+          "codigo_dane": "05659"
+        },
+        {
+          "departamento": "ANTIOQUIA",
+          "municipio": "TURBO",
+          "codigo_dane": "05837"
+        },
+        {
+          "departamento": "CÓRDOBA",
+          "municipio": "BUENAVISTA",
+          "codigo_dane": "23079"
+        },
+        {
+          "departamento": "CÓRDOBA",
+          "municipio": "CHIMÁ",
+          "codigo_dane": "23168"
+        },
+        {
+          "departamento": "CÓRDOBA",
+          "municipio": "CIÉNAGA DE ORO",
+          "codigo_dane": "23189"
+        },
+        {
+          "departamento": "CÓRDOBA",
+          "municipio": "COTORRA",
+          "codigo_dane": "23300"
+        },
+        {
+          "departamento": "CÓRDOBA",
+          "municipio": "LORICA",
+          "codigo_dane": "23417"
+        },
+        {
+          "departamento": "CÓRDOBA",
+          "municipio": "MONTELÍBANO",
+          "codigo_dane": "23466"
+        },
+        {
+          "departamento": "CÓRDOBA",
+          "municipio": "MOÑITOS",
+          "codigo_dane": "23500"
+        },
+        {
+          "departamento": "CÓRDOBA",
+          "municipio": "PUEBLO NUEVO",
+          "codigo_dane": "23570"
+        }
+      ]
+    }
+  }
+}

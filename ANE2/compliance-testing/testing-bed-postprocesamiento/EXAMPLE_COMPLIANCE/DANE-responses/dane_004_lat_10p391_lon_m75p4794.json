@@ -1,0 +1,88 @@
+{
+  "meta": {
+    "index": 4,
+    "lat": 10.391,
+    "lon": -75.4794,
+    "timestamp_utc": "2026-04-21T20:07:46.367545+00:00",
+    "source": "api_dane_from_coords_via_tunnel._query_location_via_tunnel",
+    "status": "ok"
+  },
+  "raw_response": {
+    "encontrado": true,
+    "resultado": {
+      "central": {
+        "departamento": "BOLÍVAR",
+        "municipio": "CARTAGENA DE INDIAS",
+        "codigo_dane": "13001"
+      },
+      "radio_km": 30.0,
+      "adyacentes": [
+        {
+          "departamento": "BOLÍVAR",
+          "municipio": "CLEMENCIA",
+          "codigo_dane": "13222"
+        },
+        {
+          "departamento": "BOLÍVAR",
+          "municipio": "SANTA CATALINA",
+          "codigo_dane": "13673"
+        },
+        {
+          "departamento": "BOLÍVAR",
+          "municipio": "SANTA ROSA",
+          "codigo_dane": "13683"
+        },
+        {
+          "departamento": "BOLÍVAR",
+          "municipio": "TURBACO",
+          "codigo_dane": "13836"
+        },
+        {
+          "departamento": "BOLÍVAR",
+          "municipio": "TURBANA",
+          "codigo_dane": "13838"
+        },
+        {
+          "departamento": "ATLÁNTICO",
+          "municipio": "LURUACO",
+          "codigo_dane": "08421"
+        },
+        {
+          "departamento": "ATLÁNTICO",
+          "municipio": "PIOJÓ",
+          "codigo_dane": "08549"
+        },
+        {
+          "departamento": "ATLÁNTICO",
+          "municipio": "REPELÓN",
+          "codigo_dane": "08606"
+        },
+        {
+          "departamento": "BOLÍVAR",
+          "municipio": "ARJONA",
+          "codigo_dane": "13052"
+        },
+        {
+          "departamento": "BOLÍVAR",
+          "municipio": "SAN ESTANISLAO",
+          "codigo_dane": "13647"
+        },
+        {
+          "departamento": "BOLÍVAR",
+          "municipio": "VILLANUEVA",
+          "codigo_dane": "13873"
+        },
+        {
+          "departamento": "SUCRE",
+          "municipio": "SAN ONOFRE",
+          "codigo_dane": "70713"
+        },
+        {
+          "departamento": "BOLÍVAR",
+          "municipio": "MAHATES",
+          "codigo_dane": "13433"
+        }
+      ]
+    }
+  }
+}

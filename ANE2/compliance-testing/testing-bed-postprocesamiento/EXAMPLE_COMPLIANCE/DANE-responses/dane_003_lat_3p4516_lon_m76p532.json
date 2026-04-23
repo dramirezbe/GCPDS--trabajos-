@@ -1,0 +1,143 @@
+{
+  "meta": {
+    "index": 3,
+    "lat": 3.4516,
+    "lon": -76.532,
+    "timestamp_utc": "2026-04-21T20:07:44.948897+00:00",
+    "source": "api_dane_from_coords_via_tunnel._query_location_via_tunnel",
+    "status": "ok"
+  },
+  "raw_response": {
+    "encontrado": true,
+    "resultado": {
+      "central": {
+        "departamento": "VALLE DEL CAUCA",
+        "municipio": "CALI",
+        "codigo_dane": "76001"
+      },
+      "radio_km": 30.0,
+      "adyacentes": [
+        {
+          "departamento": "CAUCA",
+          "municipio": "PUERTO TEJADA",
+          "codigo_dane": "19573"
+        },
+        {
+          "departamento": "VALLE DEL CAUCA",
+          "municipio": "BUENAVENTURA",
+          "codigo_dane": "76109"
+        },
+        {
+          "departamento": "VALLE DEL CAUCA",
+          "municipio": "CANDELARIA",
+          "codigo_dane": "76130"
+        },
+        {
+          "departamento": "VALLE DEL CAUCA",
+          "municipio": "DAGUA",
+          "codigo_dane": "76233"
+        },
+        {
+          "departamento": "VALLE DEL CAUCA",
+          "municipio": "JAMUNDÍ",
+          "codigo_dane": "76364"
+        },
+        {
+          "departamento": "VALLE DEL CAUCA",
+          "municipio": "LA CUMBRE",
+          "codigo_dane": "76377"
+        },
+        {
+          "departamento": "VALLE DEL CAUCA",
+          "municipio": "PALMIRA",
+          "codigo_dane": "76520"
+        },
+        {
+          "departamento": "VALLE DEL CAUCA",
+          "municipio": "YUMBO",
+          "codigo_dane": "76892"
+        },
+        {
+          "departamento": "CAUCA",
+          "municipio": "BUENOS AIRES",
+          "codigo_dane": "19110"
+        },
+        {
+          "departamento": "CAUCA",
+          "municipio": "CALOTO",
+          "codigo_dane": "19142"
+        },
+        {
+          "departamento": "CAUCA",
+          "municipio": "GUACHENÉ",
+          "codigo_dane": "19300"
+        },
+        {
+          "departamento": "CAUCA",
+          "municipio": "LÓPEZ DE MICAY",
+          "codigo_dane": "19418"
+        },
+        {
+          "departamento": "CAUCA",
+          "municipio": "MIRANDA",
+          "codigo_dane": "19455"
+        },
+        {
+          "departamento": "CAUCA",
+          "municipio": "PADILLA",
+          "codigo_dane": "19513"
+        },
+        {
+          "departamento": "CAUCA",
+          "municipio": "SANTANDER DE QUILICHAO",
+          "codigo_dane": "19698"
+        },
+        {
+          "departamento": "CAUCA",
+          "municipio": "VILLA RICA",
+          "codigo_dane": "19845"
+        },
+        {
+          "departamento": "CHOCÓ",
+          "municipio": "EL LITORAL DEL SAN JUAN",
+          "codigo_dane": "27250"
+        },
+        {
+          "departamento": "TOLIMA",
+          "municipio": "RIOBLANCO",
+          "codigo_dane": "73616"
+        },
+        {
+          "departamento": "VALLE DEL CAUCA",
+          "municipio": "CALIMA",
+          "codigo_dane": "76126"
+        },
+        {
+          "departamento": "VALLE DEL CAUCA",
+          "municipio": "EL CERRITO",
+          "codigo_dane": "76248"
+        },
+        {
+          "departamento": "VALLE DEL CAUCA",
+          "municipio": "FLORIDA",
+          "codigo_dane": "76275"
+        },
+        {
+          "departamento": "VALLE DEL CAUCA",
+          "municipio": "PRADERA",
+          "codigo_dane": "76563"
+        },
+        {
+          "departamento": "VALLE DEL CAUCA",
+          "municipio": "RESTREPO",
+          "codigo_dane": "76606"
+        },
+        {
+          "departamento": "VALLE DEL CAUCA",
+          "municipio": "VIJES",
+          "codigo_dane": "76869"
+        }
+      ]
+    }
+  }
+}

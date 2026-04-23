@@ -3,24 +3,18 @@ import json
 import shutil
 import requests
 import argparse
-from typing import Tuple, List, Any
+from typing import Optional
 
-from campaignAPI.data_request import DataRequest
-from api_dane_from_coords_via_tunnel import full_example_dane_tunnel
-
-dr = DataRequest(base_url="https://rsm.ane.gov.co:12443/api")
-
-campIds = {'CAMP-275': 275}
-#nodeIds = [1,2,3,4,5,7,9]
-nodeIds = [3]
+nodeIds = [1,2,3,4,5,6,7,8,9,10]
 
 #Bogota
 lat, lon = 4.6775, -74.0541
 
-WORK_FOLDER = Path("camp_signals")
-DEFAULT_THRES = 0
-DEFAULT_DELTA_FC = 100
-DEFAULT_DELTA_BW = 10
+BASE_DIR = Path(__file__).resolve().parent
+DEFAULT_CAMPAIGN_NUMBER = 275
+DEFAULT_THRES = None
+DEFAULT_DELTA_FC_KHZ = 100
+DEFAULT_DELTA_BW_KHZ = 10
 MIN_VALID_FREQ_HZ = 1_000_000
 MIN_VALID_PXX_LEN = 256
 
@@ -31,10 +25,12 @@ JEISSON_PORT = 8000
 OSCAR_PORT = 8001
 JEISSON_URL = f"http://{BASE_API}:{JEISSON_PORT}/{BASE_EP}"
 
-DEFAULT_RESPONSES_FOLDER_NAME = "responses_jeisson_api_compliance"
-
 def _safe_name(value: str) -> str:
     return str(value).replace("/", "_").replace("\\", "_").replace(" ", "_")
+
+
+def _campaign_folder_name(campaign_number: int, suffix: str) -> str:
+    return f"camp-{campaign_number}-{suffix}"
 
 
 def _normalize_pxx_values(pxx_raw):
@@ -74,8 +70,8 @@ def _row_is_valid_signal(row):
 
 
 def _build_payload_from_row(row, dane_codes, umbral_db=DEFAULT_THRES,
-                            delta_fc_khz=DEFAULT_DELTA_FC,
-                            delta_bw_khz=DEFAULT_DELTA_BW,
+                            delta_fc_khz=DEFAULT_DELTA_FC_KHZ,
+                            delta_bw_khz=DEFAULT_DELTA_BW_KHZ,
                             cumplimiento=True):
     is_valid, pxx_or_reason = _row_is_valid_signal(row)
     if not is_valid:
@@ -113,12 +109,16 @@ def _build_payload_from_row(row, dane_codes, umbral_db=DEFAULT_THRES,
 
 
 def downloadCampaignsData(campaign_ids, node_ids, dane_codes,
-                          work_folder=WORK_FOLDER,
+                          data_request,
+                          work_folder,
                           umbral_db=DEFAULT_THRES,
-                          delta_fc_khz=DEFAULT_DELTA_FC,
-                          delta_bw_khz=DEFAULT_DELTA_BW):
+                          delta_fc_khz=DEFAULT_DELTA_FC_KHZ,
+                          delta_bw_khz=DEFAULT_DELTA_BW_KHZ):
 
-    df_full = dr.load_campaigns_and_nodes(campaigns=campaign_ids, node_ids=node_ids)
+    df_full = data_request.load_campaigns_and_nodes(
+        campaigns=campaign_ids,
+        node_ids=node_ids,
+    )
 
     for campaign_name, data_nodes in df_full.items():
         for node_name, df_node in data_nodes.items():
@@ -208,41 +208,76 @@ def _parse_args():
     )
     parser.add_argument(
         "--responses-folder",
-        default=DEFAULT_RESPONSES_FOLDER_NAME,
+        type=Path,
         help=(
-            "Nombre o ruta de la carpeta donde se guardarán las respuestas JSON "
-            f"(default: {DEFAULT_RESPONSES_FOLDER_NAME})."
+            "Nombre o ruta de la carpeta donde se guardarán las respuestas JSON. "
+            "Por defecto usa camp-<n>-responses."
         ),
+    )
+    parser.add_argument(
+        "--signals-folder",
+        type=Path,
+        help=(
+            "Nombre o ruta de la carpeta donde se guardarán las señales generadas. "
+            "Por defecto usa camp-<n>-signals."
+        ),
+    )
+    parser.add_argument(
+        "-n",
+        "--campaign-number",
+        "--number-camp",
+        dest="campaign_number",
+        type=int,
+        default=DEFAULT_CAMPAIGN_NUMBER,
+        help=f"Número de campaña a procesar (default: {DEFAULT_CAMPAIGN_NUMBER})."
     )
     return parser.parse_args()
 
 
-def _resolve_responses_folder(folder_arg: str) -> Path:
-    folder = Path(folder_arg).expanduser()
-    if not folder.is_absolute():
-        folder = Path(__file__).resolve().parent / folder
-    return folder
+def _resolve_output_folder(folder_arg: Optional[Path], default_name: str) -> Path:
+    if folder_arg is None:
+        return BASE_DIR / default_name
+
+    return folder_arg.expanduser().resolve()
 
 
 def main():
     args = _parse_args()
-    responses_folder = _resolve_responses_folder(args.responses_folder)
+
+    from campaignAPI.data_request import DataRequest
+    from api_dane_from_coords_via_tunnel import full_example_dane_tunnel
+
+    nameCamp = f"CAMP-{args.campaign_number}"
+    campIds = {nameCamp: args.campaign_number}
+    work_folder = _resolve_output_folder(
+        args.signals_folder,
+        _campaign_folder_name(args.campaign_number, "signals"),
+    )
+    responses_folder = _resolve_output_folder(
+        args.responses_folder,
+        _campaign_folder_name(args.campaign_number, "responses"),
+    )
+
+    print(f"Signals will be saved in: {work_folder.resolve()}")
     responses_folder.mkdir(parents=True, exist_ok=True)
-    print(f"Responses from JEISSON API will be saved in: {responses_folder.resolve()}")
+    print(f"Responses from API will be saved in: {responses_folder.resolve()}")
 
-    if WORK_FOLDER.exists() and WORK_FOLDER.is_dir():
-        shutil.rmtree(WORK_FOLDER)
+    if work_folder.exists() and work_folder.is_dir():
+        shutil.rmtree(work_folder)
 
-    WORK_FOLDER.mkdir(parents=True, exist_ok=True)
+    work_folder.mkdir(parents=True, exist_ok=True)
 
+    data_request = DataRequest(base_url="https://rsm.ane.gov.co:12443/api")
     dane_codes = full_example_dane_tunnel(lat, lon)
     downloadCampaignsData(
         dane_codes=dane_codes,
         campaign_ids=campIds,
         node_ids=nodeIds,
+        data_request=data_request,
+        work_folder=work_folder,
     )
 
-    json_files = list(WORK_FOLDER.glob("*.json"))
+    json_files = sorted(work_folder.glob("*.json"))
     if not json_files:
         print("No .json files found in this directory.")
         return {}
@@ -252,8 +287,6 @@ def main():
         print()
         print(f"--- File: {file_path.name} ---")
         ready_payload = load_json_file(str(file_path), verbose=True)
-
-        api_dict = None
 
         try:
             api_response = _post_to_jeisson_api(ready_payload)
