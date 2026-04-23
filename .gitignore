@@ -5,6 +5,7 @@
 **/venv/
 
 # Caches y archivos compilados
+**/.cache/
 **/__pycache__/
 **/*.py[cod]
 **/*$py.class
