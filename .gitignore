@@ -95,3 +95,7 @@ yarn-error.log*
 
 # TypeScript build cache
 **/*.tsbuildinfo
+
+
+# AIs
+**/.codex

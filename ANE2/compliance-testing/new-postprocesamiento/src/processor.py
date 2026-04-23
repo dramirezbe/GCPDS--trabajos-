@@ -1680,12 +1680,23 @@ def _build_processing_args(umbral_db: Optional[float] = None) -> SimpleNamespace
     usados en process_one_file / split_wide_regions_by_internal_valleys.
     """
 
+    if umbral_db is None:
+        delta_above_nf_db = 3.0
+    else:
+        try:
+            delta_above_nf_db = float(umbral_db)
+        except Exception:
+            delta_above_nf_db = 3.0
+        if not np.isfinite(delta_above_nf_db):
+            delta_above_nf_db = 3.0
+        delta_above_nf_db = max(0.0, delta_above_nf_db)
+
     return SimpleNamespace(
         # Piso de ruido global
         nf_delta_db=0.5,
         nf_percentile=1.0,
         nf_min_points=4,
-        delta_above_nf_db=3.0,
+        delta_above_nf_db=delta_above_nf_db,
 
         # Suavizado
         smooth_window=18,
