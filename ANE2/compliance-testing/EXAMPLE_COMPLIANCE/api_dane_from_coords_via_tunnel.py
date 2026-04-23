@@ -141,6 +141,7 @@ def _collect_dane_codes(data: Dict[str, Any]) -> List[str]:
 
 def _query_location_via_tunnel(lat: float, lon: float, timeout: float) -> Dict[str, Any]:
     ssh_client = _create_ssh_client()
+    print("SSH connection stablished")
     server = None
     try:
         transport = ssh_client.get_transport()

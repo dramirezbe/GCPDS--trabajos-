@@ -1,0 +1,24 @@
+{
+  "start_freq_hz": 88000000,
+  "end_freq_hz": 108000000,
+  "resolution_hz": 10000,
+  "antenna_port": 1,
+  "window": "hamming",
+  "overlap": 0.5,
+  "sample_rate_hz": 20000000,
+  "lna_gain": 0,
+  "vga_gain": 0,
+  "antenna_amp": false,
+  "demodulation": {
+    "type": "FM",
+    "bandwidth_hz": 250000,
+    "center_freq_hz": 95500000,
+    "with_metrics": true,
+    "port_socket": "/1234"
+  },
+  "filter": {
+    "type": "lowpass",
+    "bw_hz": 100000,
+    "order": 4
+  }
+}

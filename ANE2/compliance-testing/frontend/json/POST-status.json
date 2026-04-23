@@ -1,0 +1,21 @@
+{
+  "mac": "00:11:22:33:44:55",
+  "metrics": {
+    "cpu": [57.2, 10.1, 11.4, 23.5],
+    "ram_mb": 3245,
+    "swap_mb": 345,
+    "disk_mb": 26734,
+    "temp_c": 50.0
+  },
+  "total_metrics": {
+    "ram_mb": 1234,
+    "swap_mb": 1234,
+    "disk_mb": 786734
+  },
+  "delta_t_ms": 467054056,
+  "ping_ms": 34.7,
+  "timestamp_ms": 467054056,
+  "last_kal_ms": 124351,
+  "last_ntp_ms": 123451,
+  "logs": "[module-name]WARNING|ERROR:text"
+}

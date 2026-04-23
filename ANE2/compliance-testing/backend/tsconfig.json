@@ -1,0 +1,46 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "commonjs",
+    "lib": ["ES2020"],
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "moduleResolution": "node",
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true
+  },
+  "include": [
+    "src/app.ts",
+    "src/websocket.ts",
+    "src/database/connection.ts",
+    "src/database/migrate.ts",
+    "src/database/seed.ts",
+    "src/database/loadSampleData.ts",
+    "src/database/fix-campaign-data.ts",
+    "src/models/**/*",
+    "src/routes/**/*",
+    "src/scripts/**/*",
+    "src/simulator/**/*",
+    "src/types/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "src/database/analyze-filtered.ts",
+    "src/database/check-report-data.ts",
+    "src/database/clean.ts",
+    "src/database/drop-frecuencias.ts",
+    "src/database/import-coberturas.ts",
+    "src/database/import-frecuencias.ts",
+    "src/database/insert-test-campaign.ts",
+    "src/database/insert-test-data.ts",
+    "src/database/migrate-postgres.ts",
+    "src/database/validate-frecuencias.ts"
+  ]
+}

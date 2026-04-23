@@ -1,0 +1,12 @@
+{
+  "name": "audio-dependencies",
+  "description": "Dependencias adicionales para el servidor de audio",
+  "dependencies": {
+    "ws": "^8.18.0",
+    "opusscript": "^0.1.1",
+    "@types/ws": "^8.5.10"
+  },
+  "devDependencies": {
+    "@types/opusscript": "^0.0.3"
+  }
+}
