@@ -12,17 +12,6 @@ import paramiko
 import requests
 from flask import Flask, jsonify, request
 
-#----Here hardcoded (ERASE LATER)----#
-SSH_HOST = "rsm.ane.gov.co"
-SSH_PORT = 1222
-SSH_USER = "root"
-SSH_PASS = '44"PJv43k}iS'
-
-REMOTE_SERVICE_HOST = "172.23.80.220"
-REMOTE_SERVICE_PORT = 4155
-LOCAL_BIND_HOST = "127.0.0.1"
-#----Here hardcoded (ERASE LATER)----#
-
 class _ForwardServer(socketserver.ThreadingTCPServer):
     allow_reuse_address = True
     daemon_threads = True

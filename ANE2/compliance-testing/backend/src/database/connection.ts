@@ -5,11 +5,11 @@ dotenv.config();
 
 // Configuración de PostgreSQL
 const pool = new Pool({
+  user: process.env.DB_USER,
   host: process.env.DB_HOST || 'localhost',
+  database: process.env.DB_NAME,
+  password: process.env.DB_PASSWORD,
   port: parseInt(process.env.DB_PORT || '5432'),
-  database: process.env.DB_NAME || 'ane_db',
-  user: process.env.DB_USER || 'postgres',
-  password: process.env.DB_PASSWORD || 'postgres',
   max: 20, // Máximo de conexiones en el pool
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 2000,

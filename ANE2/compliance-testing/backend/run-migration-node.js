@@ -4,11 +4,11 @@ const path = require('path');
 
 // Configuración de conexión (tomada de docker-compose.yml)
 const config = {
-  host: process.env.DB_HOST || '172.23.90.25',
-  port: parseInt(process.env.DB_PORT || '5432'),
-  database: process.env.DB_NAME || 'ane_db',
-  user: process.env.DB_USER || 'ane_user',
-  password: process.env.DB_PASSWORD || 'ANE_Secure_2025!_Unal',
+  host: process.env.DB_HOST,
+  port: parseInt(process.env.DB_PORT),
+  database: process.env.DB_NAME,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
 };
 
 async function runMigration() {

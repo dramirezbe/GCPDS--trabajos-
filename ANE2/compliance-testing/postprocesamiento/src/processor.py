@@ -6,9 +6,11 @@ import numpy as np
 import pandas as pd
 import re
 import os
+import time
 from functools import lru_cache
 
 from src.payload_parser import frame_from_payload
+from src.simple_detector import detect_emissions as detect_emissions_simple
 from src.spectrum_frame import SpectrumFrame
 from src.spectral_analysis import (
     detect_peak_bins,
@@ -26,12 +28,43 @@ from src.power_utils import channel_power_dbm_uniform_bins
 from src.calibration_io import comparar_parametros
 
 PayloadInput = Union[Dict[str, Any], List[Any]]  # dict legacy o lista [json,picos,cumplimiento]
+DetectorRun = Dict[str, Any]
+DetectorSegment = Dict[str, Any]
+from .utils import (
+    smooth_psd,
+    detect_noise_floor_from_psd,
+    detect_channels_from_psd,
+    split_wide_regions_by_internal_valleys,
+    find_adaptive_expansion_bins,
+    expand_region_by_factor,
+    detect_channels_from_variable_threshold,
+    build_step_noise_floor,
+)
 
+
+VERBOSE_PROCESSOR_LOGS = os.environ.get("ANE_VERBOSE_PROCESSOR", "1").lower() not in ("0", "false", "no")
+
+
+def _proc_log(message: str) -> None:
+    if not VERBOSE_PROCESSOR_LOGS:
+        return
+    stamp = time.strftime("%Y-%m-%d %H:%M:%S")
+    print(f"[PROCESSOR {stamp}] {message}", flush=True)
+
+
+def _build_debug_payload(
+    step_noise_floor_db: Any,
+    step_threshold_db: Any,
+) -> Dict[str, Any]:
+    return {
+        "vector_piso_ruido": np.asarray(step_noise_floor_db, dtype=float).tolist(),
+        "vector_umbral_dinamico": np.asarray(step_threshold_db, dtype=float).tolist(),
+    }
 
 def unpack_input(inp: PayloadInput) -> Tuple[Dict[str, Any], List[float], int]:
     """Normaliza la entrada.
 
-    Formatos aceptados:
+    Formatos aceptados :
       1) [frame_json, picos_list, cumplimiento]
       2) { ...frame_json..., "picos": [...], "cumplimiento": 0/1 }
     """
@@ -325,6 +358,37 @@ def _select_bw_hz(params: Dict[str, Any]) -> float:
     except Exception:
         return 0.0
 
+
+def _bw_compliance_status(
+    lic_match: str,
+    bw_medido_kHz: Optional[float],
+    bw_nominal_kHz: Optional[float],
+    delta_bw_kHz: Optional[float],
+    bw_margin_khz: float,
+) -> Optional[str]:
+    """Evalua cumplimiento de BW.
+
+    Regla:
+    - Si no hay match de licencia o faltan datos, retorna None.
+    - Si BW medido < BW nominal, siempre cumple.
+    - En caso contrario, falla solo si el exceso supera la tolerancia.
+    """
+    if lic_match != "SI" or bw_medido_kHz is None or bw_nominal_kHz is None:
+        return None
+
+    try:
+        bw_med = float(bw_medido_kHz)
+        bw_nom = float(bw_nominal_kHz)
+        delta_bw = float(delta_bw_kHz) if delta_bw_kHz is not None else (bw_med - bw_nom)
+        margin = float(bw_margin_khz)
+    except Exception:
+        return None
+
+    if bw_med < bw_nom:
+        return "SI"
+
+    return "NO" if abs(delta_bw) > margin else "SI"
+
 def _rni_isotropic_1m_from_power_dbm(power_dbm: Any) -> Dict[str, Any]:
     """Estimar magnitudes de RNI asumiendo radiador isotrópico a 1 m (espacio libre).
 
@@ -612,7 +676,12 @@ def _match_licencia(
         )
         # comparar_parametros ya devuelve claves como fc_nominal_MHz, delta_f_MHz, etc.
         return comp
-    except Exception:
+    except Exception as exc:
+        _proc_log(
+            "_match_licencia failed "
+            f"fc_mhz={fc_mhz} bw_khz={bw_khz} dane={dane_filtro} "
+            f"municipio={municipio_filtro} error={type(exc).__name__}: {exc}"
+        )
         return {"Licencia": "NO"}
 
 
@@ -681,7 +750,349 @@ def _is_duplicate_span(existing: List[Dict[str, Any]], L: int, R: int, fc_hz: fl
     return False
 
 
-def process_input(
+def _frame_noise_floor_dbm(frame: SpectrumFrame) -> float:
+    try:
+        nf = float(estimate_noise_floor(frame))
+        if np.isfinite(nf):
+            return float(nf)
+    except Exception:
+        pass
+    y = np.asarray(frame.amplitudes_dbm, dtype=float)
+    return float(np.median(y)) if y.size > 0 else float("nan")
+
+
+def _ensure_segment_bounds(frame: SpectrumFrame, L: int, R: int) -> Tuple[int, int]:
+    N = int(len(frame.amplitudes_dbm))
+    if N <= 0:
+        return 0, 0
+
+    L = int(np.clip(int(L), 0, N - 1))
+    R = int(np.clip(int(R), 0, N - 1))
+    if R < L:
+        L, R = R, L
+
+    if N == 1:
+        return 0, 0
+
+    min_span = 1  # al menos 2 bins para poder construir un sub-frame valido
+    if (R - L) >= min_span:
+        return int(L), int(R)
+
+    if L > 0:
+        L -= 1
+    elif R < (N - 1):
+        R += 1
+
+    while (R - L) < min_span and R < (N - 1):
+        R += 1
+    while (R - L) < min_span and L > 0:
+        L -= 1
+    return int(L), int(R)
+
+
+def _build_detector_segment(
+    frame: SpectrumFrame,
+    *,
+    peak_idx: int,
+    measure_L: int,
+    measure_R: int,
+    threshold_dbm: Optional[float],
+    noise_floor_dbm: Optional[float],
+    fc_hint_hz: Optional[float] = None,
+    bandwidth_hint_hz: Optional[float] = None,
+    obw_hint_hz: Optional[float] = None,
+    match_fc_hz: Optional[float] = None,
+    snr_hint_db: Optional[float] = None,
+    f_lo_hz: Optional[float] = None,
+    f_hi_hz: Optional[float] = None,
+    detector_name: str = "legacy",
+    preset_name: Optional[str] = None,
+) -> DetectorSegment:
+    freq_axis = np.asarray(frame.freq_hz, dtype=float)
+    y = np.asarray(frame.amplitudes_dbm, dtype=float)
+
+    L, R = _ensure_segment_bounds(frame, measure_L, measure_R)
+    pk = int(np.clip(int(peak_idx), L, R))
+    if (R - L) >= 0:
+        pk = int(L + np.argmax(y[L : R + 1]))
+
+    if fc_hint_hz is None:
+        fc_hint_hz = float(freq_axis[pk])
+
+    sub = slice_spectrum_frame(frame, L, R)
+    params = measure_emission_parameters(sub, fc=float(fc_hint_hz), xdb=3.0, obw_percent=99.0)
+
+    fc_hz = float(params.get("fc_hz", fc_hint_hz))
+
+    if bandwidth_hint_hz is None or (not np.isfinite(float(bandwidth_hint_hz))):
+        bandwidth_hint_hz = params.get("bandwidth_xdb_hz", 0.0)
+    if obw_hint_hz is None or (not np.isfinite(float(obw_hint_hz))):
+        obw_hint_hz = params.get("obw_hz", 0.0)
+
+    bandwidth_xdb_hz = float(bandwidth_hint_hz) if np.isfinite(float(bandwidth_hint_hz)) else 0.0
+    obw_hz = float(obw_hint_hz) if np.isfinite(float(obw_hint_hz)) else 0.0
+    bw_report_hz = _select_bw_hz({"obw_hz": obw_hz, "bandwidth_xdb_hz": bandwidth_xdb_hz})
+
+    if f_lo_hz is None or not np.isfinite(float(f_lo_hz)):
+        f_lo_hz = float(freq_axis[L])
+    if f_hi_hz is None or not np.isfinite(float(f_hi_hz)):
+        f_hi_hz = float(freq_axis[R])
+
+    if snr_hint_db is None or not np.isfinite(float(snr_hint_db)):
+        try:
+            snr_hint_db = float(params.get("snr_db", np.nan))
+        except Exception:
+            snr_hint_db = float("nan")
+    if not np.isfinite(float(snr_hint_db)):
+        try:
+            snr_hint_db = float(max(0.0, y[pk] - float(noise_floor_dbm)))
+        except Exception:
+            snr_hint_db = float("nan")
+
+    power_dbm = _safe_power_dbm(channel_power_dbm_uniform_bins(sub))
+
+    seg: DetectorSegment = {
+        "detector_name": detector_name,
+        "peak_idx": int(pk),
+        "measure_L": int(L),
+        "measure_R": int(R),
+        "f_lo_hz": float(f_lo_hz),
+        "f_hi_hz": float(f_hi_hz),
+        "fc_hz": float(fc_hz),
+        "bandwidth_hz": float(bw_report_hz),
+        "bandwidth_xdb_hz": float(bandwidth_xdb_hz),
+        "obw_hz": float(obw_hz),
+        "snr_db": float(snr_hint_db) if np.isfinite(float(snr_hint_db)) else float("nan"),
+        "threshold_dbm": (float(threshold_dbm) if threshold_dbm is not None and np.isfinite(float(threshold_dbm)) else None),
+        "noise_floor_dbm": (float(noise_floor_dbm) if noise_floor_dbm is not None and np.isfinite(float(noise_floor_dbm)) else None),
+        "power_dbm": power_dbm,
+    }
+
+    if match_fc_hz is not None and np.isfinite(float(match_fc_hz)):
+        seg["match_fc_hz"] = float(match_fc_hz)
+    if preset_name:
+        seg["preset_name"] = str(preset_name)
+    return seg
+
+
+def _build_legacy_detector_run(
+    frame: SpectrumFrame,
+    *,
+    detect_threshold_db: Optional[float] = None,
+) -> DetectorRun:
+    freq_axis = np.asarray(frame.freq_hz, dtype=float)
+    run_threshold_dbm = compute_detection_threshold_dbm(frame, umbral_db=detect_threshold_db, n_sigma_seed=3.5)
+    run_noise_floor_dbm = _frame_noise_floor_dbm(frame)
+
+    try:
+        bb_segments = list(analyze_colombia_broadband_segments(frame, detect_threshold_db=detect_threshold_db))
+    except Exception:
+        bb_segments = []
+
+    bb_by_peak: Dict[int, Dict[str, Any]] = {int(seg.get("refined_peak_idx", -1)): seg for seg in bb_segments}
+
+    def _nearest_bb_segment(pk: int) -> Optional[Dict[str, Any]]:
+        if not bb_segments:
+            return None
+        pk = int(pk)
+        best = None
+        best_dist = None
+        for seg in bb_segments:
+            rpk = int(seg.get("refined_peak_idx", -1))
+            if rpk < 0:
+                continue
+            dist = abs(rpk - pk)
+            L = int(seg.get("measure_L", seg.get("refined_L", rpk)))
+            R = int(seg.get("measure_R", seg.get("refined_R", rpk)))
+            inside = L <= pk <= R
+            if (not inside) and dist > max(12, int(0.004 * len(freq_axis))):
+                continue
+            if best is None or dist < best_dist:
+                best = seg
+                best_dist = dist
+        return best
+
+    def _measure_emission_from_bin(pk: int, fc_default_hz: float) -> Tuple[int, int, Dict[str, Any], Optional[Dict[str, Any]]]:
+        seg = bb_by_peak.get(int(pk)) or _nearest_bb_segment(int(pk))
+        if seg is not None:
+            L = int(seg.get("measure_L", seg.get("refined_L", pk)))
+            R = int(seg.get("measure_R", seg.get("refined_R", pk)))
+            L, R = _ensure_segment_bounds(frame, L, R)
+            sub = slice_spectrum_frame(frame, L, R)
+            params = measure_emission_parameters(sub, fc=float(seg.get("fc_hz", fc_default_hz)), xdb=3.0, obw_percent=99.0)
+            params["fc_hz"] = float(seg.get("fc_hz", params.get("fc_hz", fc_default_hz)))
+            params["bandwidth_xdb_hz"] = float(seg.get("bandwidth_hz", params.get("bandwidth_xdb_hz", 0.0)))
+            params["obw_hz"] = float(seg.get("obw_hz", params.get("obw_hz", 0.0)))
+            if "snr_db" in seg:
+                params["snr_db"] = float(seg["snr_db"])
+            if "match_fc_hz" in seg:
+                params["match_fc_hz"] = float(seg.get("match_fc_hz"))
+            if "f_lo_hz" in seg:
+                params["f_lo_hz"] = float(seg.get("f_lo_hz"))
+            if "f_hi_hz" in seg:
+                params["f_hi_hz"] = float(seg.get("f_hi_hz"))
+            return L, R, params, seg
+
+        if is_colombia_broadband_frame(frame):
+            L, R = _narrow_span_in_broad_frame(frame, pk)
+            fL = float(freq_axis[int(L)]) if len(freq_axis) else 0.0
+            fR = float(freq_axis[int(R)]) if len(freq_axis) else 0.0
+            local_bw_hz = float(abs(fR - fL))
+            if local_bw_hz <= 1.2e6 and R > L:
+                L, R = _ensure_segment_bounds(frame, L, R)
+                sub = slice_spectrum_frame(frame, L, R)
+                params = measure_emission_parameters(sub, fc=float(freq_axis[pk]), xdb=3.0, obw_percent=99.0)
+                return L, R, params, None
+
+        span_margin_db = _auto_span_margin_db(frame, pk, umbral_db=detect_threshold_db)
+        L, R = find_emission_span(frame, pk, margin_db=span_margin_db)
+        L, R = _ensure_segment_bounds(frame, L, R)
+        sub = slice_spectrum_frame(frame, L, R)
+        params = measure_emission_parameters(sub, fc=fc_default_hz, xdb=3.0, obw_percent=99.0)
+        return L, R, params, None
+
+    raw_peaks = [int(b) for b in detect_peak_bins(frame, detect_threshold_db=detect_threshold_db)]
+    out_segments: List[DetectorSegment] = []
+    seen_meta: List[Dict[str, Any]] = []
+
+    for pk in raw_peaks:
+        fc_seed_hz = float(freq_axis[pk])
+        L, R, params, src_seg = _measure_emission_from_bin(pk, fc_seed_hz)
+        bw_hz_used = _select_bw_hz(params)
+        if _is_duplicate_span(seen_meta, L, R, float(params["fc_hz"]), float(bw_hz_used)):
+            continue
+
+        seg_threshold = run_threshold_dbm
+        seg_noise = run_noise_floor_dbm
+        if isinstance(src_seg, dict):
+            if src_seg.get("threshold_dbm", None) is not None:
+                seg_threshold = float(src_seg["threshold_dbm"])
+            if src_seg.get("noise_floor_dbm", None) is not None:
+                seg_noise = float(src_seg["noise_floor_dbm"])
+
+        seg_record = _build_detector_segment(
+            frame,
+            peak_idx=pk,
+            measure_L=L,
+            measure_R=R,
+            threshold_dbm=seg_threshold,
+            noise_floor_dbm=seg_noise,
+            fc_hint_hz=float(params.get("fc_hz", fc_seed_hz)),
+            bandwidth_hint_hz=float(params.get("bandwidth_xdb_hz", 0.0)),
+            obw_hint_hz=float(params.get("obw_hz", 0.0)),
+            match_fc_hz=params.get("match_fc_hz", None),
+            snr_hint_db=params.get("snr_db", None),
+            f_lo_hz=params.get("f_lo_hz", None),
+            f_hi_hz=params.get("f_hi_hz", None),
+            detector_name="legacy",
+        )
+        seen_meta.append(
+            {
+                "_L": int(seg_record["measure_L"]),
+                "_R": int(seg_record["measure_R"]),
+                "_fc_hz": float(seg_record["fc_hz"]),
+                "_bw_hz": float(seg_record["bandwidth_hz"]),
+            }
+        )
+        out_segments.append(seg_record)
+
+    return {
+        "detector_name": "legacy",
+        "threshold_dbm": run_threshold_dbm,
+        "noise_floor_dbm": run_noise_floor_dbm,
+        "raw_peaks": raw_peaks,
+        "peaks": [int(seg["peak_idx"]) for seg in out_segments],
+        "segments": out_segments,
+    }
+
+
+def _build_simple_detector_run(
+    frame: SpectrumFrame,
+    *,
+    detect_threshold_db: Optional[float] = None,
+    preset_name: str = "general",
+    overrides: Optional[Dict[str, Any]] = None,
+) -> DetectorRun:
+    raw = detect_emissions_simple(
+        frame,
+        preset_name=preset_name,
+        overrides=overrides,
+        threshold_margin_db_override=detect_threshold_db,
+    )
+    freq_axis = np.asarray(frame.freq_hz, dtype=float)
+    out_segments: List[DetectorSegment] = []
+    seen_meta: List[Dict[str, Any]] = []
+
+    for raw_seg in raw.get("segments", []):
+        pk = int(raw_seg.get("peak_idx", 0))
+        L = int(raw_seg.get("measure_L", pk))
+        R = int(raw_seg.get("measure_R", pk))
+        L, R = _ensure_segment_bounds(frame, L, R)
+        f_lo_hz = float(freq_axis[L])
+        f_hi_hz = float(freq_axis[R])
+        seg_record = _build_detector_segment(
+            frame,
+            peak_idx=pk,
+            measure_L=L,
+            measure_R=R,
+            threshold_dbm=raw_seg.get("threshold_dbm", raw.get("threshold_dbm", None)),
+            noise_floor_dbm=raw_seg.get("noise_floor_dbm", raw.get("noise_floor_dbm", None)),
+            fc_hint_hz=float(freq_axis[int(np.clip(pk, 0, len(freq_axis) - 1))]),
+            bandwidth_hint_hz=float(max(0.0, f_hi_hz - f_lo_hz)),
+            obw_hint_hz=None,
+            match_fc_hz=None,
+            snr_hint_db=None,
+            f_lo_hz=f_lo_hz,
+            f_hi_hz=f_hi_hz,
+            detector_name="simple",
+            preset_name=str(raw.get("preset_name", preset_name)),
+        )
+        if _is_duplicate_span(seen_meta, int(seg_record["measure_L"]), int(seg_record["measure_R"]), float(seg_record["fc_hz"]), float(seg_record["bandwidth_hz"])):
+            continue
+        seen_meta.append(
+            {
+                "_L": int(seg_record["measure_L"]),
+                "_R": int(seg_record["measure_R"]),
+                "_fc_hz": float(seg_record["fc_hz"]),
+                "_bw_hz": float(seg_record["bandwidth_hz"]),
+            }
+        )
+        out_segments.append(seg_record)
+
+    return {
+        "detector_name": "simple",
+        "threshold_dbm": raw.get("threshold_dbm", None),
+        "noise_floor_dbm": raw.get("noise_floor_dbm", None),
+        "raw_peaks": [int(seg["peak_idx"]) for seg in raw.get("segments", [])],
+        "peaks": [int(seg["peak_idx"]) for seg in out_segments],
+        "segments": out_segments,
+        "preset_name": raw.get("preset_name", preset_name),
+        "config": raw.get("config"),
+    }
+
+
+def get_detector_run(
+    frame: SpectrumFrame,
+    *,
+    detector_name: str = "legacy",
+    detect_threshold_db: Optional[float] = None,
+    simple_preset_name: str = "general",
+    simple_overrides: Optional[Dict[str, Any]] = None,
+) -> DetectorRun:
+    det = str(detector_name or "legacy").strip().lower()
+    if det == "legacy":
+        return _build_legacy_detector_run(frame, detect_threshold_db=detect_threshold_db)
+    if det == "simple":
+        return _build_simple_detector_run(
+            frame,
+            detect_threshold_db=detect_threshold_db,
+            preset_name=simple_preset_name,
+            overrides=simple_overrides,
+        )
+    raise ValueError(f"Detector interno desconocido: {detector_name}")
+
+
+def _process_input_reference_legacy(
     inp: PayloadInput,
     corr_csv_path: Optional[str] = None,
     licencia_csv_path: Optional[str] = None,
@@ -1042,7 +1453,8 @@ def process_input(
 
         # Reglas de cumplimiento (ajusta según tu reglamentación):
         # - FC: debe estar dentro de ±FC_MARGIN_MHZ del nominal.
-        # - BW: BW medido puede exceder el nominal por hasta +BW_MARGIN_KHZ.
+        # - BW: si el medido es menor que el nominal, cumple; si es mayor,
+        #       solo falla cuando el exceso supera +BW_MARGIN_KHZ.
         # - P : potencia medida debe ser <= potencia nominal (si es mayor, NO cumple).
         FC_MARGIN_MHZ = fc_margin_mhz
         BW_MARGIN_KHZ = bw_margin_khz
@@ -1139,12 +1551,13 @@ def process_input(
                         except Exception:
                             cumple_fc = None
 
-                    # BW: delta_bw <= +BW_MARGIN_KHZ (si es negativo también cumple)
-                    if lic_match == "SI" and bw_nominal_kHz is not None and delta_bw_kHz is not None:
-                        try:
-                            cumple_bw = "SI" if float(delta_bw_kHz) <= BW_MARGIN_KHZ else "NO"
-                        except Exception:
-                            cumple_bw = None
+                    cumple_bw = _bw_compliance_status(
+                        lic_match=lic_match,
+                        bw_medido_kHz=bw_medido_kHz,
+                        bw_nominal_kHz=bw_nominal_kHz,
+                        delta_bw_kHz=delta_bw_kHz,
+                        bw_margin_khz=BW_MARGIN_KHZ,
+                    )
 
                     # Potencia: p_medida_dBm <= p_nominal_dBm
                     if lic_match == "SI" and p_nominal_dBm is not None and p_medida_dBm is not None:
@@ -1250,12 +1663,13 @@ def process_input(
                 except Exception:
                     cumple_fc = None
 
-            # BW: delta_bw <= +BW_MARGIN_KHZ (si es negativo también cumple)
-            if lic_match == "SI" and bw_nominal_kHz is not None and delta_bw_kHz is not None:
-                try:
-                    cumple_bw = "SI" if float(delta_bw_kHz) <= BW_MARGIN_KHZ else "NO"
-                except Exception:
-                    cumple_bw = None
+            cumple_bw = _bw_compliance_status(
+                lic_match=lic_match,
+                bw_medido_kHz=bw_medido_kHz,
+                bw_nominal_kHz=bw_nominal_kHz,
+                delta_bw_kHz=delta_bw_kHz,
+                bw_margin_khz=BW_MARGIN_KHZ,
+            )
 
             # Potencia: p_medida_dBm <= p_nominal_dBm
             if lic_match == "SI" and p_nominal_dBm is not None and p_medida_dBm is not None:
@@ -1299,3 +1713,763 @@ def process_input(
 
     _enrich_output_with_rni(out)
     return out
+
+
+from types import SimpleNamespace
+
+
+def _build_processing_args(umbral_db: Optional[float] = None) -> SimpleNamespace:
+    """
+    Defaults alineados con tu main actual y con los parámetros extra
+    usados en process_one_file / split_wide_regions_by_internal_valleys.
+    """
+
+    if umbral_db is None:
+        delta_above_nf_db = 3.0
+    else:
+        try:
+            delta_above_nf_db = float(umbral_db)
+        except Exception:
+            delta_above_nf_db = 3.0
+        if not np.isfinite(delta_above_nf_db):
+            delta_above_nf_db = 3.0
+        delta_above_nf_db = max(0.0, delta_above_nf_db)
+
+    return SimpleNamespace(
+        # Piso de ruido global
+        nf_delta_db=0.5,
+        nf_percentile=1.0,
+        nf_min_points=4,
+        delta_above_nf_db=delta_above_nf_db,
+
+        # Suavizado
+        smooth_window=18,
+        smooth_polyorder=2,
+
+        # Postproceso de regiones
+        merge_gap_hz=15e3,
+        min_bw_hz=15e3,
+
+        # Refinamiento local por steps
+        refine_percentile=50.0,
+        refine_expansion_factor=1.30,
+        refine_height_ratio_limit=0.40,
+
+        # Parámetros extra que usa build_step_noise_floor y que no estaban
+        # visibles en tu main, pero sí existen en la firma de la función
+        trend_window_bins=9,
+        trend_slope_threshold_db_per_bin=0.03,
+        trend_level_rise_threshold_db=0.35,
+        trend_confirm_windows=2,
+        trend_min_side_bins=3,
+        trend_max_side_bins=None,
+        step_overlap_policy="max",
+
+        # Parámetros de split final, tomados de tu código process_one_file
+        split_min_bw_hz=1e6,
+        split_lateral_valley_height_ratio=0.01,
+        split_center_valley_height_ratio=0.15,
+        split_left_section_ratio=0.15,
+        split_center_section_ratio=0.60,
+        split_right_section_ratio=0.15,
+        split_min_shoulder_drop_db=1.5,
+        split_min_valley_distance_hz=100e3,
+        split_min_edge_margin_hz=50e3,
+
+        # Plot / utilitarios
+        plot=False,
+        show_expanded_windows=False,
+        max_files=None,
+    )
+
+def _frame_arrays_from_spectrum_frame(frame: "SpectrumFrame") -> Tuple[np.ndarray, np.ndarray]:
+    freqs_hz = np.asarray(frame.freq_hz, dtype=float)
+    pxx_dbm = np.asarray(frame.amplitudes_dbm, dtype=float).reshape(-1)
+    if freqs_hz.size != pxx_dbm.size:
+        raise ValueError("Inconsistencia entre freq_hz y amplitudes_dbm en el SpectrumFrame.")
+    if freqs_hz.size < 4:
+        raise ValueError("El frame debe tener al menos 4 puntos.")
+    return freqs_hz, pxx_dbm
+
+
+def _estimate_window_length(n: int) -> int:
+    if n > 4096:
+        return 20
+    elif 1024 <= n <= 4096:
+        return 16
+    elif n >= 512:
+        return 10
+    return 7
+
+
+def _region_peak_idx(Pxx_dB: np.ndarray, L: int, R: int) -> int:
+    L = max(0, int(L))
+    R = min(len(Pxx_dB) - 1, int(R))
+    if R < L:
+        return L
+    return int(L + np.argmax(Pxx_dB[L:R + 1]))
+
+
+def _region_power_dbm(Pxx_dB: np.ndarray, L: int, R: int) -> Optional[float]:
+    L = max(0, int(L))
+    R = min(len(Pxx_dB) - 1, int(R))
+    if R < L:
+        return None
+    return float(np.max(Pxx_dB[L:R + 1]))
+
+
+def _run_new_detector_on_frame(
+    frame: "SpectrumFrame",
+    args: SimpleNamespace,
+) -> Dict[str, Any]:
+    """
+    Adaptador de tu nueva lógica para operar sobre SpectrumFrame en memoria.
+    """
+    t0 = time.perf_counter()
+    freqs_hz, pxx_dbm = _frame_arrays_from_spectrum_frame(frame)
+
+    # 0) Suavizado
+    window_length = _estimate_window_length(len(pxx_dbm))
+    pxx_smooth_dbm = smooth_psd(
+        pxx_dbm,
+        window_length=window_length,
+        polyorder=args.smooth_polyorder,
+    )
+
+    # 1) ETAPA GLOBAL
+    global_noise_floor_db = detect_noise_floor_from_psd(
+        Pxx=pxx_smooth_dbm,
+        delta_dB=args.nf_delta_db,
+        noise_percentile=args.nf_percentile,
+        min_points_after_filter=args.nf_min_points,
+    )
+    global_threshold_db = float(global_noise_floor_db + args.delta_above_nf_db)
+
+    bandwidths_init_hz, centers_init_hz, regions_init_idx = detect_channels_from_psd(
+        freqs_hz=freqs_hz,
+        Pxx_dB=pxx_smooth_dbm,
+        noise_floor_db=global_noise_floor_db,
+        delta_above_nf_db=args.delta_above_nf_db,
+        merge_gap_hz=args.merge_gap_hz,
+        min_bw_hz=args.min_bw_hz,
+    )
+
+    # 2) ETAPA LOCAL
+    step_noise_floor_db, local_nf_info = build_step_noise_floor(
+        freqs_hz=freqs_hz,
+        Pxx_smooth_dB=pxx_smooth_dbm,
+        global_noise_floor_db=global_noise_floor_db,
+        initial_regions_idx=regions_init_idx,
+        nf_delta_db=args.nf_delta_db,
+        nf_min_points=args.nf_min_points,
+        delta_above_nf_db=args.delta_above_nf_db,
+        refine_percentile=args.refine_percentile,
+        refine_expansion_factor=args.refine_expansion_factor,
+        refine_height_ratio_limit=args.refine_height_ratio_limit,
+    )
+    step_threshold_db = np.asarray(step_noise_floor_db, dtype=float) + float(args.delta_above_nf_db)
+
+    # 3) DETECCIÓN FINAL
+    bandwidths_hz, centers_hz, regions_idx = detect_channels_from_variable_threshold(
+        freqs_hz=freqs_hz,
+        Pxx_dB=pxx_smooth_dbm,
+        threshold_dB=step_threshold_db,
+        merge_gap_hz=args.merge_gap_hz,
+        min_bw_hz=args.min_bw_hz,
+    )
+
+    # 4) SPLIT FINAL
+    bandwidths_hz, centers_hz, regions_idx, split_info = split_wide_regions_by_internal_valleys(
+        freqs_hz=freqs_hz,
+        Pxx_smooth_dB=pxx_smooth_dbm,
+        regions_idx=regions_idx,
+        split_min_bw_hz=getattr(args, "split_min_bw_hz", 1e6),
+        lateral_valley_height_ratio=getattr(args, "split_lateral_valley_height_ratio", 0.01),
+        center_valley_height_ratio=getattr(args, "split_center_valley_height_ratio", 0.15),
+        left_section_ratio=getattr(args, "split_left_section_ratio", 0.15),
+        center_section_ratio=getattr(args, "split_center_section_ratio", 0.60),
+        right_section_ratio=getattr(args, "split_right_section_ratio", 0.15),
+        min_shoulder_drop_db=getattr(args, "split_min_shoulder_drop_db", 1.5),
+        min_valley_distance_hz=getattr(args, "split_min_valley_distance_hz", 100e3),
+        min_edge_margin_hz=getattr(args, "split_min_edge_margin_hz", 50e3),
+        min_bw_hz=args.min_bw_hz,
+    )
+
+    detected_rows: List[Dict[str, Any]] = []
+    for bw_hz, fc_hz, reg in zip(bandwidths_hz, centers_hz, regions_idx):
+        L, R = int(reg[0]), int(reg[1])
+        peak_idx = _region_peak_idx(pxx_smooth_dbm, L, R)
+        power_dbm = _region_power_dbm(pxx_smooth_dbm, L, R)
+
+        detected_rows.append(
+            {
+                "nearest_bin": int(peak_idx),
+                "peak_idx": int(peak_idx),
+                "measure_L": int(L),
+                "measure_R": int(R),
+                "status": "emision",
+                "fc_hz": float(fc_hz),
+                "fc_mhz": float(fc_hz) / 1e6,
+                "bw_hz": float(bw_hz),
+                "bw_khz": float(bw_hz) / 1e3,
+                "power_dbm": power_dbm,
+            }
+        )
+
+    _proc_log(
+        "_run_new_detector_on_frame "
+        f"bins={len(freqs_hz)} "
+        f"global_regions={len(regions_init_idx)} "
+        f"final_regions={len(regions_idx)} "
+        f"detected_rows={len(detected_rows)} "
+        f"global_nf_db={float(global_noise_floor_db)} "
+        f"global_thr_db={float(global_threshold_db)} "
+        f"median_step_nf_db={float(np.median(step_noise_floor_db)) if len(step_noise_floor_db) else None} "
+        f"median_step_thr_db={float(np.median(step_threshold_db)) if len(step_threshold_db) else None} "
+        f"elapsed_ms={(time.perf_counter() - t0) * 1000.0:.1f}"
+    )
+    if detected_rows:
+        sample = detected_rows[0]
+        _proc_log(
+            "_run_new_detector_on_frame first_row "
+            f"fc_hz={sample.get('fc_hz')} "
+            f"bw_hz={sample.get('bw_hz')} "
+            f"power_dbm={sample.get('power_dbm')} "
+            f"measure_L={sample.get('measure_L')} "
+            f"measure_R={sample.get('measure_R')}"
+        )
+    else:
+        _proc_log("_run_new_detector_on_frame produced zero rows after final detection")
+
+    return {
+        "freqs_hz": freqs_hz,
+        "pxx_dbm": pxx_dbm,
+        "pxx_smooth_dbm": pxx_smooth_dbm,
+        "global_noise_floor_db": float(global_noise_floor_db),
+        "global_threshold_db": float(global_threshold_db),
+        "num_detectadas_inicial": int(len(centers_init_hz)),
+        "num_detectadas_final": int(len(centers_hz)),
+        "centers_hz": [float(x) for x in centers_hz],
+        "bandwidths_hz": [float(x) for x in bandwidths_hz],
+        "regions_idx": [(int(a), int(b)) for a, b in regions_idx],
+        "step_noise_floor_db": np.asarray(step_noise_floor_db, dtype=float),
+        "step_threshold_db": np.asarray(step_threshold_db, dtype=float),
+        "local_nf_info": local_nf_info,
+        "split_info": split_info,
+        "detected_rows": detected_rows,
+    }
+
+
+def _pick_best_detected_row_for_peak(
+    req_hz: float,
+    detected_rows: List[Dict[str, Any]],
+) -> Tuple[Optional[Dict[str, Any]], Optional[float]]:
+    if not detected_rows:
+        return None, None
+    deltas = [abs(float(row["fc_hz"]) - float(req_hz)) for row in detected_rows]
+    i = int(np.argmin(deltas))
+    return detected_rows[i], float(deltas[i])
+
+
+def process_input(
+    inp: PayloadInput,
+    corr_csv_path: Optional[str] = None,
+    licencia_csv_path: Optional[str] = None,
+    dane_filtro: Optional[str] = None,
+    danes_filtro: Optional[List[Any]] = None,
+    municipio_filtro: Optional[str] = None,
+    umbral_db: Optional[float] = None,
+    delta_fc_khz: Optional[float] = None,
+    delta_bw_khz: Optional[float] = None,
+    debug: bool = False,
+) -> Dict[str, Any]:
+    t0 = time.perf_counter()
+    frame_json, picos, cumplimiento = unpack_input(inp)
+    mode = route_mode(picos, cumplimiento)
+    try:
+        pxx_len = len(frame_json.get("Pxx", frame_json.get("pxx", []))) if isinstance(frame_json, dict) else None
+    except Exception:
+        pxx_len = None
+    _proc_log(
+        "process_input start "
+        f"mode={mode} cumplimiento={cumplimiento} "
+        f"picos_count={len(picos)} pxx_len={pxx_len} "
+        f"corr={'yes' if corr_csv_path else 'no'} lic={'yes' if licencia_csv_path else 'no'} "
+        f"dane={dane_filtro} danes_count={len(danes_filtro) if isinstance(danes_filtro, list) else 0} "
+        f"municipio={municipio_filtro} umbral_db={umbral_db} "
+        f"delta_fc_khz={delta_fc_khz} delta_bw_khz={delta_bw_khz}"
+    )
+
+    if isinstance(inp, dict) and danes_filtro is None and isinstance(inp.get("danes", None), list):
+        danes_filtro = inp.get("danes", None)
+
+    if isinstance(inp, dict) and umbral_db is None and ("umbral_db" in inp):
+        try:
+            umbral_db = float(inp.get("umbral_db", None))
+        except Exception:
+            umbral_db = None
+
+    if isinstance(inp, dict) and delta_fc_khz is None and ("delta_fc_khz" in inp):
+        try:
+            delta_fc_khz = float(inp.get("delta_fc_khz", None))
+        except Exception:
+            delta_fc_khz = None
+
+    if isinstance(inp, dict) and delta_bw_khz is None and ("delta_bw_khz" in inp):
+        try:
+            delta_bw_khz = float(inp.get("delta_bw_khz", None))
+        except Exception:
+            delta_bw_khz = None
+
+    try:
+        _dfc = 100.0 if delta_fc_khz is None else float(delta_fc_khz)
+    except Exception:
+        _dfc = 100.0
+    if (not np.isfinite(_dfc)) or (_dfc < 0.0):
+        _dfc = 100.0
+    fc_margin_mhz = float(_dfc) / 1000.0
+
+    try:
+        _dbw = 10.0 if delta_bw_khz is None else float(delta_bw_khz)
+    except Exception:
+        _dbw = 10.0
+    if (not np.isfinite(_dbw)) or (_dbw < 0.0):
+        _dbw = 10.0
+    bw_margin_khz = float(_dbw)
+
+    danes_list = _normalize_danes(danes_filtro, dane_filtro, municipio_filtro)
+    if len(danes_list) == 1 and dane_filtro is None:
+        dane_filtro = danes_list[0]
+
+    if mode == "compliance" and licencia_csv_path and (len(danes_list) == 0 and municipio_filtro is None):
+        raise ValueError("Para mode=compliance debes pasar --dane (o --municipio legacy) cuando usas --lic")
+    _proc_log(
+        f"normalized filters dane={dane_filtro} danes_count={len(danes_list)} "
+        f"municipio={municipio_filtro} fc_margin_mhz={fc_margin_mhz} bw_margin_khz={bw_margin_khz}"
+    )
+
+    out: Dict[str, Any] = {
+        "mode": mode,
+        "cumplimiento": cumplimiento,
+        "picos_count": len(picos),
+        "picos": picos,
+        "results": [],
+        "num_emissions": 0,
+        "correction_applied": bool(corr_csv_path),
+    }
+
+    if umbral_db is not None:
+        out["umbral_db"] = float(umbral_db)
+
+    if len(danes_list) > 1:
+        out["danes"] = danes_list
+
+    if "timestamp" in frame_json:
+        out["timestamp"] = frame_json["timestamp"]
+    if "mac" in frame_json:
+        out["mac"] = frame_json["mac"]
+
+    frame = frame_from_payload(frame_json)
+    _proc_log(
+        f"frame parsed bins={len(frame.amplitudes_dbm)} "
+        f"f_start_hz={float(frame.f_start_hz)} f_stop_hz={float(frame.f_stop_hz)} "
+        f"bin_hz={float(frame.bin_hz)}"
+    )
+    if corr_csv_path:
+        frame = apply_gain_correction(frame, corr_csv_path)
+        _proc_log("gain correction applied")
+
+    args = _build_processing_args(umbral_db=umbral_db)
+    _proc_log(
+        "detector args "
+        f"smooth_window={getattr(args, 'smooth_window', None)} "
+        f"smooth_polyorder={getattr(args, 'smooth_polyorder', None)} "
+        f"refine_expansion_factor={getattr(args, 'refine_expansion_factor', None)} "
+        f"delta_above_nf_db={getattr(args, 'delta_above_nf_db', None)} "
+        f"merge_gap_hz={getattr(args, 'merge_gap_hz', None)} "
+        f"min_bw_hz={getattr(args, 'min_bw_hz', None)}"
+    )
+    run = _run_new_detector_on_frame(frame, args)
+
+    freqs_hz = run["freqs_hz"]
+    pxx_smooth_dbm = run["pxx_smooth_dbm"]
+    step_noise_floor_db = run["step_noise_floor_db"]
+    step_threshold_db = run["step_threshold_db"]
+    detected_rows = run["detected_rows"]
+    _proc_log(
+        "detector output "
+        f"bins={len(freqs_hz)} detected_rows={len(detected_rows)} "
+        f"median_threshold_dbm={float(np.median(step_threshold_db)) if step_threshold_db.size else None} "
+        f"median_noise_floor_dbm={float(np.median(step_noise_floor_db)) if step_noise_floor_db.size else None}"
+    )
+    if detected_rows:
+        sample = detected_rows[0]
+        _proc_log(
+            "first detection "
+            f"fc_hz={sample.get('fc_hz')} bw_hz={sample.get('bw_hz')} "
+            f"power_dbm={sample.get('power_dbm')} nearest_bin={sample.get('nearest_bin')}"
+        )
+    else:
+        _proc_log("detector produced zero candidate emissions")
+
+    out["umbral"] = float(np.median(step_threshold_db)) if step_threshold_db.size else None
+    if debug:
+        out["debug"] = _build_debug_payload(step_noise_floor_db, step_threshold_db)
+
+    if mode == "all_emissions":
+        _proc_log("entering all_emissions branch")
+        out["results"] = [
+            {
+                "nearest_bin": int(row["nearest_bin"]),
+                "status": "emision",
+                "fc_hz": float(row["fc_hz"]),
+                "fc_mhz": float(row["fc_mhz"]),
+                "bw_hz": float(row["bw_hz"]),
+                "bw_khz": float(row["bw_khz"]),
+                "power_dbm": row.get("power_dbm", None),
+            }
+            for row in detected_rows
+        ]
+        out["num_emissions"] = len(out["results"])
+        _proc_log(
+            f"all_emissions completed num_emissions={out['num_emissions']} "
+            f"elapsed_ms={(time.perf_counter() - t0) * 1000.0:.1f}"
+        )
+        _enrich_output_with_rni(out)
+        return out
+
+    if mode == "peaks":
+        _proc_log(f"entering peaks branch requested_picos={len(picos)}")
+        results: List[Dict[str, Any]] = []
+
+        for p in picos:
+            req_hz = pico_to_hz(p)
+            req_idx = nearest_bin(freqs_hz, req_hz)
+            margin = match_margin_hz(req_hz)
+
+            best_row, best_delta = _pick_best_detected_row_for_peak(req_hz, detected_rows)
+            if best_row is None or best_delta is None or best_delta > margin:
+                results.append(
+                    {
+                        "requested_pico": p,
+                        "requested_pico_hz": float(req_hz),
+                        "nearest_bin": int(req_idx),
+                        "fc_hz": float(freqs_hz[req_idx]),
+                        "fc_mhz": float(freqs_hz[req_idx]) / 1e6,
+                        "status": "ruido",
+                        "reason": "no_hay_emision_cercana",
+                        "match_margin_hz": float(margin),
+                        "matched_peak_hz": (float(best_row["fc_hz"]) if best_row is not None else None),
+                        "delta_match_hz": (float(best_delta) if best_delta is not None else None),
+                        "Licencia": None,
+                    }
+                )
+                continue
+
+            best_bin = int(best_row["nearest_bin"])
+            amp_dbm = float(pxx_smooth_dbm[best_bin])
+            nf_dbm = float(step_noise_floor_db[best_bin])
+            thr_seed_dbm = float(step_threshold_db[best_bin])
+
+            if amp_dbm < thr_seed_dbm:
+                results.append(
+                    {
+                        "requested_pico": p,
+                        "requested_pico_hz": float(req_hz),
+                        "match_margin_hz": float(margin),
+                        "matched_peak_hz": float(best_row["fc_hz"]),
+                        "delta_match_hz": float(best_delta),
+                        "nearest_bin": int(best_bin),
+                        "fc_hz": float(best_row["fc_hz"]),
+                        "fc_mhz": float(best_row["fc_mhz"]),
+                        "status": "ruido",
+                        "reason": "por_umbral",
+                        "amp_dbm": amp_dbm,
+                        "nf_dbm": nf_dbm,
+                        "thr_seed_dbm": thr_seed_dbm,
+                        "Licencia": None,
+                    }
+                )
+                continue
+
+            row: Dict[str, Any] = {
+                "requested_pico": p,
+                "requested_pico_hz": float(req_hz),
+                "match_margin_hz": float(margin),
+                "matched_peak_hz": float(best_row["fc_hz"]),
+                "delta_match_hz": float(best_delta),
+                "nearest_bin": int(best_bin),
+                "status": "emision",
+                "fc_hz": float(best_row["fc_hz"]),
+                "fc_mhz": float(best_row["fc_mhz"]),
+                "bw_hz": float(best_row["bw_hz"]),
+                "bw_khz": float(best_row["bw_khz"]),
+                "power_dbm": best_row.get("power_dbm", None),
+            }
+
+            if licencia_csv_path and len(danes_list) > 1:
+                comps_por_dane: List[Dict[str, Any]] = []
+                for d in danes_list:
+                    c = _match_licencia(
+                        fc_mhz=float(best_row["fc_mhz"]),
+                        bw_khz=float(best_row["bw_khz"]),
+                        power_dbm=best_row.get("power_dbm", None),
+                        licencia_csv_path=licencia_csv_path,
+                        dane_filtro=d,
+                        municipio_filtro=municipio_filtro,
+                        tolerancia_freq_mhz=fc_margin_mhz,
+                    )
+                    c2 = dict(c)
+                    c2["dane"] = d
+                    comps_por_dane.append(c2)
+
+                row["comparaciones_por_dane"] = comps_por_dane
+                first = comps_por_dane[0] if comps_por_dane else {}
+                if first.get("Licencia") is not None:
+                    row["Licencia"] = first.get("Licencia", "NO")
+                    row["fc_nominal_MHz"] = first.get("fc_nominal_MHz")
+                    row["delta_f_MHz"] = first.get("delta_f_MHz")
+                    row["bw_nominal_kHz"] = first.get("bw_nominal_kHz")
+                    row["delta_bw_kHz"] = first.get("delta_bw_kHz")
+                    row["p_nominal_dBm"] = first.get("p_nominal_dBm")
+                    row["delta_p_dB"] = None if best_row.get("power_dbm", None) is None else first.get("delta_p_dB")
+            else:
+                comp = _match_licencia(
+                    fc_mhz=float(best_row["fc_mhz"]),
+                    bw_khz=float(best_row["bw_khz"]),
+                    power_dbm=best_row.get("power_dbm", None),
+                    licencia_csv_path=licencia_csv_path,
+                    dane_filtro=dane_filtro,
+                    municipio_filtro=municipio_filtro,
+                    tolerancia_freq_mhz=fc_margin_mhz,
+                )
+                if comp.get("Licencia") is not None:
+                    row["Licencia"] = comp.get("Licencia", "NO")
+                    row["fc_nominal_MHz"] = comp.get("fc_nominal_MHz")
+                    row["delta_f_MHz"] = comp.get("delta_f_MHz")
+                    row["bw_nominal_kHz"] = comp.get("bw_nominal_kHz")
+                    row["delta_bw_kHz"] = comp.get("delta_bw_kHz")
+                    row["p_nominal_dBm"] = comp.get("p_nominal_dBm")
+                    row["delta_p_dB"] = None if best_row.get("power_dbm", None) is None else comp.get("delta_p_dB")
+
+            results.append(row)
+
+        out["results"] = results
+        out["num_emissions"] = len(results)
+        matched = sum(1 for row in results if row.get("status") == "emision")
+        ruido = sum(1 for row in results if row.get("status") == "ruido")
+        _proc_log(
+            f"peaks completed matched={matched} ruido={ruido} "
+            f"elapsed_ms={(time.perf_counter() - t0) * 1000.0:.1f}"
+        )
+        _enrich_output_with_rni(out)
+        return out
+
+    if mode == "compliance":
+        _proc_log(
+            f"entering compliance branch detected_rows={len(detected_rows)} "
+            f"danes_count={len(danes_list)}"
+        )
+        if not licencia_csv_path:
+            raise ValueError("Para modo compliance debes pasar --lic (ruta al CSV de licencias).")
+
+        FC_MARGIN_MHZ = fc_margin_mhz
+        BW_MARGIN_KHZ = bw_margin_khz
+
+        base_emissions: List[Dict[str, Any]] = []
+        for row in detected_rows:
+            base_emissions.append(
+                {
+                    "fc_medida_MHz": float(row["fc_mhz"]),
+                    "bw_medido_kHz": float(row["bw_khz"]),
+                    "p_medida_dBm": row.get("power_dbm", None),
+                    "_L": int(row["measure_L"]),
+                    "_R": int(row["measure_R"]),
+                    "_fc_hz": float(row["fc_hz"]),
+                    "_match_fc_hz": float(row["fc_hz"]),
+                    "_bw_hz": float(row["bw_hz"]),
+                }
+            )
+        _proc_log(f"base_emissions built count={len(base_emissions)}")
+
+        if len(danes_list) > 1:
+            _proc_log("compliance using multi-DANE matching")
+            results_by_dane: Dict[str, List[Dict[str, Any]]] = {}
+            for d in danes_list:
+                table_d: List[Dict[str, Any]] = []
+                for base in base_emissions:
+                    fc_medida_MHz = float(base["fc_medida_MHz"])
+                    bw_medido_kHz = float(base["bw_medido_kHz"])
+                    p_medida_dBm = base.get("p_medida_dBm", None)
+
+                    fc_match_MHz = float(base.get("_match_fc_hz", base.get("_fc_hz", fc_medida_MHz * 1e6))) / 1e6
+                    comp = _match_licencia(
+                        fc_mhz=fc_match_MHz,
+                        bw_khz=bw_medido_kHz,
+                        power_dbm=p_medida_dBm,
+                        licencia_csv_path=licencia_csv_path,
+                        dane_filtro=d,
+                        municipio_filtro=municipio_filtro,
+                        tolerancia_freq_mhz=FC_MARGIN_MHZ,
+                    )
+
+                    fc_nominal_MHz = comp.get("fc_nominal_MHz", None)
+                    bw_nominal_kHz = comp.get("bw_nominal_kHz", None)
+                    p_nominal_dBm = comp.get("p_nominal_dBm", None)
+
+                    delta_bw_kHz = comp.get("delta_bw_kHz", None)
+                    if delta_bw_kHz is None and bw_nominal_kHz is not None:
+                        try:
+                            delta_bw_kHz = float(bw_medido_kHz) - float(bw_nominal_kHz)
+                        except Exception:
+                            delta_bw_kHz = None
+
+                    lic_match = str(comp.get("Licencia", "NO") or "NO").upper()
+                    delta_f_MHz = comp.get("delta_f_MHz", None)
+
+                    cumple_fc = None
+                    cumple_bw = None
+                    cumple_p = None
+
+                    if lic_match == "SI" and fc_nominal_MHz is not None and delta_f_MHz is not None:
+                        try:
+                            cumple_fc = "SI" if abs(float(delta_f_MHz)) <= FC_MARGIN_MHZ else "NO"
+                        except Exception:
+                            cumple_fc = None
+
+                    cumple_bw = _bw_compliance_status(
+                        lic_match=lic_match,
+                        bw_medido_kHz=bw_medido_kHz,
+                        bw_nominal_kHz=bw_nominal_kHz,
+                        delta_bw_kHz=delta_bw_kHz,
+                        bw_margin_khz=BW_MARGIN_KHZ,
+                    )
+
+                    if lic_match == "SI" and p_nominal_dBm is not None and p_medida_dBm is not None:
+                        try:
+                            cumple_p = "SI" if float(p_medida_dBm) <= float(p_nominal_dBm) else "NO"
+                        except Exception:
+                            cumple_p = None
+
+                    licencia_final = "SI" if lic_match == "SI" else "NO"
+                    delta_p_dB = None if p_medida_dBm is None else comp.get("delta_p_dB", None)
+
+                    table_d.append(
+                        {
+                            "fc_medida_MHz": fc_medida_MHz,
+                            "fc_nominal_MHz": fc_nominal_MHz,
+                            "delta_f_MHz": delta_f_MHz,
+                            "bw_medido_kHz": bw_medido_kHz,
+                            "bw_nominal_kHz": bw_nominal_kHz,
+                            "delta_bw_kHz": delta_bw_kHz,
+                            "p_medida_dBm": p_medida_dBm,
+                            "p_nominal_dBm": p_nominal_dBm,
+                            "delta_p_dB": delta_p_dB,
+                            "Cumple_FC": cumple_fc,
+                            "Cumple_BW": cumple_bw,
+                            "Cumple_P": cumple_p,
+                            "Licencia": licencia_final,
+                        }
+                    )
+
+                results_by_dane[str(d)] = table_d
+            sample_dane = str(danes_list[0]) if danes_list else None
+            sample_rows = len(results_by_dane.get(sample_dane, [])) if sample_dane is not None else 0
+
+            out["results_by_dane"] = results_by_dane
+            out["num_emissions"] = len(base_emissions)
+            out["results"] = results_by_dane[str(danes_list[0])]
+            _proc_log(
+                f"compliance multi-DANE completed num_emissions={out['num_emissions']} "
+                f"results_by_dane={len(results_by_dane)} sample_rows={sample_rows} "
+                f"elapsed_ms={(time.perf_counter() - t0) * 1000.0:.1f}"
+            )
+            _enrich_output_with_rni(out)
+            return out
+
+        table: List[Dict[str, Any]] = []
+        for base in base_emissions:
+            fc_medida_MHz = float(base["fc_medida_MHz"])
+            bw_medido_kHz = float(base["bw_medido_kHz"])
+            p_medida_dBm = base.get("p_medida_dBm", None)
+
+            fc_match_MHz = float(base.get("_match_fc_hz", base.get("_fc_hz", fc_medida_MHz * 1e6))) / 1e6
+            comp = _match_licencia(
+                fc_mhz=fc_match_MHz,
+                bw_khz=bw_medido_kHz,
+                power_dbm=p_medida_dBm,
+                licencia_csv_path=licencia_csv_path,
+                dane_filtro=dane_filtro,
+                municipio_filtro=municipio_filtro,
+                tolerancia_freq_mhz=FC_MARGIN_MHZ,
+            )
+
+            fc_nominal_MHz = comp.get("fc_nominal_MHz", None)
+            bw_nominal_kHz = comp.get("bw_nominal_kHz", None)
+            p_nominal_dBm = comp.get("p_nominal_dBm", None)
+
+            delta_bw_kHz = comp.get("delta_bw_kHz", None)
+            if delta_bw_kHz is None and bw_nominal_kHz is not None:
+                try:
+                    delta_bw_kHz = float(bw_medido_kHz) - float(bw_nominal_kHz)
+                except Exception:
+                    delta_bw_kHz = None
+
+            lic_match = str(comp.get("Licencia", "NO") or "NO").upper()
+            delta_f_MHz = comp.get("delta_f_MHz", None)
+
+            cumple_fc = None
+            cumple_bw = None
+            cumple_p = None
+
+            if lic_match == "SI" and fc_nominal_MHz is not None and delta_f_MHz is not None:
+                try:
+                    cumple_fc = "SI" if abs(float(delta_f_MHz)) <= FC_MARGIN_MHZ else "NO"
+                except Exception:
+                    cumple_fc = None
+
+            cumple_bw = _bw_compliance_status(
+                lic_match=lic_match,
+                bw_medido_kHz=bw_medido_kHz,
+                bw_nominal_kHz=bw_nominal_kHz,
+                delta_bw_kHz=delta_bw_kHz,
+                bw_margin_khz=BW_MARGIN_KHZ,
+            )
+
+            if lic_match == "SI" and p_nominal_dBm is not None and p_medida_dBm is not None:
+                try:
+                    cumple_p = "SI" if float(p_medida_dBm) <= float(p_nominal_dBm) else "NO"
+                except Exception:
+                    cumple_p = None
+
+            licencia_final = "SI" if lic_match == "SI" else "NO"
+            delta_p_dB = None if p_medida_dBm is None else comp.get("delta_p_dB", None)
+
+            table.append(
+                {
+                    "fc_medida_MHz": fc_medida_MHz,
+                    "fc_nominal_MHz": fc_nominal_MHz,
+                    "delta_f_MHz": delta_f_MHz,
+                    "bw_medido_kHz": bw_medido_kHz,
+                    "bw_nominal_kHz": bw_nominal_kHz,
+                    "delta_bw_kHz": delta_bw_kHz,
+                    "p_medida_dBm": p_medida_dBm,
+                    "p_nominal_dBm": p_nominal_dBm,
+                    "delta_p_dB": delta_p_dB,
+                    "Cumple_FC": cumple_fc,
+                    "Cumple_BW": cumple_bw,
+                    "Cumple_P": cumple_p,
+                    "Licencia": licencia_final,
+                }
+            )
+
+        out["results"] = table
+        out["num_emissions"] = len(table)
+        _proc_log(
+            f"compliance single-DANE completed num_emissions={out['num_emissions']} "
+            f"elapsed_ms={(time.perf_counter() - t0) * 1000.0:.1f}"
+        )
+        _enrich_output_with_rni(out)
+        return out
+
+    raise ValueError(f"Modo no soportado: {mode}")

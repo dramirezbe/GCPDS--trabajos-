@@ -6,7 +6,7 @@ import { authenticateToken, requireAdmin, AuthRequest } from '../middleware/auth
 import { validateAzureToken, validateAzureEmail, AzureTokenPayload } from '../middleware/azureAuth';
 
 const router = Router();
-const JWT_SECRET = process.env.JWT_SECRET || 'ane-secret-key-change-in-production';
+const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_EXPIRES_IN = '24h';
 
 /**

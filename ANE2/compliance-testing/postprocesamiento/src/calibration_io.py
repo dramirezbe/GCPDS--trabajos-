@@ -27,7 +27,9 @@ def _to_float_series(series: pd.Series) -> pd.Series:
     s = s.str.replace(r"[^0-9,\.\-\+]", "", regex=True)
 
     def _norm_num(x: str) -> str:
-        x = (x or "").strip()
+        if x is None:
+            return ""
+        x = str(x).strip()
         if not x:
             return ""
         # Si tiene '.' y ',' asumimos formato 1.234,56 => quitar miles '.' y cambiar ',' por '.'

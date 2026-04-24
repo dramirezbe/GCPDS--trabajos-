@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'ane-secret-key-change-in-production';
+const JWT_SECRET = process.env.JWT_SECRET;
 
 export interface AuthRequest extends Request {}
 

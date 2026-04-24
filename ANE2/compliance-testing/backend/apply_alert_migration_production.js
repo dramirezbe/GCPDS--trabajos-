@@ -3,11 +3,11 @@ const fs = require('fs');
 const path = require('path');
 
 const client = new Client({
-  user: 'ane_user',
-  host: '172.23.90.25',
-  database: 'ane_db',
-  password: 'ANE_Secure_2025!_Unal',
-  port: 5432,
+  user: process.env.DB_USER,
+  host: process.env.DB_HOST,
+  database: process.env.DB_NAME,
+  password: process.env.DB_PASSWORD,
+  port: parseInt(process.env.DB_PORT),
 });
 
 async function run() {

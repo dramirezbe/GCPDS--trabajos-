@@ -14,6 +14,9 @@ from flask import Flask, jsonify, request
 
 DEFAULT_TIMEOUT = 20.0
 
+#Copypaste here credentials DANES
+
+#Copypaste here credentials DANES
 
 @dataclass(slots=True)
 class DaneTunnelConfig:
@@ -28,12 +31,12 @@ class DaneTunnelConfig:
     @classmethod
     def from_env(cls) -> "DaneTunnelConfig":
         return cls(
-            ssh_host=os.environ.get("DANE_TUNNEL_SSH_HOST", "rsm.ane.gov.co"),
-            ssh_port=int(os.environ.get("DANE_TUNNEL_SSH_PORT", "1222")),
-            ssh_user=os.environ.get("DANE_TUNNEL_SSH_USER", "root"),
-            ssh_pass=os.environ.get("DANE_TUNNEL_SSH_PASS", '44"PJv43k}iS'),
-            remote_service_host=os.environ.get("DANE_TUNNEL_REMOTE_HOST", "172.23.80.220"),
-            remote_service_port=int(os.environ.get("DANE_TUNNEL_REMOTE_PORT", "4155")),
+            ssh_host=os.environ.get("DANE_TUNNEL_SSH_HOST", "heremyssh.dane.gov.co"),
+            ssh_port=int(os.environ.get("DANE_TUNNEL_SSH_PORT", "22")),
+            ssh_user=os.environ.get("DANE_TUNNEL_SSH_USER", "user"),
+            ssh_pass=os.environ.get("DANE_TUNNEL_SSH_PASS", 'password_ssh_tunnel'),
+            remote_service_host=os.environ.get("DANE_TUNNEL_REMOTE_HOST", "my_ip.hostedservice.com"),
+            remote_service_port=int(os.environ.get("DANE_TUNNEL_REMOTE_PORT", "12345")),
             local_bind_host=os.environ.get("DANE_TUNNEL_LOCAL_BIND_HOST", "127.0.0.1"),
         )
 

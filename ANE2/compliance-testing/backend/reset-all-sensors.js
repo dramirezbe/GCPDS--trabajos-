@@ -3,11 +3,11 @@ require('dotenv').config();
 
 // Configuración de conexión (prioriza .env, fallback a defaults de producción)
 const client = new Client({
-  user: process.env.DB_USER || 'ane_user',
-  host: process.env.DB_HOST || 'localhost',
-  database: process.env.DB_NAME || 'ane_db',
-  password: process.env.DB_PASSWORD || 'ANE_Secure_2025!_Unal',
-  port: parseInt(process.env.DB_PORT) || 5432,
+  user: process.env.DB_USER,
+  host: process.env.DB_HOST,
+  database: process.env.DB_NAME,
+  password: process.env.DB_PASSWORD,
+  port: parseInt(process.env.DB_PORT),
 });
 
 async function run() {

@@ -4,6 +4,7 @@ import argparse
 import math
 import json
 import os
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -19,6 +20,7 @@ app = Flask(__name__)
 app.config["DEFAULT_LIC_CSV"] = os.environ.get("ANE_LIC_CSV", "").strip() or None
 app.config["DEFAULT_CORR_CSV"] = os.environ.get("ANE_CORR_CSV", "").strip() or None
 app.config["ALLOW_JSON_PATH"] = os.environ.get("ANE_ALLOW_JSON_PATH", "").lower() in ("1", "true", "yes")
+app.config["VERBOSE_LOGS"] = os.environ.get("ANE_VERBOSE_LOGS", "1").lower() not in ("0", "false", "no")
 
 # ---------------------------
 # Helpers
@@ -185,6 +187,78 @@ def get_defaults() -> Tuple[Optional[str], Optional[str], bool]:
     )
 
 
+def _server_log(message: str) -> None:
+    if not bool(app.config.get("VERBOSE_LOGS", True)):
+        return
+    stamp = time.strftime("%Y-%m-%d %H:%M:%S")
+    prefix = f"\033[95m[SERVER {stamp}]\033[0m"
+    print(f"{prefix} {message}", flush=True)
+
+
+def _safe_len(value: Any) -> int:
+    try:
+        return len(value)
+    except Exception:
+        return 0
+
+
+def _frame_summary(frame_json: Any) -> str:
+    if not isinstance(frame_json, dict):
+        return f"frame_type={type(frame_json).__name__}"
+
+    pxx = frame_json.get("Pxx", frame_json.get("pxx", []))
+    pxx_len = _safe_len(pxx)
+    start = frame_json.get("start_freq_hz", frame_json.get("f_start_hz", None))
+    end = frame_json.get("end_freq_hz", frame_json.get("f_stop_hz", None))
+    timestamp = frame_json.get("timestamp", None)
+    return (
+        f"pxx_len={pxx_len} "
+        f"start_freq_hz={start} "
+        f"end_freq_hz={end} "
+        f"timestamp={timestamp}"
+    )
+
+
+def _meta_summary(meta: Dict[str, Any]) -> str:
+    picos = parse_picos_arg(meta.get("picos", None))
+    danes = parse_danes_arg(meta.get("danes", None))
+    dane = normalize_dane(meta.get("dane", None))
+    municipio = meta.get("municipio", None)
+    try:
+        cumplimiento = int(meta.get("cumplimiento", 0))
+    except Exception:
+        cumplimiento = 0
+
+    mode = "peaks" if len(picos) > 0 else ("compliance" if cumplimiento == 1 else "all_emissions")
+    return (
+        f"mode={mode} "
+        f"cumplimiento={cumplimiento} "
+        f"picos_count={len(picos)} "
+        f"dane={dane} "
+        f"danes_count={len(danes)} "
+        f"municipio={municipio} "
+        f"umbral_db={meta.get('umbral_db', None)} "
+        f"delta_fc_khz={meta.get('delta_fc_khz', None)} "
+        f"delta_bw_khz={meta.get('delta_bw_khz', None)}"
+    )
+
+
+def _result_summary(out: Any) -> str:
+    if not isinstance(out, dict):
+        return f"result_type={type(out).__name__}"
+
+    results = out.get("results", [])
+    rbd = out.get("results_by_dane", {})
+    return (
+        f"mode={out.get('mode', None)} "
+        f"num_emissions={out.get('num_emissions', None)} "
+        f"results_len={_safe_len(results)} "
+        f"results_by_dane={_safe_len(rbd)} "
+        f"umbral={out.get('umbral', None)} "
+        f"error={out.get('error', None)}"
+    )
+
+
 # ---------------------------
 # Routes
 # ---------------------------
@@ -214,6 +288,7 @@ def analyze():
     -> solo si el servidor se arrancó con --allow-json-path
     """
     try:
+        t0 = time.perf_counter()
         body = request.get_json(force=True, silent=False)
 
         default_lic_csv, default_corr_csv, allow_json_path = get_defaults()
@@ -249,6 +324,13 @@ def analyze():
                 "lic": request.args.get("lic", None),
                 "corr": request.args.get("corr", None),
             }
+
+        _server_log(
+            f"POST /analyze remote={request.remote_addr} "
+            f"content_length={request.content_length} "
+            f"{_meta_summary(meta)} "
+            f"{_frame_summary(frame_json)}"
+        )
 
         # 2) Meta params
         try:
@@ -296,11 +378,19 @@ def analyze():
             umbral_db=umbral_db,
             delta_fc_khz=delta_fc_khz,
             delta_bw_khz=delta_bw_khz,
+            debug=bool(app.config.get("RETURN_DEBUG", False)),
+        )
+
+        elapsed_ms = (time.perf_counter() - t0) * 1000.0
+        _server_log(
+            f"POST /analyze completed in {elapsed_ms:.1f} ms | "
+            f"{_result_summary(out)}"
         )
 
         return jsonify(out)
 
     except Exception as e:
+        _server_log(f"POST /analyze failed: {type(e).__name__}: {e}")
         return jsonify({"error": str(e)}), 500
 
 
@@ -325,6 +415,7 @@ def analyze_batch():
     Los resultados mantienen el mismo orden que los frames de entrada.
     """
     try:
+        t0 = time.perf_counter()
         body = request.get_json(force=True, silent=False)
         if not isinstance(body, dict) or "frames" not in body:
             return jsonify({"error": "El body debe ser {frames: [...], max_workers?: int}"}), 400
@@ -338,6 +429,11 @@ def analyze_batch():
             max_workers = 1
         if max_workers > 32:
             max_workers = 32
+
+        _server_log(
+            f"POST /analyze_batch remote={request.remote_addr} "
+            f"frames={len(frames_input)} max_workers={max_workers}"
+        )
 
         default_lic_csv, default_corr_csv, allow_json_path = get_defaults()
 
@@ -354,6 +450,12 @@ def analyze_batch():
                     frame_json = frame_body["frame"]
                 else:
                     frame_json = frame_body
+
+                _server_log(
+                    f"POST /analyze_batch frame[{idx}] "
+                    f"{_meta_summary(meta)} "
+                    f"{_frame_summary(frame_json)}"
+                )
 
                 try:
                     cumplimiento = int(meta.get("cumplimiento", 0))
@@ -395,9 +497,12 @@ def analyze_batch():
                     umbral_db=umbral_db,
                     delta_fc_khz=delta_fc_khz,
                     delta_bw_khz=delta_bw_khz,
+                    debug=bool(app.config.get("RETURN_DEBUG", False)),
                 )
+                _server_log(f"POST /analyze_batch frame[{idx}] completed | {_result_summary(out)}")
                 return idx, out
             except Exception as e:
+                _server_log(f"POST /analyze_batch frame[{idx}] failed: {type(e).__name__}: {e}")
                 return idx, {"error": str(e)}
 
         results: List[Any] = [None] * len(frames_input)
@@ -411,9 +516,18 @@ def analyze_batch():
                 idx, result = future.result()
                 results[idx] = result
 
+        elapsed_ms = (time.perf_counter() - t0) * 1000.0
+        ok_count = sum(1 for r in results if isinstance(r, dict) and "error" not in r)
+        err_count = sum(1 for r in results if isinstance(r, dict) and "error" in r)
+        _server_log(
+            f"POST /analyze_batch completed in {elapsed_ms:.1f} ms | "
+            f"frames={len(results)} ok={ok_count} error={err_count}"
+        )
+
         return jsonify({"results": results})
 
     except Exception as e:
+        _server_log(f"POST /analyze_batch failed: {type(e).__name__}: {e}")
         return jsonify({"error": str(e)}), 500
 
 
@@ -425,6 +539,11 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--host", type=str, default="127.0.0.1")
     ap.add_argument("--port", type=int, default=8000)
+    ap.add_argument(
+        "--debug",
+        action="store_true",
+        help="Incluye el bloque debug en la respuesta JSON con los vectores internos del processor.",
+    )
 
     # Defaults del servidor (para no mandarlos en cada request)
     ap.add_argument(
@@ -446,12 +565,19 @@ def main():
         action="store_true",
         help="(Solo dev) Permite que el cliente mande json_path. NO usar en prod.",
     )
+    ap.add_argument(
+        "--quiet",
+        action="store_true",
+        help="Reduce logs del servidor y deja solo los mensajes básicos de Flask.",
+    )
 
     args = ap.parse_args()
 
     app.config["DEFAULT_LIC_CSV"] = args.lic_default.strip() or None
     app.config["DEFAULT_CORR_CSV"] = args.corr_default.strip() or None
     app.config["ALLOW_JSON_PATH"] = bool(args.allow_json_path)
+    app.config["VERBOSE_LOGS"] = not bool(args.quiet)
+    app.config["RETURN_DEBUG"] = bool(args.debug)
 
     print(f"[SERVER] http://{args.host}:{args.port}")
     if app.config["DEFAULT_LIC_CSV"]:
@@ -459,6 +585,8 @@ def main():
     if app.config["DEFAULT_CORR_CSV"]:
         print(f"[SERVER] DEFAULT_CORR_CSV = {app.config['DEFAULT_CORR_CSV']}")
     print(f"[SERVER] allow_json_path = {app.config['ALLOW_JSON_PATH']}")
+    print(f"[SERVER] verbose_logs = {app.config['VERBOSE_LOGS']}")
+    print(f"[SERVER] return_debug = {app.config['RETURN_DEBUG']}")
 
     app.run(host=args.host, port=args.port, debug=False, threaded=True)
 

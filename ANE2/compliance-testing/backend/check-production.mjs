@@ -3,11 +3,11 @@ const { Client } = pkg;
 
 async function checkProduction() {
   const client = new Client({
-    host: 'rsm.ane.gov.co',
-    port: 5432,
-    database: 'ane_db',
-    user: 'ane_user',
-    password: 'ane2024secure'
+    user: process.env.DB_USER,
+  host: process.env.DB_HOST,
+  database: process.env.DB_NAME,
+  password: process.env.DB_PASSWORD,
+  port: parseInt(process.env.DB_PORT),
   });
 
   try {
