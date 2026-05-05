@@ -1,0 +1,238 @@
+\documentclass[11pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[spanish]{babel}
+\usepackage{geometry}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{mdframed}
+
+\geometry{a4paper, margin=1in}
+
+\title{Especificaciones Técnicas: USRP B200mini}
+\author{Ingeniería de Radiofrecuencia}
+\date{\today}
+
+% Caja de advertencia
+\newmdenv[
+  backgroundcolor=red!8,
+  linecolor=red!60,
+  linewidth=1pt,
+  roundcorner=4pt,
+  innertopmargin=6pt,
+  innerbottommargin=6pt
+]{advertencia}
+
+\begin{document}
+
+\maketitle
+\tableofcontents
+\newpage
+
+% =========================================================
+\section{Ganancias}
+% =========================================================
+La USRP B200mini utiliza el transceptor AD9364. A través del driver UHD, las múltiples etapas de ganancia física se abstraen en un único parámetro de amplificación programable (PGA).
+
+\begin{itemize}
+    \item \textbf{RX Gain (PGA):} Rango de \textbf{0.0 dB a 76.0 dB}. Controla la cadena de recepción, incluyendo el LNA y las etapas de banda base.
+    \item \textbf{TX Gain (PGA):} Rango de \textbf{0.0 dB a 89.8 dB}. Ajusta la potencia de salida de la señal de RF.
+    \item \textbf{Modos de AGC (RX):}
+    \begin{itemize}
+        \item \textit{Manual:} El usuario define el valor fijo de ganancia.
+        \item \textit{Fast Attack:} Ajuste automático rápido para señales de tipo ráfaga (burst).
+        \item \textit{Slow Attack:} Ajuste automático lento para señales de potencia constante.
+    \end{itemize}
+\end{itemize}
+
+\textbf{Nota operativa:} Se recomienda usar al menos la mitad de la ganancia disponible para obtener un rango dinámico razonable.
+
+% =========================================================
+\section{Filtros Hardware}
+% =========================================================
+La USRP B200mini combina filtros analógicos en banda base con filtros digitales configurados automáticamente por UHD.
+
+\begin{enumerate}
+    \item \textbf{Filtros analógicos (Baseband LPF)}
+
+    \textbf{Modificable vía:} \texttt{set\_rx\_bandwidth(bw)} y \texttt{set\_tx\_bandwidth(bw)}.
+
+    \textbf{Qué hace:} Ajusta directamente el filtro Butterworth pasa bajas. Se puede establecer cualquier valor entre 200 kHz y 56 MHz. Si no se configura manualmente, UHD intenta ajustarlo automáticamente de acuerdo con el valor de \texttt{sample\_rate}.
+
+    \item \textbf{Filtros digitales (Half-Band y FIR)}
+
+    \textbf{Modificable vía:} No se modifican directamente. Se configuran implícitamente al usar \texttt{set\_sample\_rate(rate)} y \texttt{set\_master\_clock\_rate(rate)}.
+
+    \textbf{Qué hace:} UHD calcula automáticamente las etapas de interpolación o decimación necesarias y configura los filtros Half-Band y los coeficientes del FIR digital para evitar aliasing. Todo ocurre en segundo plano.
+\end{enumerate}
+
+En código, basta con establecer el ancho de banda (\texttt{bandwidth}) y la tasa de muestreo (\texttt{sample\_rate}); UHD realiza los cálculos necesarios y programa el transceptor AD9364.
+
+% =========================================================
+\section{Rangos de Frecuencia}
+% =========================================================
+Rango operativo nominal: \textbf{70 MHz a 6 GHz}.
+
+% =========================================================
+\section{Sample Rate}
+% =========================================================
+Frecuencia de muestreo máxima: \textbf{61.44 MS/s} (SDR de un solo canal).
+
+% =========================================================
+\section{Bits (Resolución)}
+% =========================================================
+ADC y DAC de \textbf{12 bits} de resolución.
+
+% =========================================================
+\section{Correcciones IQ \& DC}
+% =========================================================
+La USRP B200mini ya tiene implementadas de forma nativa las correcciones de desbalance I/Q y fuga de DC (\textit{DC offset} o \textit{DC spike}). El sistema las maneja en diferentes niveles:
+
+\begin{itemize}
+    \item \textbf{A nivel de hardware (transceptor AD9364):} El chip integra algoritmos de seguimiento que corrigen el \textit{DC offset} de manera continua, tanto en las etapas de RF como en banda base, y vienen activados por defecto. Adicionalmente, el transceptor cuenta con corrección I/Q integrada mediante multiplicadores matriciales.
+    \item \textbf{A nivel de software (driver UHD):} La abstracción de UHD se encarga de habilitar y gestionar estas correcciones automáticas de fábrica, por lo que no es necesario programar filtros correctores desde cero en el código de usuario.
+    \item \textbf{Calibración específica:} Si el ajuste automático no es suficiente, UHD incluye utilidades nativas de línea de comandos, como \texttt{uhd\_cal\_tx\_dc\_offset} o \texttt{uhd\_cal\_rx\_iq\_balance}, que permiten inyectar señales de prueba y generar tablas de calibración estáticas guardadas en el hardware para afinar los valores.
+\end{itemize}
+
+En resumen, estas correcciones funcionan \textit{out of the box}, pero pueden forzarse calibraciones manuales mediante el driver si la aplicación lo requiere.
+
+% =========================================================
+\section{Entradas y Conectores del SDR}
+% =========================================================
+La USRP B200mini es un SDR 1x1 full-duplex. Sus conexiones principales se concentran en la interfaz USB 3.0, los puertos de RF y la entrada de referencia externa para sincronización.
+
+\begin{table}[h]
+    \centering
+    \begin{tabular}{p{0.16\textwidth}p{0.26\textwidth}p{0.46\textwidth}}
+        \toprule
+        \textbf{Conector} & \textbf{Función} & \textbf{Notas principales} \\
+        \midrule
+        USB3 & Alimentación y datos & Interfaz USB 3.0 hacia el computador host. \\
+        J1 TRX & TX/RX RF & Puerto compartido TX/RX; salida TX hasta +20 dBm. \\
+        J2 RX2 & Recepción RF & Entrada dedicada de recepción; potencia máxima de entrada -15 dBm. \\
+        J3 Ref/PPS & Referencia externa & Entrada para referencia de 10 MHz o pulso PPS; +15 dBm máx. \\
+        J5 JTAG & JTAG FPGA & Acceso al FPGA Spartan-6 para desarrollo y diagnóstico. \\
+        J6 GPIO & Control digital & Pines GPIO conectados al FPGA para señales auxiliares. \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\begin{itemize}
+    \item \textbf{Clock interno:} El reloj maestro alimenta las cadenas de RF y DSP. UHD puede seleccionarlo automáticamente según la tasa de muestreo solicitada, o el usuario puede fijarlo mediante \texttt{master\_clock\_rate}. El rango configurable típico es de 5 MHz a 61.44 MHz.
+    \item \textbf{Reference Clock externo:} La entrada J3 permite disciplinar el SDR con una referencia externa de 10 MHz. Esto es útil cuando se requiere coherencia de frecuencia entre equipos o sincronización con una fuente de laboratorio.
+    \item \textbf{PPS externo:} El mismo conector J3 puede utilizarse como entrada PPS para alinear la referencia temporal del equipo. En configuraciones multi-SDR, se recomienda fijar explícitamente el \texttt{master\_clock\_rate} para evitar cambios automáticos que rompan la sincronización.
+    \item \textbf{Puerto RX:} J2 RX2 es la entrada de recepción dedicada. Debe evitarse aplicar más de -15 dBm para proteger el frontend de RF.
+    \item \textbf{Puerto TX/RX:} J1 TRX funciona como puerto compartido de transmisión y recepción. En transmisión debe estar conectado a una antena o carga de 50 $\Omega$; en pruebas de loopback se recomienda usar al menos 30 dB de atenuación.
+\end{itemize}
+
+% =========================================================
+\section{Límites de Operación Seguros}
+% =========================================================
+
+\begin{advertencia}
+\textbf{Advertencias críticas — leer antes de conectar el equipo}
+\end{advertencia}
+
+\vspace{4pt}
+\begin{itemize}
+    \item \textbf{Potencia máxima en RX:} Nunca aplicar más de \textbf{-15 dBm} en ninguna entrada RF (J1 TRX o J2 RX2). Superar este nivel puede dañar permanentemente el frontend.
+    \item \textbf{Loopback:} En configuración TX$\to$RX loopback, usar \textbf{al menos 30 dB de atenuación} entre los puertos para proteger la entrada.
+    \item \textbf{Puerto TX sin antena:} El puerto J1 TRX siempre debe estar terminado con una antena o una carga de \textbf{50 $\Omega$} cuando se transmite. Transmitir con el puerto al aire puede dañar el amplificador.
+    \item \textbf{Referencia externa J3:} Señal de referencia de 10 MHz con nivel máximo de \textbf{+15 dBm}.
+    \item \textbf{ESD y manejo:} Manejar siempre con protección antiestática. No permitir que objetos metálicos toquen la PCB mientras está energizada.
+    \item \textbf{Potencia TX máxima:} La salida del puerto J1 TRX puede alcanzar \textbf{+20 dBm} (pico, dependiente de la frecuencia); el valor típico garantizado es $>$10 dBm.
+\end{itemize}
+
+% =========================================================
+\section{Master Clock Rate — Reglas y Trampas}
+% =========================================================
+
+El \texttt{master\_clock\_rate} (MCR) es el parámetro de configuración más crítico para extraer el máximo rendimiento del dispositivo y la principal fuente de problemas silenciosos.
+
+\subsection*{Rango y valores válidos}
+\begin{itemize}
+    \item Rango configurable: \textbf{5 MHz a 61.44 MHz}.
+    \item Valores por encima de 56 MHz son posibles pero \textbf{no recomendados}.
+    \item El MCR debe ser un \textbf{múltiplo entero de la sample rate}. Si no se cumple esta condición, UHD muestra una advertencia y aplica internamente una tasa diferente a la solicitada.
+\end{itemize}
+
+\subsection*{Comportamiento automático vs.\ manual}
+Por defecto, UHD selecciona el MCR automáticamente según la \texttt{sample\_rate} solicitada, eligiendo el valor más alto posible para habilitar el mayor número de filtros Half-Band. El modo automático se desactiva en cuanto se llama a \texttt{set\_master\_clock\_rate()} o se pasa \texttt{master\_clock\_rate} como argumento de inicialización.
+
+\begin{verbatim}
+# Fijar MCR manualmente (Python UHD)
+usrp.set_master_clock_rate(32e6)
+
+# O mediante argumento de dispositivo
+uhd_usrp_probe --args="master_clock_rate=52e6"
+\end{verbatim}
+
+\subsection*{Trampas conocidas}
+\begin{itemize}
+    \item \textbf{Cambio de MCR rompe la sincronización:} Cualquier cambio en el MCR reconfigura toda la cadena de reloj, invalidando configuraciones de tiempo previas (PPS, multi-USRP sync).
+    \item \textbf{Multi-USRP:} Al sincronizar múltiples unidades, \textbf{fijar el MCR explícitamente} en todas ellas. No depender del modo automático, ya que puede seleccionar valores distintos por unidad.
+    \item \textbf{MCR bloqueado impide cambio de sample rate:} Si el MCR está fijo y se solicita una \texttt{sample\_rate} que no es submúltiplo entero, UHD aplicará la tasa más cercana válida sin avisar claramente.
+\end{itemize}
+
+% =========================================================
+\section{LEDs Indicadores}
+% =========================================================
+
+Los LEDs permiten diagnosticar el estado del dispositivo en campo sin necesidad de consola.
+
+\begin{table}[h]
+    \centering
+    \begin{tabular}{p{0.14\textwidth}p{0.22\textwidth}p{0.52\textwidth}}
+        \toprule
+        \textbf{LED} & \textbf{Función} & \textbf{Estados} \\
+        \midrule
+        PWR & Alimentación & Apagado = sin energía \quad Encendido = alimentado (USB o externo) \\
+        \addlinespace
+        TRX & Actividad TX/RX & Apagado = sin actividad \quad Verde = recibiendo \quad Rojo = transmitiendo \quad Naranja = alternando TX/RX \\
+        \addlinespace
+        RX2 & Actividad RX2 & Apagado = sin actividad \quad Verde = recibiendo \\
+        \addlinespace
+        S0 & Lock de referencia & Apagado = sin lock \quad Verde = referencia bloqueada \\
+        \addlinespace
+        S1 & Presencia de referencia & Apagado = señal baja o ausente \quad Verde = señal de referencia presente \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\textbf{Interpretación de parpadeos en TRX/RX2:}
+\begin{itemize}
+    \item Un parpadeo en el LED de TX indica \textbf{underflow}: el host no entrega muestras al SDR a tiempo. Se reporta en consola como ``\texttt{U}''.
+    \item Un parpadeo en el LED de RX indica \textbf{overflow}: el host no consume muestras del SDR a tiempo. Se reporta como ``\texttt{O}''.
+    \item Si esto ocurre, reducir la \texttt{sample\_rate}, aumentar el buffer del sistema, o revisar la carga del CPU/USB.
+\end{itemize}
+
+% =========================================================
+\section{Pinout del GPIO (J6)}
+% =========================================================
+
+El conector J6 expone 8 líneas GPIO conectadas directamente al FPGA Spartan-6, operando a \textbf{3.3 V}. Es útil para señales de control, trigger externo, o integración con hardware auxiliar.
+
+\begin{table}[h]
+    \centering
+    \begin{tabular}{ccc|ccc}
+        \toprule
+        \textbf{Pin} & \textbf{Señal} & \textbf{Nivel} & \textbf{Pin} & \textbf{Señal} & \textbf{Nivel} \\
+        \midrule
+        1 & 3.3 V (VCC) & Alimentación & 7  & 3.3 V (VCC) & Alimentación \\
+        2 & GPIO\_0      & 3.3 V lógico & 8  & GPIO\_4      & 3.3 V lógico \\
+        3 & GPIO\_1      & 3.3 V lógico & 9  & GPIO\_5      & 3.3 V lógico \\
+        4 & GPIO\_2      & 3.3 V lógico & 10 & GPIO\_6      & 3.3 V lógico \\
+        5 & GPIO\_3      & 3.3 V lógico & 11 & GPIO\_7      & 3.3 V lógico \\
+        6 & GND          & Referencia   & 12 & GND          & Referencia \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\textbf{Notas de uso:}
+\begin{itemize}
+    \item Las líneas GPIO\_0 a GPIO\_7 son configurables como entrada o salida desde UHD mediante la API de GPIO del \texttt{multi\_usrp}.
+    \item El control de dirección y valor se realiza con \texttt{set\_gpio\_attr()} especificando banco \texttt{"FP0"}.
+    \item Para aplicaciones que requieren señales UART sobre GPIO, es necesario compilar un bitfile de FPGA personalizado.
+\end{itemize}
+
+\end{document}
