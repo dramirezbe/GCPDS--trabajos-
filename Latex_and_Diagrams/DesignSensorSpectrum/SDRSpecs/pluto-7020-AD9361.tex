@@ -1,0 +1,186 @@
+\documentclass[11pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[spanish]{babel}
+\usepackage{geometry}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{mdframed}
+
+\geometry{a4paper, margin=1in}
+
+\title{Especificaciones Técnicas: OpenSourceSDRLab 7020-AD9361 (PlutoSDR Avanzado)}
+\author{Ingeniería de Radiofrecuencia}
+\date{\today}
+
+\newmdenv[
+  backgroundcolor=red!8,
+  linecolor=red!60,
+  linewidth=1pt,
+  roundcorner=4pt,
+  innertopmargin=6pt,
+  innerbottommargin=6pt
+]{advertencia}
+
+\newmdenv[
+  backgroundcolor=yellow!10,
+  linecolor=yellow!60!black,
+  linewidth=1pt,
+  roundcorner=4pt,
+  innertopmargin=6pt,
+  innerbottommargin=6pt
+]{pendiente}
+
+\begin{document}
+
+\maketitle
+\tableofcontents
+\newpage
+
+% =========================================================
+\section{Ganancias}
+% =========================================================
+
+Gestionadas a través de la API \texttt{libiio} (Linux Industrial I/O), la cual controla directamente las cadenas de radio del AD9361 y el hardware adicional integrado en esta placa:
+
+\begin{itemize}
+    \item \textbf{RX Gain (AD9361):} Rango de 0 a 73 dB. Puede operar en MGC (Manual Gain Control) o mediante AGC (Automático) con perfiles Fast, Slow o Hybrid. Afecta al LNA, mezclador y filtros TIA integrados.
+    \item \textbf{TX Attenuation (AD9361):} Atenuación ajustable digitalmente de 0 a -89.75 dB en pasos finos de 0.25 dB.
+    \item \textbf{PA Integrado (Hardware Externo):} A diferencia del PlutoSDR oficial, esta placa incorpora un amplificador de potencia (PA) en la cadena de transmisión. 
+    \begin{pendiente}
+    El control directo de encendido/apagado del PA depende de la configuración de los pines GPIO habilitados en el firmware modificado. Por defecto, incrementa significativamente la potencia de salida respecto a los $\approx$0 dBm nativos del AD9361.
+    \end{pendiente}
+\end{itemize}
+
+% =========================================================
+\section{Filtros Hardware y Procesamiento}
+% =========================================================
+
+\begin{itemize}
+    \item \textbf{Procesamiento Analógico (AD9361):} Filtros paso bajo (LPF) de impedancia transimpedancia (TIA) y de banda base, altamente configurables en tiempo real para evitar aliasing y limitar el ancho de banda del canal analógico (de 200 kHz a 56 MHz).
+    \item \textbf{Filtrado Digital Integrado (AD9361):} Bloques de filtros FIR de 128 taps y filtros CIC para interpolación/decimación antes de enviar muestras al SoC.
+    \item \textbf{SoC y FPGA (Xilinx Zynq XC7Z020-CLG400):} Este es el mayor salto respecto al PlutoSDR (que usa el 7010). El 7020 ofrece $\approx$3 veces más celdas lógicas (85k vs 28k), permitiendo cargar bitstreams personalizados complejos (ej. modems completos en VHDL/Verilog) y usar la placa emulando un entorno ZEDBOARD + FMCOMMS2/3.
+\end{itemize}
+
+% =========================================================
+\section{Rangos de Frecuencia}
+% =========================================================
+
+\begin{itemize}
+    \item \textbf{Rango Operativo:} 70 MHz a 6.0 GHz.
+    \item \textbf{Ancho de Banda Instantáneo:} Hasta 56 MHz.
+    \item \textbf{Nota de Hardware:} La placa utiliza un transceptor AD9361 (o un AD9363 desbloqueado por software oficial para comportarse como 9361), lo que elimina los cuellos de botella de calibración de las versiones comerciales económicas que operan solo entre 325 MHz y 3.8 GHz.
+\end{itemize}
+
+% =========================================================
+\section{Sample Rate y Resolución}
+% =========================================================
+
+Impulsado por los convertidores internos del AD9361 y la mejora a \textbf{1 GB de RAM DDR3} (el doble del PlutoSDR original).
+
+\begin{table}[h]
+    \centering
+    \begin{tabular}{llll}
+        \toprule
+        \textbf{Arquitectura} & \textbf{Resolución ADC/DAC} & \textbf{Sample Rate máx.} & \textbf{Interfaces Host} \\
+        \midrule
+        2T2R (MIMO dual) & 12-bit & 61.44 MS/s & USB 2.0 / Gigabit Ethernet \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\textbf{Nota de caudal de datos:} El PlutoSDR estándar se satura rápidamente en USB 2.0 (límite práctico $\approx$15 MS/s). El uso de la interfaz \textbf{Gigabit Ethernet} incluida en esta placa permite sostener tasas de muestreo muy superiores en modo red, acercándose al límite del chip RF.
+
+% =========================================================
+\section{Correcciones IQ \& DC}
+% =========================================================
+
+\begin{itemize}
+    \item \textbf{Calibración Interna:} El transceptor AD9361 posee máquinas de estado internas que realizan rastreo y corrección automática de DC Offset (Tx y Rx) y de desbalance de cuadratura (QEC).
+    \item \textbf{Fase BIST (Built-In Self Test):} Las calibraciones se ejecutan durante la inicialización y pueden ser forzadas a re-ejecutarse por la API \texttt{libiio} en caso de cambios drásticos de temperatura.
+\end{itemize}
+
+% =========================================================
+\section{Conectores y Entradas}
+% =========================================================
+
+\begin{table}[h]
+    \centering
+    \small
+    \begin{tabular}{p{0.18\textwidth}p{0.26\textwidth}p{0.44\textwidth}}
+        \toprule
+        \textbf{Conector} & \textbf{Función} & \textbf{Especificación} \\
+        \midrule
+        Gigabit Ethernet & Red y Control de alta vel. & RJ45. Ideal para streaming continuo pesado. (Atención: algunas imágenes de firmware deshabilitan el USB al usar Ethernet). \\
+        Micro-USB / Type-C & Alimentación y OTG   & Conexión clásica para modo gadget (RNDIS) o periféricos USB. \\
+        RF (SMA) $\times 4$ & TX1, TX2, RX1, RX2  & 50 $\Omega$. Habilita topologías MIMO $2\times2$ simultáneas. \\
+        REF CLK (SMA)  & Reloj de Referencia   & Entrada para inyectar 10 MHz o 40 MHz de alta precisión (GPSDO). \\
+        LO IN (SMA)    & Oscilador Local Externo & Entrada de fase para coherencia estricta entre múltiples placas. \\
+        JTAG           & Depuración FPGA / UART & Expuesto explícitamente. Incluye líneas serie de consola de arranque. \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+% =========================================================
+\section{Límites de Operación Seguros}
+% =========================================================
+
+\begin{advertencia}
+\textbf{Advertencias críticas — Frontend y Modificaciones de Hardware}
+\end{advertencia}
+
+\vspace{4pt}
+\begin{itemize}
+    \item \textbf{Potencia máxima en RX:} No exceder \textbf{+2.5 dBm} teóricos (recomendado 0 dBm máximo) en los puertos RX1/RX2 para proteger los LNAs del AD9361.
+    \item \textbf{Bucle TX-RX cerrado (Loopback):} Dado que esta placa \textbf{incorpora un PA en la transmisión}, el puerto TX enviará mucha más energía que un Pluto convencional. Usar atenuadores de al menos 40--50 dB en pruebas directas.
+    \item \textbf{Voltajes de Referencia:} Asegurar que la inyección de señales en REF CLK y LO IN cumplan con los voltajes tolerables (típicamente lógicas de 1.8V o capacitivamente acopladas).
+    \item \textbf{Disipación de Calor:} El Zynq 7020 y el AD9361 generan calor significativo, especialmente bajo MIMO y alta tasa de muestreo. Requiere disipador térmico y caja de aluminio o ventilación forzada.
+\end{itemize}
+
+% =========================================================
+\section{Clock y Sincronización Avanzada (MIMO)}
+% =========================================================
+
+\begin{itemize}
+    \item A diferencia del diseño original básico, esta placa de OpenSourceSDRLab introduce \textbf{entradas explícitas de REF CLK y LO (Local Oscillator)}.
+    \item \textbf{Coherencia de Fase (Phase Coherence):} Conectar el mismo Oscilador Local (LO) a varias placas 7020-AD9361 permite sincronizarlas para formar arreglos de antenas de mayor escala ($4\times4$, $8\times8$), algo fundamental en investigación de radares phased-array o Beamforming (para lo cual se usa MATLAB o GNU Radio).
+\end{itemize}
+
+% =========================================================
+\section{LEDs Indicadores}
+% =========================================================
+
+\begin{table}[h]
+    \centering
+    \begin{tabular}{p{0.12\textwidth}p{0.36\textwidth}p{0.40\textwidth}}
+        \toprule
+        \textbf{LED} & \textbf{Función} & \textbf{Estado normal} \\
+        \midrule
+        \textbf{PWR} & Alimentación & Fijo tras encender la unidad. \\
+        \textbf{DONE} & FPGA Boot Status & Enciende cuando el Zynq carga correctamente el bitstream del firmware. \\
+        \textbf{TX/RX} & Actividad de radio & Parpadean/Fijos indicando operación de los puertos del AD9361. \\
+        \textbf{ETH Link} & Puerto Gigabit & Señalización estándar RJ45 (Link/Act). \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+% =========================================================
+\section{Interfaces de Expansión (JTAG y GPIO)}
+% =========================================================
+
+\subsection*{Puerto JTAG Multipropósito}
+El fabricante expuso este puerto explícitamente para facilitar el desarrollo "Bare-metal" (sin Linux) o para acelerar simulaciones HDL:
+\begin{itemize}
+    \item Permite cargar código al ARM Cortex-A9 dual-core o al FPGA sin pasar por el sistema operativo.
+    \item Incorpora pines para la consola UART, usada para el diagnóstico del U-Boot durante el arranque y configuración de IPs.
+\end{itemize}
+
+\subsection*{Expansión de GPIO}
+Se han introducido encabezados con múltiples pines GPIO conectados directamente a la lógica de la FPGA (banco de pines del XC7Z020). Ideales para:
+\begin{itemize}
+    \item Controlar amplificadores externos adicionales.
+    \item Sincronizar relés y llaves de transmisión/recepción (T/R switches).
+    \item Disparos (triggers) de hardware hacia/desde otros equipos de laboratorio.
+\end{itemize}
+
+\end{document}
