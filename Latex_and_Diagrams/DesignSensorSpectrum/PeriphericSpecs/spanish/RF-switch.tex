@@ -57,7 +57,8 @@ Esta guía resume qué ofrece cada switch para un sistema SDR. La idea no es doc
         \textbf{Switch} & \textbf{Útil para} & \textbf{Limitación principal} \\
         \midrule
         Opera Cake & Automatizar antenas/filtros con HackRF One. & Depende del ecosistema HackRF y de su header. \\
-        Módulo SP4T F2914 & Conmutación RF general de alta frecuencia y mejor desempeño eléctrico. & Requiere control lógico externo y cableado propio. \\
+        Módulo SP4T F2914 & Conmutación RF general de 4 rutas con alto desempeño. & Requiere control lógico externo (3 líneas) y cableado. \\
+        \textbf{HMC849 SPDT} & Alternar entre 2 antenas o bypass de un LNA/Filtro. & Limitado a solo 2 puertos de salida. \\
         \bottomrule
     \end{tabular}
 \end{table}
@@ -85,15 +86,11 @@ Switch RF diseñado como expansión directa para \textbf{HackRF One}. Es la opci
     \end{tabular}
 \end{table}
 
-\textbf{Cuándo elegirlo:} cuando se necesita una solución rápida, integrada al HackRF, para alternar varias antenas o bancos de filtros en monitoreo espectral.
-
-\textbf{Qué verificar:} pérdida de inserción, aislamiento, potencia máxima y continuidad DC de cada ruta antes de usarlo con TX, Bias-T o señales fuertes.
-
 % =========================================================
 \section{Módulo SP4T F2914}
 % =========================================================
 
-El módulo del enlace de Amazon corresponde a un switch RF tipo \textbf{SP4T} basado en la familia \textbf{F2914}. Es una opción más genérica que Opera Cake: no depende de HackRF y puede integrarse con GPIO, microcontrolador, FPGA o una placa de control.
+Este módulo es un switch RF tipo \textbf{SP4T} basado en la familia \textbf{F2914}. Es una opción genérica: no depende de HackRF y puede integrarse con GPIO, microcontrolador o FPGA.
 
 \begin{table}[h]
     \centering
@@ -105,18 +102,37 @@ El módulo del enlace de Amazon corresponde a un switch RF tipo \textbf{SP4T} ba
         Tipo & SP4T absorptivo, 50 $\Omega$. \\
         Rango RF & 50 MHz a 8 GHz. \\
         Puertos & 1 común hacia 4 rutas RF. \\
-        Control & Tres líneas lógicas compatibles con 3.3 V o 1.8 V. \\
+        Control & Tres líneas lógicas (3.3 V o 1.8 V). \\
         Alimentación & Fuente positiva simple de 2.7 V a 5.5 V. \\
-        Desempeño típico & Baja pérdida, alto aislamiento y buena linealidad. \\
-        Potencia & Hasta 33 dBm CW en ruta seleccionada; 27 dBm en rutas terminadas. \\
-        Mejor uso & Bancos de filtros, selección de LNAs, rutas de prueba o matrices RF compactas. \\
+        Potencia & Hasta 33 dBm CW en ruta seleccionada. \\
         \bottomrule
     \end{tabular}
 \end{table}
 
-\textbf{Cuándo elegirlo:} cuando se necesita un switch RF independiente del SDR, con mejor rango superior que Opera Cake y control digital simple.
+% =========================================================
+\section{Módulo SPDT HMC849}
+% =========================================================
 
-\textbf{Qué verificar:} pinout del módulo vendido, polaridad de alimentación, tabla de control lógico y disipación si se trabaja cerca del límite de potencia.
+El módulo \textbf{HMC849} es un switch de alta confiabilidad tipo \textbf{Single Pole Double Throw (SPDT)}. Es la opción ideal para aplicaciones de conmutación binaria (A/B) donde se busca simplicidad y un factor de forma compacto.
+
+\begin{table}[h]
+    \centering
+    \small
+    \begin{tabular}{p{0.30\textwidth}p{0.58\textwidth}}
+        \toprule
+        \textbf{Parámetro} & \textbf{Resumen utilizable} \\
+        \midrule
+        Tipo & SPDT (1 entrada, 2 salidas), 50 $\Omega$. \\
+        Rango RF & DC a 6 GHz. \\
+        Alimentación & 3 V a 5 V DC. \\
+        Interfaz & Conectores SMA hembra en placa PCB. \\
+        Características & Alta linealidad y gran área de disipación de calor. \\
+        Mejor uso & Alternar entre dos antenas, o implementar un sistema de bypass para un LNA o filtro. \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\textbf{Cuándo elegirlo:} Cuando solo se necesita alternar entre dos estados y se prefiere un módulo de bajo costo que pueda alimentarse directamente desde un bus de 3.3V o 5V.
 
 % =========================================================
 \section{Recomendación Rápida}
@@ -124,13 +140,13 @@ El módulo del enlace de Amazon corresponde a un switch RF tipo \textbf{SP4T} ba
 
 \begin{itemize}
     \item \textbf{Para HackRF One y automatización simple:} usar Opera Cake.
-    \item \textbf{Para diseño RF modular o multi-SDR:} usar el módulo SP4T F2914.
-    \item \textbf{Para recepción solamente:} cualquiera sirve; priorizar facilidad de control.
-    \item \textbf{Para transmisión o señales fuertes:} confirmar potencia máxima, aislamiento y usar cargas de 50 $\Omega$ en rutas no usadas.
+    \item \textbf{Para diseño RF modular con 4 rutas:} usar el módulo SP4T F2914.
+    \item \textbf{Para conmutación básica (1 a 2) o bypass:} usar el módulo \textbf{SPDT HMC849}.
+    \item \textbf{Para transmisión o señales fuertes:} confirmar potencia máxima y usar cargas de 50 $\Omega$ en rutas no usadas.
 \end{itemize}
 
 \begin{advertencia}
-\textbf{Nota de seguridad:} ningún switch reemplaza atenuadores, limitadores o filtros de protección. Antes de conectar un SDR, validar potencia RF, continuidad DC y estado de las rutas.
+\textbf{Nota de seguridad:} ningún switch reemplaza atenuadores, limitadores o filtros de protección. Antes de conectar un SDR, validar potencia RF y continuidad DC.
 \end{advertencia}
 
 % =========================================================
@@ -139,9 +155,9 @@ El módulo del enlace de Amazon corresponde a un switch RF tipo \textbf{SP4T} ba
 
 \begin{itemize}
     \item \href{https://greatscottgadgets.com/hackrf/operacake/}{Great Scott Gadgets -- Opera Cake}.
-    \item \href{https://lab401.com/products/opera-cake-for-hackrf}{Lab401 -- Opera Cake}.
-    \item \href{https://www.renesas.com/en/products/rf-products/rf-switches/f2914-high-reliability-sp4t-rf-switch}{Renesas -- F2914 High Reliability SP4T RF Switch}.
-    \item \href{https://www.amazon.com/Switch-Module-Single-Impedance-Reliability/dp/B0BXVVLGFB}{Amazon -- módulo RF switch SP4T}.
+    \item \href{https://www.renesas.com/en/products/rf-products/rf-switches/f2914-high-reliability-sp4t-rf-switch}{Renesas -- F2914 SP4T RF Switch}.
+    \item \href{https://www.analog.com/en/products/hmc849.html}{Analog Devices -- HMC849A GaAs MMIC Switch}.
+    \item \href{https://www.amazon.com/Switch-Module-Single-Impedance-Reliability/dp/B0BXVVLGFB}{Amazon -- Módulo RF Switch HMC849 SPDT}.
 \end{itemize}
 
 \end{document}

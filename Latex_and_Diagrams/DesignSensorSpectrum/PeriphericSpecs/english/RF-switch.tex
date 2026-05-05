@@ -1,0 +1,163 @@
+\documentclass[11pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[english]{babel}
+\usepackage{geometry}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{mdframed}
+\usepackage{hyperref}
+
+\geometry{a4paper, margin=1in}
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    urlcolor=cyan,
+}
+
+\title{Quick Guide: RF Switches for SDR Monitoring}
+\author{Radio Frequency Engineering}
+\date{\today}
+
+\newmdenv[
+  backgroundcolor=red!8,
+  linecolor=red!60,
+  linewidth=1pt,
+  roundcorner=4pt,
+  innertopmargin=6pt,
+  innerbottommargin=6pt
+]{warningbox}
+
+\newmdenv[
+  backgroundcolor=yellow!10,
+  linecolor=yellow!60!black,
+  linewidth=1pt,
+  roundcorner=4pt,
+  innertopmargin=6pt,
+  innerbottommargin=6pt
+]{pendingbox}
+
+\begin{document}
+
+\maketitle
+\tableofcontents
+\newpage
+
+% =========================================================
+\section{Selection Criteria}
+% =========================================================
+
+This guide summarizes what each switch offers for an SDR system. The idea is not to document every laboratory parameter, but to quickly decide which module is most suitable depending on the setup.
+
+\begin{table}[h]
+    \centering
+    \small
+    \begin{tabular}{p{0.24\textwidth}p{0.32\textwidth}p{0.34\textwidth}}
+        \toprule
+        \textbf{Switch} & \textbf{Useful for} & \textbf{Main limitation} \\
+        \midrule
+        Opera Cake & Automating antennas/filters with HackRF One. & Depends on the HackRF ecosystem and its header. \\
+        SP4T F2914 Module & General-purpose 4-path RF switching with high performance. & Requires external logic control (3 lines) and wiring. \\
+        \textbf{HMC849 SPDT} & Switching between 2 antennas or bypassing an LNA/filter. & Limited to only 2 output ports. \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+% =========================================================
+\section{Opera Cake}
+% =========================================================
+
+RF switch designed as a direct expansion for the \textbf{HackRF One}. It is the simplest option if the system already uses HackRF and you want to select antennas or filters from software.
+
+\begin{table}[h]
+    \centering
+    \small
+    \begin{tabular}{p{0.30\textwidth}p{0.58\textwidth}}
+        \toprule
+        \textbf{Parameter} & \textbf{Practical summary} \\
+        \midrule
+        Type & Matrix with 2 primary A/B ports and 8 secondary ports. \\
+        Nominal range & 1 MHz to 6 GHz. \\
+        Control & \texttt{hackrf\_operacake}. \\
+        Useful modes & Manual, by frequency, and by time. \\
+        Best use & Automatically selecting antennas or filters according to the monitoring band. \\
+        Integration & Mounts onto the HackRF One; no additional external controller is required. \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+% =========================================================
+\section{SP4T F2914 Module}
+% =========================================================
+
+This module is an \textbf{SP4T} RF switch based on the \textbf{F2914} family. It is a generic option: it does not depend on HackRF and can be integrated with GPIO, a microcontroller, or an FPGA.
+
+\begin{table}[h]
+    \centering
+    \small
+    \begin{tabular}{p{0.30\textwidth}p{0.58\textwidth}}
+        \toprule
+        \textbf{Parameter} & \textbf{Practical summary} \\
+        \midrule
+        Type & Absorptive SP4T, 50 $\Omega$. \\
+        RF Range & 50 MHz to 8 GHz. \\
+        Ports & 1 common port to 4 RF paths. \\
+        Control & Three logic lines (3.3 V or 1.8 V). \\
+        Power Supply & Single positive supply from 2.7 V to 5.5 V. \\
+        Power & Up to 33 dBm CW on the selected path. \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+% =========================================================
+\section{SPDT HMC849 Module}
+% =========================================================
+
+The \textbf{HMC849} module is a highly reliable \textbf{Single Pole Double Throw (SPDT)} switch. It is the ideal option for binary switching applications (A/B) where simplicity and a compact form factor are desired.
+
+\begin{table}[h]
+    \centering
+    \small
+    \begin{tabular}{p{0.30\textwidth}p{0.58\textwidth}}
+        \toprule
+        \textbf{Parameter} & \textbf{Practical summary} \\
+        \midrule
+        Type & SPDT (1 input, 2 outputs), 50 $\Omega$. \\
+        RF Range & DC to 6 GHz. \\
+        Power Supply & 3 V to 5 V DC. \\
+        Interface & Female SMA connectors on the PCB board. \\
+        Features & High linearity and a large heat dissipation area. \\
+        Best use & Switching between two antennas, or implementing a bypass system for an LNA or filter. \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\textbf{When to choose it:} When you only need to switch between two states and prefer a low-cost module that can be powered directly from a 3.3V or 5V bus.
+
+% =========================================================
+\section{Quick Recommendation}
+% =========================================================
+
+\begin{itemize}
+    \item \textbf{For HackRF One and simple automation:} use Opera Cake.
+    \item \textbf{For modular RF design with 4 paths:} use the SP4T F2914 module.
+    \item \textbf{For basic switching (1 to 2) or bypass:} use the \textbf{SPDT HMC849} module.
+    \item \textbf{For transmission or strong signals:} verify maximum power and use 50 $\Omega$ loads on unused paths.
+\end{itemize}
+
+\begin{warningbox}
+\textbf{Safety note:} no switch replaces attenuators, limiters, or protection filters. Before connecting an SDR, validate RF power and DC continuity.
+\end{warningbox}
+
+% =========================================================
+\section{Sources}
+% =========================================================
+
+\begin{itemize}
+    \item \href{https://greatscottgadgets.com/hackrf/operacake/}{Great Scott Gadgets -- Opera Cake}.
+    \item \href{https://www.renesas.com/en/products/rf-products/rf-switches/f2914-high-reliability-sp4t-rf-switch}{Renesas -- F2914 SP4T RF Switch}.
+    \item \href{https://www.analog.com/en/products/hmc849.html}{Analog Devices -- HMC849A GaAs MMIC Switch}.
+    \item \href{https://www.amazon.com/Switch-Module-Single-Impedance-Reliability/dp/B0BXVVLGFB}{Amazon -- HMC849 SPDT RF Switch Module}.
+\end{itemize}
+
+\end{document}

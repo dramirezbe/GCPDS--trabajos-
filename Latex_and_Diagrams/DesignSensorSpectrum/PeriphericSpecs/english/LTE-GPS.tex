@@ -1,0 +1,144 @@
+\documentclass[11pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[english]{babel}
+\usepackage{geometry}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{mdframed}
+\usepackage{hyperref}
+\usepackage{listings}
+
+\geometry{a4paper, margin=1in}
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    urlcolor=cyan,
+}
+
+\title{Technical Guide: SIM7600G-H 4G HAT (B)}
+\author{Embedded Systems Engineering}
+\date{\today}
+
+\newmdenv[
+  backgroundcolor=red!8,
+  linecolor=red!60,
+  linewidth=1pt,
+  roundcorner=4pt,
+  innertopmargin=6pt,
+  innerbottommargin=6pt
+]{warningbox}
+
+\newmdenv[
+  backgroundcolor=blue!5,
+  linecolor=blue!60,
+  linewidth=1pt,
+  roundcorner=4pt,
+  innertopmargin=6pt,
+  innerbottommargin=6pt
+]{notebox}
+
+\begin{document}
+
+\maketitle
+\tableofcontents
+\newpage
+
+% =========================================================
+\section{Selection Criteria}
+% =========================================================
+
+The \textbf{SIM7600G-H 4G HAT (B)} module is a comprehensive solution for adding high-speed cellular connectivity and precise positioning to embedded computing platforms. Unlike basic modems, this HAT offers global coverage and multiple control interfaces.
+
+\begin{table}[h]
+    \centering
+    \small
+    \begin{tabular}{p{0.25\textwidth}p{0.35\textwidth}p{0.30\textwidth}}
+        \toprule
+        \textbf{Feature} & \textbf{Operational Advantage} & \textbf{Limitation} \\
+        \midrule
+        Multi-band LTE & Coverage in virtually any country (B1-B66). & Higher power consumption in low-signal areas. \\
+        Multi-constellation GNSS & GPS, BeiDou, GLONASS, and Galileo simultaneously. & Requires an antenna with a clear view of the sky. \\
+        USB 2.0 Interface & Real-world speeds of up to 150 Mbps DL. & Occupies a physical USB port. \\
+        UART Control & Low power consumption for sending SMS or simple telemetry. & Limited bandwidth. \\
+        \bottomrule
+    \end{tabular}
+    \caption{Summary of module capabilities.}
+\end{table}
+
+% =========================================================
+\section{Technical Specifications}
+% =========================================================
+
+\begin{itemize}
+    \item \textbf{4G Bands (LTE-FDD):} B1, B2, B3, B4, B5, B7, B8, B12, B13, B18, B19, B20, B25, B26, B28, B66.
+    \item \textbf{4G Bands (LTE-TDD):} B34, B38, B39, B40, B41.
+    \item \textbf{GNSS:} Support for GPS, BeiDou, GLONASS, GALILEO, QZSS.
+    \item \textbf{Voltage:} 5V DC (Supports power via USB or GPIO pins).
+    \item \textbf{UART Logic:} 3.3V by default (adjustable through jumpers).
+\end{itemize}
+
+% =========================================================
+\section{Integration with Raspberry Pi 5}
+% =========================================================
+
+The \textbf{Raspberry Pi 5} requires careful power management. The HAT communicates primarily through the 40-pin header for control and through USB for high-speed data.
+
+\begin{notebox}
+\textbf{Jumper Configuration:} Make sure that the UART selection jumpers are positioned to connect the SIM7600 to the Raspberry Pi TX/RX pins if you are not going to use the USB cable for commands.
+\end{notebox}
+
+\subsection{Setup Steps}
+\begin{enumerate}
+    \item Mount the HAT using standoffs to avoid short circuits with the USB/Ethernet ports of the RPi5.
+    \item Connect the short USB cable (included) between the HAT and a USB 3.0 port on the RPi5.
+    \item Install \texttt{minicom} for initial testing: \texttt{sudo apt install minicom}.
+    \item Verify detection: \texttt{lsusb} should show a device with ID \texttt{1e0e:9001}.
+\end{enumerate}
+
+% =========================================================
+\section{Integration with NVIDIA Jetson}
+% =========================================================
+
+On \textbf{Jetson Nano / Orin} platforms, exclusive use of the USB interface is recommended for network management through \texttt{ModemManager}.
+
+\begin{itemize}
+    \item \textbf{Driver:} The L4T (Linux for Tegra) kernel recognizes the device automatically as \texttt{/dev/ttyUSB*} ports.
+    \item \textbf{Network Connection:} Use \texttt{nmcli} to create a mobile broadband profile.
+\end{itemize}
+
+% =========================================================
+\section{Essential AT Commands}
+% =========================================================
+
+To interact with the modem (usually through \texttt{/dev/ttyUSB2}), use the following commands:
+
+\begin{table}[h]
+    \centering
+    \begin{tabular}{ll}
+        \toprule
+        \textbf{Command} & \textbf{Action} \\
+        \midrule
+        \texttt{AT} & Checks communication (Responds OK). \\
+        \texttt{AT+CPIN?} & Checks the status of the SIM card. \\
+        \texttt{AT+CSQ} & Signal quality (0-31). \\
+        \texttt{AT+CGNSSPWR=1} & Enables the GNSS module. \\
+        \texttt{AT+CGPSINFO} & Retrieves the current GPS coordinates. \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+% =========================================================
+\section{Power and Safety Considerations}
+% =========================================================
+
+\begin{warningbox}
+\textbf{Critical:} The SIM7600 can draw current spikes of up to 2A during transmission. Since version (B) is powered through the 5V pins of the Raspberry Pi header, it is essential to use the official 27W (5A) power supply for the RPi 5. Using chargers with lower current ratings will cause reboots in the modem or the board during network registration.
+\end{warningbox}
+
+\begin{itemize}
+    \item \textbf{Antennas:} Never power on the module without the LTE antennas connected; this can damage the power amplifier.
+    \item \textbf{Temperature:} The module generates considerable heat during prolonged 4G transfers. Active ventilation in the chassis is recommended.
+\end{itemize}
+
+\end{document}
