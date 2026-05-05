@@ -1,9 +1,9 @@
-PWD /home/javastral/GIT/GCPDS-trabajos/Latex_and_Diagrams/DesignSensorSpectrum
+PWD /home/javastral/GIT/GCPDS-trabajos/Latex_and_Diagrams/DesignSensorSpectrum/SDRSpecs
 INPUT /etc/texmf/web2c/texmf.cnf
 INPUT /usr/share/texmf/web2c/texmf.cnf
 INPUT /usr/share/texlive/texmf-dist/web2c/texmf.cnf
 INPUT /var/lib/texmf/web2c/pdftex/pdflatex.fmt
-INPUT SDRSpecs/usrp-b200mini-ettus.tex
+INPUT usrp-b200mini-ettus.tex
 OUTPUT usrp-b200mini-ettus.log
 INPUT /usr/share/texlive/texmf-dist/tex/latex/base/article.cls
 INPUT /usr/share/texlive/texmf-dist/tex/latex/base/article.cls
