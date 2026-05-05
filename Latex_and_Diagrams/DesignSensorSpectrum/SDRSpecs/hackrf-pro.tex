@@ -1,0 +1,237 @@
+\documentclass[11pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[spanish]{babel}
+\usepackage{geometry}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{mdframed}
+
+\geometry{a4paper, margin=1in}
+
+\title{Especificaciones Técnicas: HackRF Pro}
+\author{Ingeniería de Radiofrecuencia}
+\date{\today}
+
+\newmdenv[
+  backgroundcolor=red!8,
+  linecolor=red!60,
+  linewidth=1pt,
+  roundcorner=4pt,
+  innertopmargin=6pt,
+  innerbottommargin=6pt
+]{advertencia}
+
+\newmdenv[
+  backgroundcolor=yellow!10,
+  linecolor=yellow!60!black,
+  linewidth=1pt,
+  roundcorner=4pt,
+  innertopmargin=6pt,
+  innerbottommargin=6pt
+]{pendiente}
+
+\begin{document}
+
+\maketitle
+\tableofcontents
+\newpage
+
+% =========================================================
+\section{Ganancias}
+% =========================================================
+
+Controladas por separado mediante \texttt{libhackrf}:
+
+\begin{itemize}
+    \item \textbf{LNA (IF RX):} \texttt{hackrf\_set\_lna\_gain()} — 0 a 40 dB, pasos de 8 dB.
+    \item \textbf{VGA (baseband RX):} \texttt{hackrf\_set\_vga\_gain()} — 0 a 62 dB, pasos de 2 dB.
+    \item \textbf{TX VGA:} \texttt{hackrf\_set\_txvga\_gain()} — 0 a 47 dB, pasos de 1 dB.
+    \item \textbf{AMP (front-end RF):} \texttt{hackrf\_set\_amp\_enable()} — 0 (off) o 1 (on, $\approx$+14 dB fijo). Aplica a RX y TX.
+\end{itemize}
+
+\textbf{Nota:} Ajustar ganancia evitando saturación del ADC; validar con piso de ruido y ausencia de clipping.
+
+% =========================================================
+\section{Filtros Hardware}
+% =========================================================
+
+\begin{itemize}
+    \item \textbf{Filtro analógico (Baseband LPF):} \texttt{hackrf\_set\_baseband\_filter\_bandwidth()}\\
+    Umbrales seleccionables: 1.75, 2.5, 3.5, 5, 5.5, 14, 20, 24, 28 MHz.\\
+    Transceptor: MAX2831 (Pro) — compatible con software existente vía \textit{legacy mode} en \texttt{libhackrf}.
+
+    \item \textbf{Filtrado y decimación digital (FPGA iCE40):}\\
+    Configurado implícitamente según la sample rate. Gestiona decimación en hardware, elimina el pico DC (antes resuelto en software) y habilita muestras de 16 bits a tasas bajas con ENOB típico de 9--11 bits.
+\end{itemize}
+
+% =========================================================
+\section{Rangos de Frecuencia}
+% =========================================================
+
+\begin{itemize}
+    \item \textbf{Rango nominal:} 100 kHz a 6 GHz.
+    \item \textbf{Rango sintonizable (límites físicos):} 0 Hz a 7.1 GHz.
+    \begin{itemize}
+        \item Por debajo de 100 kHz: sensibilidad analógica cae drásticamente.
+        \item Por encima de 6 GHz: atenuación severa y calibración no confiable.
+    \end{itemize}
+\end{itemize}
+
+% =========================================================
+\section{Sample Rate y Resolución}
+% =========================================================
+
+\begin{table}[h]
+    \centering
+    \begin{tabular}{llll}
+        \toprule
+        \textbf{Modo} & \textbf{Resolución} & \textbf{Sample Rate máx.} & \textbf{Uso típico} \\
+        \midrule
+        Estándar       & 8-bit I/Q  & 20 MS/s  & Compatibilidad general, hasta 20 MHz de BW visible \\
+        Precisión ext. & 16-bit     & Baja (decimación FPGA) & Señales narrowband, mayor rango dinámico (ENOB 9--11) \\
+        Media prec.    & 4-bit      & 40 MS/s  & Barrido wideband; resolución reducida para caber en USB \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+% =========================================================
+\section{Correcciones IQ \& DC}
+% =========================================================
+
+\begin{itemize}
+    \item \textbf{DC spike:} Eliminado en hardware por el FPGA iCE40 antes de enviar datos por USB. Ya no requiere filtros en software (GNU Radio, etc.).
+    \item \textbf{Desbalance I/Q:}
+    \begin{pendiente}
+    No documentado en \texttt{libhackrf} ni en firmware oficial a la fecha. Verificar en futuras versiones de la API o FPGA.
+    \end{pendiente}
+\end{itemize}
+
+% =========================================================
+\section{Conectores y Entradas}
+% =========================================================
+
+\begin{table}[h]
+    \centering
+    \small
+    \begin{tabular}{p{0.18\textwidth}p{0.26\textwidth}p{0.44\textwidth}}
+        \toprule
+        \textbf{Conector} & \textbf{Función} & \textbf{Especificación} \\
+        \midrule
+        USB-C      & Alimentación y datos  & USB 2.0 High Speed. 5 V / 500 mA mín. \\
+        RF (SMA)   & TX/RX principal       & 50 $\Omega$. Half-duplex. Rango: 100 kHz -- 7.1 GHz. \\
+        P1 (SMA)   & CLK IN (por defecto)  & 10 MHz, 3.3 V cuadrada. No exceder 3.3 V ni bajar de 0 V. \\
+        P2 (SMA)   & CLK OUT (por defecto) & 10 MHz, 3.3 V. Daisy chain entre dispositivos. \\
+        P20        & GPIO / ADC / RTC      & 22 pines, 3.3 V. Acceso GPIO, ADC y alimentación auxiliar. \\
+        P22        & I2S / SPI / I2C / UART & 26 pines. CLK IN alternativo (activar con \texttt{hackrf\_clock -c p22}). \\
+        P28        & SD / Trigger          & 22 pines. SDIO, trigger IN/OUT para sincronización. \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\begin{itemize}
+    \item \textbf{TCXO integrado:} 0.5 ppm. Elimina drift de frecuencia sin referencia externa.
+    \item \textbf{Clock externo:} Conectar 10 MHz a P1. El hardware conmuta automáticamente al iniciar TX/RX. Verificar detección con \texttt{hackrf\_clock -i}.
+    \item \textbf{Clock out:} Activar con \texttt{hackrf\_clock -o 1}. Permite encadenar varios HackRF Pro.
+    \item \textbf{Bias-T RF:} 3.3 V, 50 mA máx. Activable por software para alimentar LNA externos.
+    \item \textbf{GPIO:} Todos los headers operan a 3.3 V CMOS. P22 incluye I2C y UART para control de periféricos externos.
+    \item \textbf{Nota:} El audio jack y la ranura MicroSD son parte del módulo \textbf{PortaPack H2}, no del HackRF Pro base.
+\end{itemize}
+
+% =========================================================
+\section{Límites de Operación Seguros}
+% =========================================================
+
+\begin{advertencia}
+\textbf{Advertencias críticas — leer antes de conectar señales externas}
+\end{advertencia}
+
+\vspace{4pt}
+\begin{itemize}
+    \item \textbf{Potencia máxima en RX:} No superar \textbf{-5 dBm} para evitar distorsión. Daño físico irreversible a partir de \textbf{+10 dBm} (incluso con AMP deshabilitado, un error de software puede habilitarlo).
+    \item \textbf{Loopback TX$\to$RX:} Usar atenuación suficiente. El nivel de TX puede alcanzar 10--15 dBm; sin atenuación se daña el frontend.
+    \item \textbf{Puerto RF sin carga:} Siempre terminar en antena o \textbf{50 $\Omega$} durante transmisión.
+    \item \textbf{Clock externo P1:} Señal de 10 MHz estrictamente entre 0 V y 3.3 V. No usar otras frecuencias salvo modificación de firmware.
+    \item \textbf{GPIO:} No exceder 3.3 V en ningún pin de los headers P20/P22/P28.
+    \item \textbf{ESD:} Manipular con protección antiestática. No permitir contacto metálico con la PCB energizada.
+\end{itemize}
+
+% =========================================================
+\section{Clock y Sincronización}
+% =========================================================
+
+\begin{itemize}
+    \item \textbf{Clock interno:} TCXO de 0.5 ppm, activo por defecto. No requiere configuración.
+    \item \textbf{Clock externo:} Señal de 10 MHz en P1 (SMA). El dispositivo conmuta automáticamente al iniciar una operación TX/RX. Verificar con \texttt{hackrf\_clock -i}.
+    \item \textbf{Clock out:} Señal de 10 MHz disponible en P2. Activar con \texttt{hackrf\_clock -o 1}. Útil para encadenar unidades (daisy chain) o sincronizar con instrumentos de laboratorio.
+    \item \textbf{Señales alternativas en P1/P2:} Usando \texttt{hackrf\_clock -1} o \texttt{hackrf\_clock -2} se pueden conectar señales internas diferentes a las predeterminadas (trigger, clocks de FPGA, etc.).
+    \item \textbf{CLK IN alternativo:} P22 pin 2 expone una segunda entrada CLKIN independiente. Activar con \texttt{hackrf\_clock -c p22}. No conectar simultáneamente P1 y P22 pin 2 como entradas.
+    \item \textbf{Trigger IN/OUT:} Disponible en P28 pines 15 y 16. Permite sincronización de inicio de captura entre dispositivos.
+    \item \textbf{Multi-HackRF:} Conectar CLKOUT de una unidad al CLKIN de la siguiente. Activar CLKOUT con \texttt{hackrf\_clock -o 1} antes de iniciar operación.
+\end{itemize}
+
+% =========================================================
+\section{LEDs Indicadores}
+% =========================================================
+
+Al conectar el HackRF Pro a USB, \textbf{cuatro LEDs deben encenderse}: MCU, FPGA, RF y USB. Si alguno no enciende, indica fallo en la cadena de alimentación interna o en el firmware.
+
+\begin{table}[h]
+    \centering
+    \begin{tabular}{p{0.12\textwidth}p{0.36\textwidth}p{0.40\textwidth}}
+        \toprule
+        \textbf{LED} & \textbf{Función} & \textbf{Estado normal} \\
+        \midrule
+        MCU  & Alimentación interna primaria y firmware activo & Encendido al conectar USB \\
+        FPGA & Alimentación del FPGA iCE40 activa             & Encendido al conectar USB \\
+        RF   & Alimentación de la cadena RF activa             & Encendido al conectar USB \\
+        USB  & Comunicación USB establecida con el host        & Encendido al conectar USB \\
+        RX   & Operación de recepción en curso                 & Encendido solo durante RX activo \\
+        TX   & Operación de transmisión en curso               & Encendido solo durante TX activo \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\textbf{Nota:} Los colores de los LEDs no tienen significado — son distintos entre sí para facilitar la distinción visual, no para indicar estados.
+
+% =========================================================
+\section{Pinout de Expansión (P20 / P22 / P28)}
+% =========================================================
+
+El HackRF Pro expone tres headers de expansión internos. Todos operan a \textbf{3.3 V CMOS}.
+
+\subsection*{P20 — GPIO / ADC / Alimentación (22 pines)}
+
+\begin{table}[h]
+    \centering
+    \small
+    \begin{tabular}{clc|clc}
+        \toprule
+        \textbf{Pin} & \textbf{Señal} & & \textbf{Pin} & \textbf{Señal} & \\
+        \midrule
+        1  & VBAT       & & 2  & PB\_5        & \\
+        3  & 3V3AUX     & & 4  & WAKEUP       & \\
+        5  & GPIO3\_8   & & 6  & GPIO3\_9     & \\
+        7  & GPIO3\_10  & & 8  & GPIO3\_11    & \\
+        9  & GPIO3\_12  & & 10 & GPIO3\_13    & \\
+        11 & GPIO3\_14  & & 12 & GPIO3\_15    & \\
+        13 & GND        & & 14 & ADC0\_6      & \\
+        15 & GND        & & 16 & ADC0\_2      & \\
+        17 & VBUSCTRL   & & 18 & ADC0\_5      & \\
+        19 & GND        & & 20 & ADC0\_0      & \\
+        21 & VBUS       & & 22 & VIN          & \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsection*{P22 — I2S / SPI / I2C / UART (26 pines, selección)}
+
+Incluye: CLKIN alternativo (pin 2), I2C1 (pines 5--6), UART (pines 19--20), I2S TX/RX, señales auxiliares de FPGA. Ver documentación completa en \texttt{hackrf.readthedocs.io}.
+
+\subsection*{P28 — SD / Trigger / GPIO (22 pines)}
+
+Incluye: SDIO completo (pines 3--11), Trigger OUT (pin 15) y Trigger IN (pin 16) para sincronización de hardware entre dispositivos. Ver documentación completa en \texttt{hackrf.readthedocs.io}.
+
+\textbf{Nota de uso:} No exceder 3.3 V en ningún pin. Confirmar corriente máxima por pin en la hoja de datos del LPC43xx antes de conectar cargas externas.
+
+\end{document}
