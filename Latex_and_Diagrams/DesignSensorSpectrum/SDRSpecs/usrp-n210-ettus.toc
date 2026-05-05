@@ -1,0 +1,11 @@
+\babel@toc {spanish}{}\relax 
+\contentsline {section}{\numberline {1}Ganancias}{2}{}%
+\contentsline {section}{\numberline {2}Filtros Hardware}{2}{}%
+\contentsline {section}{\numberline {3}Rangos de Frecuencia}{2}{}%
+\contentsline {section}{\numberline {4}Sample Rate y Resolución}{2}{}%
+\contentsline {section}{\numberline {5}Correcciones IQ \& DC}{3}{}%
+\contentsline {section}{\numberline {6}Conectores y Entradas}{3}{}%
+\contentsline {section}{\numberline {7}Límites de Operación Seguros}{3}{}%
+\contentsline {section}{\numberline {8}Clock y Sincronización}{4}{}%
+\contentsline {section}{\numberline {9}LEDs Indicadores}{4}{}%
+\contentsline {section}{\numberline {10}Interfaces de Expansión (GPIO y Control)}{5}{}%
