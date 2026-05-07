@@ -1,0 +1,238 @@
+\documentclass[11pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[spanish]{babel}
+\usepackage{geometry}
+\usepackage{amsmath}
+\usepackage{array}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{mdframed}
+\usepackage{hyperref}
+\usepackage{enumitem}
+
+\geometry{a4paper, margin=1in}
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    urlcolor=cyan,
+}
+
+\title{Resumen Final del Diseno\\Sistema WiFi SDR con Conmutacion RF}
+\author{Integracion de Radiofrecuencia y Sistemas Embebidos}
+\date{\today}
+
+\newmdenv[
+  backgroundcolor=red!8,
+  linecolor=red!60,
+  linewidth=1pt,
+  roundcorner=4pt,
+  innertopmargin=6pt,
+  innerbottommargin=6pt
+]{advertencia}
+
+\newmdenv[
+  backgroundcolor=blue!5,
+  linecolor=blue!60,
+  linewidth=1pt,
+  roundcorner=4pt,
+  innertopmargin=6pt,
+  innerbottommargin=6pt
+]{nota}
+
+\begin{document}
+
+\maketitle
+\tableofcontents
+\newpage
+
+\section{Objetivo del diseno}
+
+El sistema final busca implementar una plataforma compacta para monitoreo WiFi con SDR, control local desde una plataforma embebida y capacidad de seleccionar una de dos rutas RF en recepcion mediante un switch controlado por GPIO. La base del diseno proviene del esquema \texttt{notes/Design-Wifi-SDR-Switch2Ch.excalidraw} y se complementa con las fichas tecnicas en \texttt{SDRSpecs} y \texttt{PeriphericSpecs}.
+
+\section{Arquitectura final}
+
+La arquitectura queda definida por cuatro bloques principales:
+
+\begin{enumerate}[leftmargin=*]
+    \item \textbf{Host embebido:} un \textbf{Jetson Nano 4G} como computador principal de control, adquisicion y procesamiento.
+    \item \textbf{Frente SDR:} una \textbf{USRP B200mini} conectada por \textbf{USB 3.0} al Jetson.
+    \item \textbf{Conmutacion RF:} un \textbf{switch SPDT HMC849} usado para seleccionar una de dos ramas WiFi en la entrada de recepcion dedicada.
+    \item \textbf{Conectividad externa:} un modulo \textbf{SIM7600G-H 4G HAT (B)} para backhaul celular y posicionamiento GNSS cuando se requiera operacion remota.
+\end{enumerate}
+
+\subsection{Flujo funcional}
+
+\begin{itemize}[leftmargin=*]
+    \item El \textbf{Jetson Nano 4G} controla el sistema, ejecuta UHD y recibe las muestras de la \textbf{USRP B200mini} por \textbf{USB 3.0}.
+    \item El puerto \textbf{J1 TRX} de la USRP queda asignado a una ruta WiFi directa.
+    \item El puerto \textbf{J2 RX2} de la USRP se conecta al puerto comun del \textbf{HMC849}.
+    \item Las dos salidas del \textbf{HMC849} se destinan a dos ramas WiFi seleccionables.
+    \item Una linea de \textbf{GPIO} desde el Jetson conmuta el estado del switch para elegir la rama activa en \textbf{RX2}.
+    \item El modulo \textbf{SIM7600G-H} aporta salida 4G y GNSS para telemetria, acceso remoto o georreferenciacion del despliegue.
+\end{itemize}
+
+\begin{nota}
+Segun la hoja tecnica ya documentada en el proyecto, la \textbf{USRP B200mini} se maneja aqui como un SDR \textbf{1x1 full-duplex} con un puerto \textbf{TRX} y una entrada \textbf{RX2} dedicada. El esquema usa ambas rutas fisicas, pero la disponibilidad exacta de modos simultaneos debe validarse en la configuracion final de UHD.
+\end{nota}
+
+\section{Componentes del sistema}
+
+\begin{table}[h]
+    \centering
+    \small
+    \begin{tabular}{p{0.23\textwidth}p{0.25\textwidth}p{0.42\textwidth}}
+        \toprule
+        \textbf{Componente} & \textbf{Rol} & \textbf{Datos clave para el diseno} \\
+        \midrule
+        Jetson Nano 4G & Host de control y procesamiento & Controla UHD, recibe datos por USB 3.0 y entrega GPIO para conmutacion RF. \\
+        USRP B200mini & SDR principal & 70 MHz a 6 GHz, 12 bits, hasta 61.44 MS/s, ganancias y filtros programables, correcciones IQ/DC nativas. \\
+        HMC849 SPDT & Switch RF de seleccion & 1 entrada y 2 salidas, 50 $\Omega$, rango DC a 6 GHz, adecuado para seleccionar entre dos ramas RF. \\
+        SIM7600G-H 4G HAT (B) & Backhaul y geolocalizacion & LTE multibanda, GNSS multiconstelacion, interfaz USB y UART, alimentacion a 5 V. \\
+        Antena WiFi en TRX & Ruta RF directa & Permite una rama fija asociada al puerto principal TRX de la USRP. \\
+        Dos ramas WiFi en switch & Rutas RF seleccionables & Se conectan a las dos salidas del HMC849 para elegir una entrada activa sobre RX2. \\
+        Cableado USB 3.0 y coaxial SMA & Interconexion & USB 3.0 para datos del SDR y coaxiales de 50 $\Omega$ para enlaces RF. \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\section{Justificacion de seleccion}
+
+\subsection{USRP B200mini}
+
+La \textbf{USRP B200mini} es el nucleo del sistema por tres razones:
+
+\begin{itemize}[leftmargin=*]
+    \item Cubre holgadamente el rango WiFi dentro de su ventana operacional de \textbf{70 MHz a 6 GHz}.
+    \item Ofrece \textbf{ganancia programable}, \textbf{filtros analogicos y digitales} y una \textbf{sample rate maxima de 61.44 MS/s}, suficiente para escenarios de captura ancha.
+    \item Ya incorpora \textbf{correccion automatica de desbalance IQ y DC offset}, reduciendo trabajo de calibracion en software.
+\end{itemize}
+
+Adicionalmente, su conexion \textbf{USB 3.0} encaja bien con una plataforma embebida que centraliza adquisicion y procesamiento local.
+
+\subsection{Switch RF HMC849}
+
+El \textbf{HMC849} es coherente con el objetivo del esquema porque:
+
+\begin{itemize}[leftmargin=*]
+    \item Resuelve una conmutacion \textbf{binaria} simple entre dos ramas RF.
+    \item Su rango \textbf{DC a 6 GHz} cubre el trabajo en WiFi y se alinea con la banda util del SDR.
+    \item Permite una integracion compacta y de bajo costo frente a soluciones SP4T mas complejas.
+\end{itemize}
+
+En este diseno el switch no reemplaza filtros, atenuadores ni protecciones; solo selecciona la rama RF activa para la entrada \textbf{RX2}.
+
+\subsection{Jetson Nano 4G}
+
+El \textbf{Jetson} consolida tres funciones:
+
+\begin{itemize}[leftmargin=*]
+    \item Computo local para captura y procesamiento.
+    \item Control de perifricos por \textbf{GPIO}.
+    \item Conectividad remota si se integra el modulo \textbf{SIM7600G-H}.
+\end{itemize}
+
+Esto evita depender de un PC externo durante despliegues de campo.
+
+\subsection{SIM7600G-H 4G HAT (B)}
+
+El modulo \textbf{SIM7600G-H} no participa en la ruta RF WiFi principal, pero si aporta valor operativo al sistema:
+
+\begin{itemize}[leftmargin=*]
+    \item Enlace celular \textbf{LTE} para acceso remoto o envio de datos.
+    \item Posicionamiento \textbf{GNSS} para trazabilidad del despliegue.
+    \item Interfaz \textbf{USB} sencilla de integrar con plataformas Jetson.
+\end{itemize}
+
+\section{Interconexion final propuesta}
+
+\begin{table}[h]
+    \centering
+    \small
+    \begin{tabular}{p{0.25\textwidth}p{0.29\textwidth}p{0.34\textwidth}}
+        \toprule
+        \textbf{Origen} & \textbf{Destino} & \textbf{Funcion} \\
+        \midrule
+        Jetson USB 3.0 & USRP B200mini USB3 & Alimentacion logica del enlace y transferencia de muestras I/Q. \\
+        Jetson GPIO & Control del HMC849 & Seleccion del camino RF activo en la rama RX2. \\
+        USRP J1 TRX & Antena o rama WiFi fija & Ruta RF principal del puerto compartido TX/RX. \\
+        USRP J2 RX2 & Puerto comun del HMC849 & Entrada de recepcion dedicada para la rama conmutada. \\
+        HMC849 salida A & Rama WiFi A & Primera opcion de recepcion seleccionable. \\
+        HMC849 salida B & Rama WiFi B & Segunda opcion de recepcion seleccionable. \\
+        Jetson USB/UART & SIM7600G-H & Gestion de 4G, GNSS y telemetria externa. \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\section{Parametros y limites relevantes}
+
+\subsection{USRP B200mini}
+
+\begin{itemize}[leftmargin=*]
+    \item Rango nominal: \textbf{70 MHz a 6 GHz}.
+    \item Resolucion ADC/DAC: \textbf{12 bits}.
+    \item Frecuencia de muestreo maxima: \textbf{61.44 MS/s}.
+    \item Ganancia RX: \textbf{0 a 76 dB}.
+    \item Ganancia TX: \textbf{0 a 89.8 dB}.
+    \item Potencia maxima segura en entradas RF: \textbf{-15 dBm}.
+    \item Referencia externa opcional en J3: \textbf{10 MHz} o \textbf{PPS}.
+\end{itemize}
+
+\subsection{HMC849}
+
+\begin{itemize}[leftmargin=*]
+    \item Topologia: \textbf{SPDT}.
+    \item Impedancia: \textbf{50 $\Omega$}.
+    \item Rango RF: \textbf{DC a 6 GHz}.
+    \item Alimentacion del modulo: \textbf{3 V a 5 V DC}.
+\end{itemize}
+
+\subsection{SIM7600G-H}
+
+\begin{itemize}[leftmargin=*]
+    \item Alimentacion: \textbf{5 V DC}.
+    \item Picos de corriente: hasta \textbf{2 A} durante transmision.
+    \item Interfaces relevantes: \textbf{USB 2.0} y \textbf{UART 3.3 V}.
+    \item GNSS: \textbf{GPS, BeiDou, GLONASS, Galileo y QZSS}.
+\end{itemize}
+
+\section{Consideraciones de integracion}
+
+\begin{enumerate}[leftmargin=*]
+    \item \textbf{Compatibilidad logica del switch:} antes de conectar el GPIO del Jetson directamente al HMC849, validar el nivel logico requerido por el modulo comercial especifico.
+    \item \textbf{Impedancia RF:} mantener \textbf{50 $\Omega$} en todo el cableado coaxial, conectores y terminaciones.
+    \item \textbf{Conmutacion sobre RX2:} la rama con switch debe usarse como seleccion de antena o de ruta, no como sustituto de protecciones RF.
+    \item \textbf{Procesamiento local:} el Jetson debe dimensionarse para la tasa de muestreo y el ancho de banda realmente configurados en UHD.
+    \item \textbf{Backhaul 4G:} si habra operacion remota, reservar margen de energia para el \textbf{SIM7600G-H} por sus picos de consumo.
+\end{enumerate}
+
+\section{Riesgos y precauciones}
+
+\begin{advertencia}
+\textbf{Puntos criticos de seguridad e integridad del sistema}
+\end{advertencia}
+
+\begin{itemize}[leftmargin=*]
+    \item Nunca aplicar mas de \textbf{-15 dBm} a las entradas RF de la \textbf{USRP B200mini}.
+    \item Si se realizan pruebas de loopback TX$\to$RX, usar al menos \textbf{30 dB} de atenuacion.
+    \item No transmitir con el puerto \textbf{TRX} sin antena o carga de \textbf{50 $\Omega$}.
+    \item El \textbf{HMC849} no protege frente a sobrepotencia ni reemplaza un limitador.
+    \item No energizar el \textbf{SIM7600G-H} sin antenas LTE conectadas.
+    \item Verificar disipacion termica tanto en el modem 4G como en el host embebido.
+\end{itemize}
+
+\section{Conclusion}
+
+El diseno final converge en una solucion modular y realista para monitoreo WiFi con SDR: la \textbf{USRP B200mini} aporta flexibilidad RF y procesamiento de senal, el \textbf{HMC849} resuelve la seleccion entre dos ramas de recepcion, y el \textbf{Jetson Nano 4G} actua como nodo de control, computo y conectividad. La incorporacion del \textbf{SIM7600G-H} complementa el sistema para despliegues de campo donde se necesiten telemetria, acceso remoto o geoposicionamiento.
+
+En terminos de implementacion, la decision central del diseno es conservar una \textbf{ruta directa en TRX} y una \textbf{ruta conmutada en RX2}. Esto simplifica el cableado, mantiene el sistema dentro de una arquitectura compacta y deja abierta la posibilidad de evolucionar mas adelante hacia sincronizacion externa, automatizacion de seleccion RF o instrumentacion remota.
+
+\section{Documentos base utilizados}
+
+\begin{itemize}[leftmargin=*]
+    \item \texttt{notes/Design-Wifi-SDR-Switch2Ch.excalidraw}
+    \item \texttt{SDRSpecs/spanish/usrp-b200mini-ettus.tex}
+    \item \texttt{PeriphericSpecs/spanish/RF-switch.tex}
+    \item \texttt{PeriphericSpecs/spanish/LTE-GPS.tex}
+\end{itemize}
+
+\end{document}

@@ -1,0 +1,492 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{geometry}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\usepackage{verbatim}
+\usepackage{float}
+\usepackage{xcolor}
+
+\geometry{margin=1in}
+\hypersetup{hidelinks}
+\setlist[itemize]{leftmargin=1.3em,itemsep=0pt,topsep=0.25em,parsep=0pt,partopsep=0pt}
+\setlist[enumerate]{leftmargin=1.5em,itemsep=0.25em,topsep=0.35em,parsep=0pt,partopsep=0pt}
+
+\newcolumntype{Y}{>{\raggedright\arraybackslash}X}
+\newcommand{\criteriaheading}[1]{\par\smallskip\noindent\textbf{#1}\par}
+\newcommand{\scoreitem}[3]{\item #1 -- \textit{#2:} #3}
+\newcommand{\templatedesc}[2]{\noindent\textbf{#1} \textit{#2}\par}
+\newcommand{\boxfield}[1]{\underline{\hspace{#1}}}
+\newcommand{\decisionsummarybox}{%
+  \noindent
+  \begingroup
+  \setlength{\fboxsep}{0pt}%
+  \setlength{\fboxrule}{1pt}%
+  \fcolorbox{gray!65}{white}{%
+    \begin{minipage}{0.96\textwidth}
+      \colorbox{gray!65}{%
+        \parbox{\dimexpr\linewidth-2\fboxsep\relax}{%
+          \textcolor{white}{\strut\textbf{Platform Decision Summary}}%
+        }%
+      }
+
+      \vspace{0.55em}
+      {\small
+      \begin{tabularx}{\linewidth}{@{}>{\raggedright\arraybackslash}p{0.33\linewidth}X>{\raggedright\arraybackslash}p{0.23\linewidth}X@{}}
+        \textbf{Platform:} & \boxfield{5.1cm} & & \\
+        \textbf{Use-Case Template:} & \boxfield{3.8cm} & \textbf{Weighting Version:} & \boxfield{2.6cm} \\
+        \textbf{Normalized Score:} & \boxfield{1.4cm}\ \% & \textbf{Raw Weighted:} & \boxfield{1.4cm}\ /\ \boxfield{1.4cm} \\
+        \textbf{Go/No-Go Threshold:} & \boxfield{1.4cm}\ \% & \textbf{Decision:} & \boxfield{2.8cm} \\
+        \textbf{Knock-Out Status:} & \multicolumn{3}{l}{\boxfield{9.1cm}} \\
+      \end{tabularx}
+
+      \vspace{0.45em}
+      \textbf{Top 3 Strengths:}\par
+      \hspace*{3.8cm}1.\ \boxfield{7.1cm}\par
+      \hspace*{3.8cm}2.\ \boxfield{7.1cm}\par
+      \hspace*{3.8cm}3.\ \boxfield{7.1cm}\par
+
+      \vspace{0.35em}
+      \textbf{Critical Gaps (if any):}\par
+      \boxfield{12.5cm}\par
+
+      \vspace{0.35em}
+      \textbf{Mitigations / Next Steps:}\par
+      \boxfield{12.5cm}\par
+
+      \vspace{0.35em}
+      \textbf{Reviewer / Date:}\ \boxfield{3.1cm}\ /\ \boxfield{2.7cm}\par
+      }%
+    \end{minipage}%
+  }%
+  \endgroup
+}
+
+\title{SDR Hardware Comparison}
+\date{May 7, 2026}
+
+\begin{document}
+
+\maketitle
+
+\section*{1 Start Workflow}
+
+This framework provides a repeatable procedure for evaluating compute hosts and SDR RF front-ends for spectrum sensing and radio-based processing. The goal is to select a cost-effective, compact, modular, and scalable sensing node while reducing vendor lock-in.
+
+A candidate configuration should be evaluated as an integrated system:
+
+\[
+\text{Sensing Node} \equiv \text{Compute Host} \equiv \text{SDR RF Front-End} \equiv \text{Timing and Synchronization} \equiv \text{Deployment Infrastructure}
+\]
+
+Before scoring, verify mandatory requirements such as frequency coverage, instantaneous bandwidth, sustained data throughput, software support, timing capability, power budget, thermal behavior, and calibration feasibility.
+
+The following workflow guides the selection process:
+
+\begin{enumerate}
+  \item Define the use case. Specify target bands, bandwidth, signal types, real-time needs, ML requirements, deployment conditions, and budget.
+  \item Check mandatory requirements. Reject or flag candidates that fail critical RF, compute, timing, power, thermal, software, or calibration requirements.
+  \item Shortlist candidates. Select three to five feasible combinations of compute host, SDR front-end, timing reference, storage/network interface, and power solution.
+  \item Evaluate compute-host suitability. Assess CPU/GPU capability, memory, I/O bandwidth, storage, container support, software ecosystem, security, manageability, and sustained operation.
+  \item Evaluate SDR front-end suitability. Assess frequency range, instantaneous bandwidth, ADC/DAC resolution, dynamic range, frequency stability, clocking, timestamping, gain control, DC offset/IQ-imbalance behavior, calibration support, and SDR software compatibility and support.
+  \item Apply the scoring rubric. Score each applicable criterion from 1 to 5 and multiply it by its use-case weight. Mark non-applicable criteria as N/A.
+  \item Assess deployment strategy. Consider single-node versus multi-node readiness, enclosure, cooling, power, networking, data logging, remote access, and maintenance.
+  \item Validate with a pilot. Run representative GNU Radio or Python workflows and verify throughput, latency, packet loss, buffer stability, CPU/GPU load, storage bandwidth, temperature, and long-term stability.
+  \item Document the decision. Record scores, selected configuration, rejected alternatives, risks, mitigations, calibration assumptions, lock-in risk, openness, and total cost of ownership.
+\end{enumerate}
+
+\section*{2 Evaluation Criteria}
+
+\subsection*{2.1 Scoring Rubric}
+
+Apply a 1--5 raw score to each applicable criterion and multiply it by the weight assigned to the selected deployment profile:
+
+\[
+\text{Weighted Score}_i = \text{Raw Score}_i \times \text{Weight}_i.
+\]
+
+\begin{table}[H]
+  \centering
+  \small
+  \begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{0.36\textwidth}*{4}{>{\centering\arraybackslash}X}@{}}
+    \toprule
+    Criterion & Template 1: SIGINT & Template 2: Field & Template 3: Lab & Template 4: IoT \\
+    \midrule
+    Compute capability & 2$\times$ & 2$\times$ & 3$\times$ & 2$\times$ \\
+    SDR software support & 2$\times$ & 2$\times$ & 3$\times$ & 2$\times$ \\
+    I/O and data throughput & 2$\times$ & 2$\times$ & 3$\times$ & 2$\times$ \\
+    Power and thermal behavior & 1$\times$ & 3$\times$ & 1$\times$ & 2$\times$ \\
+    Form factor & 1$\times$ & 3$\times$ & 1$\times$ & 2$\times$ \\
+    Software ecosystem & 2$\times$ & 2$\times$ & 3$\times$ & 3$\times$ \\
+    Expandability & 1$\times$ & 1$\times$ & 3$\times$ & 2$\times$ \\
+    Openness / lock-in risk & 2$\times$ & 1$\times$ & 3$\times$ & 2$\times$ \\
+    Reliability & 3$\times$ & 3$\times$ & 1$\times$ & 3$\times$ \\
+    Total cost of ownership & 2$\times$ & 2$\times$ & 2$\times$ & 3$\times$ \\
+    Multi-node readiness & 3$\times$ & 1$\times$ & 1$\times$ & 3$\times$ \\
+    Security and manageability & 3$\times$ & 1$\times$ & 1$\times$ & 3$\times$ \\
+    RF measurement fidelity & 3$\times$ & 2$\times$ & 2$\times$ & 2$\times$ \\
+    Timing and synchronization & 3$\times$ & 2$\times$ & 2$\times$ & 2$\times$ \\
+    FPGA/HDL access & 2$\times$ & 1$\times$ & 3$\times$ & 1$\times$ \\
+    Regulatory and calibration support & 2$\times$ & 2$\times$ & 1$\times$ & 3$\times$ \\
+    \midrule
+    Final Weighted Score & & & & \\
+    \bottomrule
+  \end{tabularx}
+  \caption{Use-case weighting templates for candidate sensing-node configurations}
+\end{table}
+
+\templatedesc{Template 1: Spectrum Monitoring \& SIGINT}{Fixed infrastructure, continuous operation, multi-site coherent sensing.}
+\templatedesc{Template 2: Field Research \& Portable Operations}{Battery-powered, ruggedized, single-operator field collection.}
+\templatedesc{Template 3: Laboratory Research \& Algorithm Development}{Benchtop experimentation, flexible DSP, and FPGA development.}
+\templatedesc{Template 4: Production IoT/Wireless Monitoring}{Cost-optimized fleet deployment, long lifecycle, and remote management.}
+
+\subsubsection*{Assessment Summary}
+
+\begin{itemize}
+  \item \textit{Pros:} [User fills in narrative pros here.]
+  \item \textit{Cons/Caveats:} [User fills in narrative cons here.]
+\end{itemize}
+
+\subsection*{2.2 Score Normalization \& Decision Logic}
+
+\textit{Normalization Formula.} To enable cross-platform comparison, raw weighted scores are converted to a percentage:
+
+\begin{equation}
+\label{eq:normalized-score}
+\text{Normalized Score (\%)} =
+\frac{\sum_{i=1}^{N} \left(\text{Raw Score}_i \times \text{Weight}_i\right)}
+{\sum_{i=1}^{N} \left(5 \times \text{Weight}_i\right)} \times 100.
+\end{equation}
+
+Here, $N$ is the number of applicable criteria, excluding those marked N/A.
+
+\noindent\textit{N/A Handling:} For criteria marked N/A, exclude both the raw weighted score from the numerator and the corresponding maximum weighted score from the denominator in Eq.~\eqref{eq:normalized-score}.
+
+\subsection*{2.3 Decision Thresholds}
+
+These thresholds apply only to candidates that have already passed the mandatory requirements gate.
+
+\begin{table}[H]
+  \centering
+  \small
+  \begin{tabular}{@{}lll@{}}
+    \toprule
+    Normalized Score & Recommendation & Guidance \\
+    \midrule
+    $\geq 85\%$ & \textbf{Strong Accept} & Proceed to pilot; minimal risk \\
+    $70\%$--$84\%$ & \textbf{Conditional Accept} & Proceed with documented mitigations \\
+    $55\%$--$69\%$ & \textbf{Re-evaluate} & Address low-scoring criteria or adjust weights \\
+    $< 55\%$ & \textbf{Reject} & Platform unlikely to meet requirements \\
+    \bottomrule
+  \end{tabular}
+  \caption{Decision thresholds based on normalized score}
+  \label{tab:decision-thresholds}
+\end{table}
+
+\section*{3 Implementation Notes}
+
+\begin{itemize}
+  \item \textit{Host interfaces.} Prioritize USB 3.x, PCIe, and Gigabit Ethernet, and verify sustained throughput at the target sample rate without buffer overflows or dropped packets.
+  \item \textit{Software portability.} Use containerization when possible, but verify SDR-driver access and GPU/accelerator visibility inside the container.
+  \item \textit{Power and thermal stability.} For field or continuous deployments, use a robust power supply and adequate cooling. Thermal drift and throttling can affect both processing stability and RF phase/frequency stability.
+  \item \textit{Open ecosystem.} Prefer maintained drivers, open APIs, and active community support to reduce vendor lock-in and improve long-term maintainability.
+  \item \textit{Machine-learning workloads.} If ML inference is required, verify accelerator availability, memory capacity, model-runtime support, and compatibility with the selected SDR pipeline.
+  \item \textit{RF impairments.} Evaluate IQ imbalance, DC offset, gain calibration, and the availability of driver- or software-level compensation hooks.
+  \item \textit{FPGA/HDL development.} If FPGA customization is required, account for HDL toolchain availability, license cost, supported devices, and integration with the SDR software stack.
+\end{itemize}
+
+\clearpage
+\appendix
+
+\section*{Appendix}
+
+\subsection*{Pilot Validation}
+
+\begin{enumerate}
+  \item \textbf{Throughput \& Stability Test}
+  \begin{itemize}
+    \item Run continuous acquisition at target sample rate for 4+ hours.
+    \item Monitor for overflows, underruns, dropped samples.
+    \item \textit{Pass criterion:} $<0.01\%$ sample loss, no crashes.
+    \item \textit{Tools:} \texttt{uhd\_rx\_cfile}, \texttt{hackrf\_transfer}, GNU Radio File Sink with metadata logging.
+  \end{itemize}
+
+  \item \textbf{Latency Benchmark}
+  \begin{itemize}
+    \item Measure RF-to-processing pipeline delay under typical load.
+    \item Use loopback test (TX $\rightarrow$ RX path with known signal).
+    \item \textit{Pass criterion:} Latency meets real-time requirements (e.g., $<10$ ms for interactive applications).
+    \item \textit{Tools:} GNU Radio \texttt{message\_strobe} with timestamped logging.
+  \end{itemize}
+
+  \item \textbf{Thermal Stress Test}
+  \begin{itemize}
+    \item Run at 100\% CPU + SDR acquisition for 4 hours minimum.
+    \item Monitor core temperatures, clock speeds (throttling detection).
+    \item \textit{Pass criterion:} No thermal shutdown, $<10\%$ performance degradation.
+    \item \textit{Tools:} \texttt{stress-ng}, \texttt{sensors}, \texttt{turbostat}.
+  \end{itemize}
+
+  \item \textbf{Multi-Channel Verification}
+  \begin{itemize}
+    \item If applicable, run target number of simultaneous channels.
+    \item Verify no cross-talk, interference, or resource contention.
+    \item \textit{Pass criterion:} All channels maintain specifications simultaneously.
+    \item \textit{Tools:} GNU Radio multi-USRP source, parallel \texttt{rtl\_sdr} instances.
+  \end{itemize}
+
+  \item \textbf{Synchronization Accuracy} (if multi-node or coherent operation)
+  \begin{itemize}
+    \item Verify timing alignment between nodes or channels.
+    \item Measure phase drift over time with external reference.
+    \item \textit{Pass criterion:} Timing jitter within application tolerance (e.g., $<100$ ns for beamforming).
+    \item \textit{Tools:} PPS measurement, GNU Radio correlate blocks, external rubidium reference.
+  \end{itemize}
+
+  \item \textbf{Software Stack Integration}
+  \begin{itemize}
+    \item Install complete SDR toolchain (GNU Radio, drivers, dependencies).
+    \item Verify version compatibility matrix (e.g., GNU Radio 3.10 + UHD 4.6).
+    \item Run reference flowgraphs (FM receiver, waterfall, etc.).
+    \item \textit{Pass criterion:} Clean installation, all blocks functional, no library conflicts.
+    \item \textit{Tools:} Package manager logs, GNU Radio Companion examples.
+  \end{itemize}
+
+  \item \textbf{Container Deployment} (if applicable)
+  \begin{itemize}
+    \item Deploy SDR stack in Docker/Podman container.
+    \item Verify USB/PCIe passthrough, GPU access (for ML).
+    \item \textit{Pass criterion:} Container performance matches bare-metal within 5\%.
+    \item \textit{Tools:} Docker Compose, device flags, GPU runtime.
+  \end{itemize}
+
+  \item \textbf{RF Performance Validation}
+  \begin{itemize}
+    \item Measure actual noise figure and sensitivity with known test equipment.
+    \item Verify frequency accuracy and stability over temperature.
+    \item Check for spurious emissions, images, harmonics.
+    \item \textit{Pass criterion:} Meets datasheet specifications within tolerances.
+    \item \textit{Tools:} Signal generator, spectrum analyzer, shielded enclosure.
+  \end{itemize}
+\end{enumerate}
+
+\subsection*{Scored Evaluation Criteria}
+
+\begingroup
+\small
+
+\criteriaheading{Compute Capability}
+\begin{itemize}
+  \scoreitem{5}{Exceptional}{High core count or equivalent parallel throughput, dedicated GPU/AI accelerator, enterprise-grade RAM; sustains 4+ simultaneous wideband channels with ML inference in real time.}
+  \scoreitem{4}{Excellent}{Mid-range multicore or equivalent, integrated AI accelerator or GPU, substantial RAM; processes 2--3 channels with moderate ML workloads.}
+  \scoreitem{3}{Adequate}{Standard multicore or equivalent, adequate RAM; handles single wideband channel or multiple narrowband channels.}
+  \scoreitem{2}{Limited}{Entry-level core count, constrained memory; struggles with real-time processing, requires downsampling or offline analysis.}
+  \scoreitem{1}{Insufficient}{Minimal processing capability, severely constrained memory; cannot sustain real-time baseband processing.}
+\end{itemize}
+
+\criteriaheading{SDR Software Compatibility}
+\begin{itemize}
+  \scoreitem{5}{Comprehensive}{Full SoapySDR module support, mature Python/C++ APIs with stable bindings, pre-built binaries for major OS/distros (Linux, Windows, macOS, ARM); works out of the box with GNU Radio/UHD/gr-osmosdr; active driver maintenance.}
+  \scoreitem{4}{Strong}{SoapySDR module available (may require minor build), well-documented Python/C++ APIs, binaries available for Linux/ARM; community-maintained packages, comprehensive documentation.}
+  \scoreitem{3}{Functional}{Basic SoapySDR support or limited API maturity, requires manual compilation for some OS/architectures, partial cross-platform binary availability; workarounds documented.}
+  \scoreitem{2}{Partial}{No official SoapySDR module, immature or proprietary APIs, single-platform binaries only; significant porting effort, missing drivers for some SDR models.}
+  \scoreitem{1}{Incompatible}{No SDR abstraction layer support, no usable APIs, architecture/OS locked, or proprietary stack only.}
+\end{itemize}
+
+\criteriaheading{I/O and RF Interface Support}
+\begin{itemize}
+  \scoreitem{5}{Comprehensive}{Multiple PCIe Gen3+ slots, several USB 3.x/4 ports (dedicated controllers), 10GbE+, Thunderbolt; sufficient bandwidth for high-throughput SDR arrays.}
+  \scoreitem{4}{Strong}{PCIe Gen2+, multiple USB 3.x ports, GbE/2.5GbE; adequate bandwidth for 2+ SDRs without contention.}
+  \scoreitem{3}{Adequate}{Dual USB 3.x (may share controller), GbE; handles single wideband SDR or light multi-channel setups.}
+  \scoreitem{2}{Limited}{Shared USB bandwidth, may experience overflows at high sample rates without careful tuning.}
+  \scoreitem{1}{Insufficient}{Legacy USB 2.0 or severely bandwidth-constrained interfaces; unsuitable for modern wideband SDR.}
+\end{itemize}
+
+\criteriaheading{Power and Thermal Characteristics}
+\begin{itemize}
+  \scoreitem{5}{Excellent}{Ultra-low power envelope, passive cooling capable, wide operating temperature range, zero throttling under sustained load.}
+  \scoreitem{4}{Good}{Low-to-moderate power draw, efficient active cooling, minimal thermal throttling under sustained load.}
+  \scoreitem{3}{Acceptable}{Moderate power envelope, requires active cooling, occasional thermal throttling under peak workloads.}
+  \scoreitem{2}{Challenging}{High power draw, aggressive throttling without robust cooling infrastructure.}
+  \scoreitem{1}{Problematic}{Very high power/thermal output or severe management issues; unsuitable for compact/field deployment.}
+\end{itemize}
+
+\criteriaheading{Form Factor and Ruggedness}
+\begin{itemize}
+  \scoreitem{5}{Field-Ready}{Fanless, high ingress protection rating, shock/vibration resistant, lightweight, compact footprint.}
+  \scoreitem{4}{Portable}{Small form factor, ruggedized enclosure options, moderate weight, efficient fan-cooled design.}
+  \scoreitem{3}{Desktop}{Mini-ITX or NUC-sized, standard PC enclosure, moderate weight, requires controlled environment.}
+  \scoreitem{2}{Large}{Standard desktop/tower footprint, heavier, rack-mount or floor-standing, requires infrastructure.}
+  \scoreitem{1}{Stationary}{Server-class chassis, heavy, requires dedicated data center or lab environment.}
+\end{itemize}
+
+\criteriaheading{Software Ecosystem and Updates}
+\begin{itemize}
+  \scoreitem{5}{Mature}{LTS Linux support, official container images, long-term update commitment, documented CI/CD pipelines.}
+  \scoreitem{4}{Strong}{Mainline kernel support, community containers, multi-year updates, comprehensive documentation.}
+  \scoreitem{3}{Functional}{Requires specific distro/kernel, community-maintained containers, periodic updates, adequate docs.}
+  \scoreitem{2}{Fragile}{Requires out-of-tree patches, limited containerization, uncertain update cadence.}
+  \scoreitem{1}{Problematic}{Abandonware risk, no container support, requires legacy software stacks.}
+\end{itemize}
+
+\criteriaheading{Expandability and Modularity}
+\begin{itemize}
+  \scoreitem{5}{Highly Modular}{Multiple expansion slots, RAM upgradeable to high capacity, NVMe/PCIe expansion, accelerator-ready interfaces.}
+  \scoreitem{4}{Expandable}{RAM upgradeable to moderate capacity, 1--2 expansion slots, storage upgrades supported.}
+  \scoreitem{3}{Limited Expansion}{Fixed base RAM, storage upgradeable, USB-centric expansion.}
+  \scoreitem{2}{Minimal}{Soldered/limited RAM, eMMC/basic storage, dongle-only expansion.}
+  \scoreitem{1}{Fixed}{No upgrade path, proprietary form factor or sealed architecture.}
+\end{itemize}
+
+\criteriaheading{Interoperability and Openness}
+\begin{itemize}
+  \scoreitem{5}{Fully Open}{Open-source drivers in mainline, fully documented APIs, public reference designs, zero vendor lock-in.}
+  \scoreitem{4}{Mostly Open}{Open drivers (may require build), well-documented APIs, community reverse-engineering support if needed.}
+  \scoreitem{3}{Mixed}{Binary blobs required, partial documentation, some vendor tools necessary for full functionality.}
+  \scoreitem{2}{Proprietary}{Closed drivers, restricted documentation, vendor SDK mandatory for development.}
+  \scoreitem{1}{Locked}{Encrypted/undocumented firmware, no alternative stacks possible, hard vendor lock-in.}
+\end{itemize}
+
+\criteriaheading{Reliability and Lifecycle}
+\begin{itemize}
+  \scoreitem{5}{Industrial}{High MTBF rating, extended warranty, decade-plus lifecycle commitment, guaranteed long-term part availability.}
+  \scoreitem{4}{Commercial}{Solid MTBF, multi-year warranty, long lifecycle, established supply chain.}
+  \scoreitem{3}{Standard}{Typical MTBF, standard warranty, multi-year lifecycle, standard commercial support.}
+  \scoreitem{2}{Consumer}{Lower MTBF, limited warranty, short lifecycle, typical consumer-grade support.}
+  \scoreitem{1}{Short-Lived}{No formal MTBF, minimal warranty, high EOL risk, unsuitable for sustained operations.}
+\end{itemize}
+
+\criteriaheading{Total Cost of Ownership}
+\begin{itemize}
+  \scoreitem{5}{Very Low}{Minimal upfront cost, ultra-low power draw, zero licensing, predictable long-term operating expenses.}
+  \scoreitem{4}{Low}{Moderate upfront cost, low power draw, minimal licensing, manageable long-term expenses.}
+  \scoreitem{3}{Moderate}{Mid-range upfront cost, moderate power/licensing, standard operational overhead.}
+  \scoreitem{2}{High}{Significant upfront investment, high power/licensing costs, substantial maintenance overhead.}
+  \scoreitem{1}{Very High}{Premium upfront cost, excessive power/licensing, expensive support/upgrade contracts.}
+\end{itemize}
+
+\criteriaheading{Multi-Node Readiness}
+\begin{itemize}
+  \scoreitem{5}{Orchestration-Ready}{Native cluster/orchestration support, centralized management APIs, distributed precision timing, validated at scale.}
+  \scoreitem{4}{Cluster-Capable}{Supports orchestration with configuration, centralized monitoring, external timing reference, validated for mid-size deployments.}
+  \scoreitem{3}{Multi-Node}{Manual cluster setup, SSH-based management, basic GPS sync capable, suitable for small deployments.}
+  \scoreitem{2}{Networked}{Basic network connectivity, independent node management, no hardware timing sync, limited scalability.}
+  \scoreitem{1}{Standalone}{Single-node architecture, no clustering or distributed management capability.}
+\end{itemize}
+
+\criteriaheading{Security and Manageability}
+\begin{itemize}
+  \scoreitem{5}{Hardened}{Hardware-backed secure boot, TPM/HSM support, hardware-encrypted storage, enterprise remote management, FIPS-compliant options.}
+  \scoreitem{4}{Secure}{Secure boot, software encryption, remote management via standard protocols, RBAC, centralized logging.}
+  \scoreitem{3}{Managed}{Basic secure boot, encrypted partitions, standard remote access, local logging.}
+  \scoreitem{2}{Basic}{Manual update process, password-only auth, no default encryption.}
+  \scoreitem{1}{Insecure}{No secure boot, no remote management, no encryption options, exposed attack surface.}
+\end{itemize}
+
+\criteriaheading{RF Fidelity and Sensitivity}
+\begin{itemize}
+  \scoreitem{5}{Laboratory-Grade}{Ultra-low noise figure, exceptional dynamic range, minimal phase noise, factory-calibrated reference oscillator.}
+  \scoreitem{4}{Professional}{Low noise figure, high dynamic range, stable phase noise profile, precision reference (TCXO/GPSDO).}
+  \scoreitem{3}{Good}{Moderate noise figure, standard dynamic range, acceptable phase noise, external reference capable.}
+  \scoreitem{2}{Adequate}{Higher noise floor, limited dynamic range, noticeable phase noise, basic timing reference.}
+  \scoreitem{1}{Poor}{High noise figure, severely limited dynamic range, unstable oscillator, unsuitable for precision/weak-signal work.}
+\end{itemize}
+
+\criteriaheading{Timing and Synchronization}
+\begin{itemize}
+  \scoreitem{5}{Coherent Array}{Sub-nanosecond sync capability, integrated precision timing, dedicated 10 MHz/1PPS I/O, multi-channel phase-locked.}
+  \scoreitem{4}{Precision Sync}{High-precision network sync, external precision timing support, 10 MHz/1PPS input, dual-channel coherence.}
+  \scoreitem{3}{Synchronized}{External reference input, software-level network sync, basic GPS pulse support.}
+  \scoreitem{2}{Basic Timing}{Standard network time only, no external reference, independent free-running clocks.}
+  \scoreitem{1}{Unsynchronized}{No timing infrastructure, oscillator drift unmanaged, unsuitable for multi-node/coherent work.}
+\end{itemize}
+
+\criteriaheading{FPGA/DSP Offloading}
+\begin{itemize}
+  \scoreitem{5}{Open HDL}{User-accessible FPGA with open/free toolchains, documented host interfaces, comprehensive example designs.}
+  \scoreitem{4}{Programmable}{Accessible FPGA with vendor tools (free tier sufficient), documented API for host interaction, community bitstreams.}
+  \scoreitem{3}{Semi-Custom}{Fixed base bitstream with configurable blocks, vendor SDK required for modifications.}
+  \scoreitem{2}{Fixed Function}{Closed FPGA architecture, firmware-only updates, minimal customization options.}
+  \scoreitem{1}{No Access}{Black-box processing or no FPGA/DSP offload available; fully host-dependent.}
+\end{itemize}
+
+\criteriaheading{Regulatory and Compliance}
+\begin{itemize}
+  \scoreitem{5}{Fully Certified}{Complete regulatory certification for enclosure, emissions compliant, integrated shielding/filtering, documented compliance reports.}
+  \scoreitem{4}{Compliant}{Enclosure meets standard EMI/EMC guidelines, external filtering available, vendor compliance documentation.}
+  \scoreitem{3}{Adequate}{Basic internal shielding, user-responsible for final compliance, commercial-grade enclosure.}
+  \scoreitem{2}{Limited}{Minimal shielding, may require custom enclosure for certification, suitable for lab/hobby use only.}
+  \scoreitem{1}{Non-Compliant}{No shielding, known emission issues, unsuitable for regulated or production environments.}
+\end{itemize}
+
+\endgroup
+
+\subsection*{3.1 Knock-Out Thresholds}
+
+\subsubsection*{Per-Template Minimum Viable Scores}
+
+\begin{table}[H]
+  \centering
+  \small
+  \begin{tabular}{@{}p{0.29\textwidth}p{0.63\textwidth}@{}}
+    \toprule
+    Template & Knock-Out Criteria (Auto-Reject if any score is below threshold) \\
+    \midrule
+    1. Spectrum Monitoring \& SIGINT & Compute capability $\geq 3$; Security / manageability $\geq 3$; RF fidelity $\geq 3$; Timing \& synchronization $\geq 3$; Multi-node readiness $\geq 3$ \\
+    2. Field Research \& Portable Ops & Compute capability $\geq 3$; Power / thermal $\geq 3$; Form factor $\geq 3$; Reliability $\geq 3$ \\
+    3. Laboratory Research \& Algorithm Dev & Compute capability $\geq 3$; SDR software compatibility $\geq 3$; I/O interfaces $\geq 3$; Software ecosystem $\geq 3$; Openness $\geq 3$ \\
+    4. Production IoT / Wireless Monitoring & Reliability $\geq 3$; Total cost of ownership $\geq 3$; Multi-node readiness $\geq 3$; Security / manageability $\geq 3$; Regulatory compliance $\geq 3$ \\
+    \bottomrule
+  \end{tabular}
+  \caption{Minimum viable scores by deployment template. A platform failing any listed criterion is non-viable for that role.}
+  \label{tab:knockout-thresholds}
+\end{table}
+
+\subsubsection*{Rationale for Minimums}
+
+\begin{itemize}
+  \item \textbf{Template 1 (SIGINT):} Continuous, multi-site coherent sensing cannot tolerate insufficient compute (dropped samples), weak security (exposure of classified/controlled data), poor RF fidelity (missed weak signals), or broken timing (loss of coherence).
+  \item \textbf{Template 2 (Field):} Battery-powered, single-operator deployments fail outright if thermal design forces shutdown, the chassis cannot survive transport, or compute cannot sustain real-time acquisition.
+  \item \textbf{Template 3 (Lab):} Experimentation requires open toolchains, stable APIs, and sufficient I/O to iterate. A closed or fragile ecosystem blocks research progress regardless of raw performance.
+  \item \textbf{Template 4 (Production IoT):} Fleet deployments prioritize unit economics, compliance, and remote manageability. High TCO or missing regulatory certification makes scale impossible.
+\end{itemize}
+
+\clearpage
+
+\subsubsection*{Decision Matrix Output Template}
+
+Use this 1-page summary for final platform selection:
+
+\decisionsummarybox
+
+\subsubsection*{Scoring Table Integration}
+
+Replace the final rows of your platform-specific scoring table with:
+
+{\small
+\begin{verbatim}
+\midrule
+\multicolumn{2}{l}{\textbf{Raw Weighted Total:}}
+& \underline{\hspace{2cm}} / \underline{\hspace{2cm}} \\
+\multicolumn{2}{l}{\textbf{Applicable Criteria (N):}}
+& \underline{\hspace{2cm}} of 16 \\
+\multicolumn{2}{l}{\textbf{Normalized Score (\%):}}
+& \underline{\hspace{2cm}} \% \\
+\multicolumn{2}{l}{\textbf{Decision (Tab.~\ref{tab:decision-thresholds}):}}
+& \underline{\hspace{4cm}} \\
+\multicolumn{2}{l}{\textbf{Knock-Out Violations (Tab.~\ref{tab:knockout-thresholds}):}}
+& \underline{\hspace{4cm}} \\
+\midrule
+\textit{Pros:} & \multicolumn{2}{l}{} \\
+\textit{Cons/Caveats (incl. N/A rationale):} & \multicolumn{2}{l}{} \\
+\textit{Reviewer / Date:} & \multicolumn{2}{l}{\today} \\
+\bottomrule
+\end{verbatim}
+}
+
+\end{document}

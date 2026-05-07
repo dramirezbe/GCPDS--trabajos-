@@ -1,0 +1,250 @@
+\documentclass{beamer}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{array}
+
+\usetheme{Madrid}
+\setbeamertemplate{navigation symbols}{}
+
+\title{SDR Monitoring Spectrum System}
+\subtitle{Predesign Topics Review}
+\author{DesignSensorSpectrum}
+\date{\today}
+
+\begin{document}
+
+\begin{frame}
+    \titlepage
+\end{frame}
+
+\begin{frame}{Predesign Context}
+    \begin{block}{System Goal}
+        Build a monitoring node around an embedded compute unit, an SDR front-end, controlled RF switching, and optional remote connectivity plus geolocalization.
+    \end{block}
+
+    \vspace{0.5em}
+
+    \begin{itemize}
+        \item \textbf{SDR front-end:} Ettus USRP B200mini.
+        \item \textbf{Compute unit options:} Jetson Nano or Raspberry Pi 5.
+        \item \textbf{RF switching:} HMC849 SPDT for branch selection.
+        \item \textbf{Remote node functions:} LTE backhaul and GNSS through SIM7600G-H.
+        \item \textbf{Critical engineering axes:} power integrity, impedance control, thermals, and RF input protection.
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{Power Tree: How to Do It}
+    \scriptsize
+    \begin{enumerate}
+        \item \textbf{List all loads:} compute board, SDR, RF switch, modem, fan, storage, and optional active antennas.
+        \item \textbf{Separate power domains:} noisy digital loads, RF/control loads, and high-peak loads such as LTE.
+        \item \textbf{Size worst-case current:} streaming SDR + modem TX + fan + storage is the design point, not idle mode.
+        \item \textbf{Choose regulation:} use the official SBC input rail as the root, then derive clean 5 V / 3.3 V branches as needed.
+        \item \textbf{Add protection:} fuse or current limit, reverse-polarity protection, filtering, TVS where appropriate, and ground strategy.
+        \item \textbf{Validate margins:} check cable drop, peak current, boot current, and thermal rise under simultaneous load.
+    \end{enumerate}
+
+    \vspace{0.5em}
+
+    \begin{block}{Applied to This Design}
+        Root input $\rightarrow$ SBC rail $\rightarrow$ USB 3.0 SDR branch + RF switch control rail + LTE/GNSS branch + cooling branch.
+    \end{block}
+\end{frame}
+
+\begin{frame}{SDR Internal Specs: Hardware and Software}
+    \scriptsize
+    \begin{columns}[T]
+        \column{0.49\textwidth}
+        \begin{block}{Hardware View}
+            \begin{itemize}
+                \item AD9364-based RF transceiver.
+                \item \textbf{70 MHz to 6 GHz} operating range.
+                \item \textbf{12-bit} ADC/DAC.
+                \item Up to \textbf{61.44 MS/s}.
+                \item \textbf{J1 TRX} shared TX/RX and \textbf{J2 RX2} dedicated RX.
+                \item External \textbf{10 MHz / PPS} support on J3.
+                \item Maximum safe RF input: \textbf{-15 dBm}.
+            \end{itemize}
+        \end{block}
+
+        \column{0.49\textwidth}
+        \begin{block}{Software View}
+            \begin{itemize}
+                \item Managed through \textbf{UHD}.
+                \item Key parameters: \texttt{sample\_rate}, bandwidth, RX/TX gain, AGC, \texttt{master\_clock\_rate}.
+                \item Analog LPF and digital filters are configured through UHD.
+                \item IQ imbalance and DC offset correction are already built into the transceiver/UHD stack.
+                \item System bottlenecks are usually host CPU, USB throughput, and buffer overrun/underrun handling.
+            \end{itemize}
+        \end{block}
+    \end{columns}
+\end{frame}
+
+\begin{frame}{Impedance Matching: 50 $\Omega$ RF vs 75 $\Omega$ TDT}
+    \small
+    \begin{columns}[T]
+        \column{0.48\textwidth}
+        \begin{block}{50 $\Omega$ Domain}
+            \begin{itemize}
+                \item SDR ports, SMA cables, attenuators, switch modules, filters, and lab accessories.
+                \item This should be the controlled impedance of the internal RF chain.
+                \item Keep unused TX or test ports terminated with \textbf{50 $\Omega$}.
+            \end{itemize}
+        \end{block}
+
+        \column{0.48\textwidth}
+        \begin{block}{75 $\Omega$ TDT Domain}
+            \begin{itemize}
+                \item Typical for terrestrial TV antennas, splitters, and domestic coax runs.
+                \item If the system connects to TDT infrastructure, adapt the transition into the SDR chain.
+                \item For calibrated work, use a \textbf{$75\,\Omega \leftrightarrow 50\,\Omega$} pad, transformer, or matching section.
+            \end{itemize}
+        \end{block}
+    \end{columns}
+
+    \vspace{0.5em}
+
+    \begin{alertblock}{Practical Rule}
+        A direct 75 $\Omega$ to 50 $\Omega$ connection often still works, but it is a mismatch. For repeatable measurements, define one controlled adaptation point and keep the rest of the chain at 50 $\Omega$.
+    \end{alertblock}
+\end{frame}
+
+\begin{frame}{Compute Unit: Expected Resources}
+    \scriptsize
+    \begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{0.24\textwidth} >{\raggedright\arraybackslash}p{0.34\textwidth} X}
+        \toprule
+        \textbf{Platform} & \textbf{Official Core Specs} & \textbf{Predesign Reading} \\
+        \midrule
+        Jetson Nano & 4x Cortex-A57 @ 1.43 GHz, 4 GB LPDDR4, 128-core Maxwell GPU, 472 GFLOPS, 5--10 W & Better when the node also needs CUDA or AI inference near the SDR pipeline. Limited CPU compared with newer SBCs. \\
+        Raspberry Pi 5 & 4x Cortex-A76 @ 2.4 GHz, LPDDR4X options from 1 GB to 16 GB, VideoCore VII, 2x USB 3.0, GbE, 5 V / 5 A recommended & Stronger general CPU platform for host-side DSP, logging, and orchestration if GPU acceleration is not the main requirement. \\
+        \bottomrule
+    \end{tabularx}
+
+    \vspace{0.5em}
+
+    \begin{block}{Sizing Guideline}
+        For plain spectrum monitoring and control, Raspberry Pi 5 is the stronger CPU-first option. For AI-assisted classification, camera fusion, or CUDA workflows, Jetson Nano keeps an advantage at the platform level.
+    \end{block}
+\end{frame}
+
+\begin{frame}{Thermal Throttling}
+    \small
+    \begin{itemize}
+        \item Thermal throttling is not only a CPU problem; it impacts \textbf{sample stability}, USB reliability, modem uptime, and enclosure behavior.
+        \item Main heat sources in this design are:
+        \begin{itemize}
+            \item compute SoC,
+            \item LTE modem during transmission,
+            \item storage and power stages,
+            \item confined airflow around the SDR host.
+        \end{itemize}
+        \item Raspberry Pi 5 official operating temperature is \textbf{0\textdegree C to 70\textdegree C}; the enclosure should be designed to stay below thermal reduction zones.
+        \item Jetson Nano power modes are low, but sustained AI or video tasks still need heatsinking and airflow.
+        \item Predesign mitigation: fan header budget, vent path, modem spacing, thermal pads/heatsinks, and logging of temperature under real SDR streaming load.
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{Undervoltage}
+    \small
+    \begin{itemize}
+        \item Undervoltage causes unstable USB peripherals, SDR disconnects, sample drops, storage errors, and LTE modem resets.
+        \item Worst cases appear during \textbf{boot}, \textbf{USB 3.0 traffic}, and \textbf{SIM7600 TX current peaks}.
+        \item Raspberry Pi 5 official guidance:
+        \begin{itemize}
+            \item it can boot from \textbf{5 V / 3 A},
+            \item but high-power peripheral current is then restricted,
+            \item \textbf{5 V / 5 A} gives more USB current budget and more system margin.
+        \end{itemize}
+        \item Predesign rules:
+        \begin{itemize}
+            \item keep input cables short and low resistance,
+            \item avoid powering modem peaks from a weak shared branch,
+            \item leave current margin for fan and storage,
+            \item validate supply sag with all subsystems active at once.
+        \end{itemize}
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{Internet or Node Connection}
+    \small
+    \begin{columns}[T]
+        \column{0.48\textwidth}
+        \begin{block}{Lab / Fixed Node}
+            \begin{itemize}
+                \item Gigabit Ethernet for stable remote access.
+                \item SSH, rsync, VPN, or web dashboards.
+                \item Easier for continuous logging and software updates.
+            \end{itemize}
+        \end{block}
+
+        \column{0.48\textwidth}
+        \begin{block}{Field / Mobile Node}
+            \begin{itemize}
+                \item SIM7600G-H provides LTE backhaul.
+                \item USB is the recommended integration path with Jetson-class hosts.
+                \item Good for remote campaigns, telemetry, and alerting.
+            \end{itemize}
+        \end{block}
+    \end{columns}
+
+    \vspace{0.5em}
+
+    \begin{alertblock}{Node Architecture Guideline}
+        Do local capture and local reduction first. Send metadata, alarms, and summarized spectra over the network; send raw wideband IQ only when the link budget allows it.
+    \end{alertblock}
+\end{frame}
+
+\begin{frame}{RF Switching}
+    \small
+    \begin{itemize}
+        \item The \textbf{HMC849 SPDT} is the predesign choice for switching between two RF branches.
+        \item Current architecture idea:
+        \begin{itemize}
+            \item USRP \textbf{RX2} connected to the common switch port,
+            \item output A and output B connected to two antennas or two filter paths,
+            \item GPIO from the compute unit selects the active branch.
+        \end{itemize}
+        \item Typical uses:
+        \begin{itemize}
+            \item antenna diversity,
+            \item band-select filtering,
+            \item protected bypass topologies.
+        \end{itemize}
+        \item The switch is \textbf{not} an attenuator, limiter, or surge protector.
+        \item Predesign checks: logic threshold compatibility, insertion loss, isolation, RF power limit, and board-level grounding.
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{Geolocalization}
+    \small
+    \begin{itemize}
+        \item The \textbf{SIM7600G-H} adds \textbf{GPS, BeiDou, GLONASS, Galileo, and QZSS} support.
+        \item Geolocation is useful for:
+        \begin{itemize}
+            \item tagging spectrum captures by position,
+            \item mobile drive-test style campaigns,
+            \item asset tracking of deployed nodes,
+            \item correlating events with location and route.
+        \end{itemize}
+        \item Integration options:
+        \begin{itemize}
+            \item GNSS queried over AT commands,
+            \item stored in local logs with timestamp and node ID,
+            \item forwarded to a server together with alarms or summary measurements.
+        \end{itemize}
+        \item Important distinction: GNSS gives position; precise SDR coherence still benefits from a dedicated \textbf{10 MHz / PPS} timing strategy if future synchronization is required.
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{Predesign Output}
+    \begin{itemize}
+        \item Keep the internal RF chain at \textbf{50 $\Omega$} and define explicit adaptation for TDT-style 75 $\Omega$ inputs.
+        \item Size power around \textbf{peak simultaneous load}, not around nominal board values.
+        \item Pick \textbf{Raspberry Pi 5} for CPU-centric SDR nodes, or \textbf{Jetson Nano} when GPU/AI integration is part of the roadmap.
+        \item Treat thermal throttling and undervoltage as first-order system risks.
+        \item Use LTE and GNSS as node services, not as substitutes for RF timing or front-end protection.
+    \end{itemize}
+\end{frame}
+
+\end{document}
