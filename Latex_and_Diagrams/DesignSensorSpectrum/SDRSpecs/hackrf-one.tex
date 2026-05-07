@@ -1,6 +1,6 @@
 \documentclass[11pt]{article}
 \usepackage[utf8]{inputenc}
-\usepackage[spanish]{babel}
+\usepackage[english]{babel}
 \usepackage{geometry}
 \usepackage{amsmath}
 \usepackage{booktabs}
@@ -9,8 +9,8 @@
 
 \geometry{a4paper, margin=1in}
 
-\title{Especificaciones Técnicas: HackRF One}
-\author{Ingeniería de Radiofrecuencia}
+\title{Technical Specifications: HackRF One}
+\author{Radiofrequency Engineering}
 \date{\today}
 
 \newmdenv[
@@ -20,7 +20,7 @@
   roundcorner=4pt,
   innertopmargin=6pt,
   innerbottommargin=6pt
-]{advertencia}
+]{warningbox}
 
 \newmdenv[
   backgroundcolor=yellow!10,
@@ -29,7 +29,7 @@
   roundcorner=4pt,
   innertopmargin=6pt,
   innerbottommargin=6pt
-]{pendiente}
+]{pendingbox}
 
 \begin{document}
 
@@ -38,82 +38,82 @@
 \newpage
 
 % =========================================================
-\section{Ganancias}
+\section{Gains}
 % =========================================================
 
-Controladas por separado mediante \texttt{libhackrf} (herramientas como \texttt{hackrf\_transfer} o GNU Radio):
+Controlled separately through \texttt{libhackrf} (tools such as \texttt{hackrf\_transfer} or GNU Radio):
 
 \begin{itemize}
-    \item \textbf{LNA (IF RX):} \texttt{hackrf\_set\_lna\_gain()} — 0 a 40 dB, ajustable en pasos de 8 dB. Afecta la señal en la etapa de frecuencia intermedia (IF).
-    \item \textbf{VGA (Baseband RX):} \texttt{hackrf\_set\_vga\_gain()} — 0 a 62 dB, ajustable en pasos de 2 dB. Amplificador de ganancia variable en banda base.
-    \item \textbf{TX VGA:} \texttt{hackrf\_set\_txvga\_gain()} — 0 a 47 dB, ajustable en pasos de 1 dB.
-    \item \textbf{AMP (Front-end RF):} \texttt{hackrf\_set\_amp\_enable()} — 0 (apagado) o 1 (encendido). Activa el amplificador RF de front-end, proporcionando $\approx$+14 dB fijos.
-    \begin{pendiente}
-    El part number del amplificador varía según la revisión de hardware. El MGA-81563 aparece en esquemáticos de terceros para revisiones tempranas, pero no está confirmado como especificación oficial en la documentación de Great Scott Gadgets.
-    \end{pendiente}
-    Aplica a la etapa final de TX o etapa inicial de RX.
+    \item \textbf{LNA (IF RX):} \texttt{hackrf\_set\_lna\_gain()} - 0 to 40 dB, adjustable in 8 dB steps. Affects the signal in the intermediate-frequency (IF) stage.
+    \item \textbf{VGA (Baseband RX):} \texttt{hackrf\_set\_vga\_gain()} - 0 to 62 dB, adjustable in 2 dB steps. Variable-gain amplifier in baseband.
+    \item \textbf{TX VGA:} \texttt{hackrf\_set\_txvga\_gain()} - 0 to 47 dB, adjustable in 1 dB steps.
+    \item \textbf{AMP (RF Front End):} \texttt{hackrf\_set\_amp\_enable()} - 0 (off) or 1 (on). Enables the RF front-end amplifier, providing a fixed $\approx$+14 dB.
+    \begin{pendingbox}
+    The amplifier part number varies depending on the hardware revision. The MGA-81563 appears in third-party schematics for early revisions, but it is not confirmed as an official specification in the Great Scott Gadgets documentation.
+    \end{pendingbox}
+    Applies to the final TX stage or the initial RX stage.
 \end{itemize}
 
-\textbf{Nota:} Dado que el ADC es de 8 bits (rango dinámico limitado a $\approx$48 dB), es crucial gestionar la ganancia correctamente para evitar subir el piso de ruido o causar recorte (clipping) en la conversión analógico-digital.
+\textbf{Note:} Since the ADC is 8-bit (dynamic range limited to $\approx$48 dB), correct gain management is crucial to avoid raising the noise floor or causing clipping during analog-to-digital conversion.
 
 % =========================================================
-\section{Filtros Hardware y Procesamiento}
+\section{Hardware Filters and Processing}
 % =========================================================
 
 \begin{itemize}
-    \item \textbf{Filtro Analógico (Baseband LPF):} \texttt{hackrf\_set\_baseband\_filter\_bandwidth()}\\
-    Umbrales seleccionables en el transceptor MAX2837 (r1--r8) / MAX2839 (r9): 1.75, 2.5, 3.5, 5, 5.5, 14, 20, 24 y 28 MHz. Ayuda a evitar el aliasing analógico.
-    \item \textbf{CPLD y Microcontrolador (Sin DSP interno):}\\
-    Utiliza un CPLD Xilinx XC2C64A para enrutamiento de señales y un MCU ARM Cortex-M4 (NXP LPC4320/30). A diferencia de otras SDRs de gama alta, el HackRF One \textbf{no realiza procesamiento de señales digitales interno} (como DDC/DUC o decimación en hardware). Todo el procesamiento matemático recae sobre la CPU del host vía USB.
+    \item \textbf{Analog Filter (Baseband LPF):} \texttt{hackrf\_set\_baseband\_filter\_bandwidth()}\\
+    Selectable thresholds in the MAX2837 (r1--r8) / MAX2839 (r9) transceiver: 1.75, 2.5, 3.5, 5, 5.5, 14, 20, 24, and 28 MHz. Helps prevent analog aliasing.
+    \item \textbf{CPLD and Microcontroller (No Internal DSP):}\\
+    Uses a Xilinx XC2C64A CPLD for signal routing and an ARM Cortex-M4 MCU (NXP LPC4320/30). Unlike other high-end SDRs, the HackRF One \textbf{does not perform internal digital signal processing} (such as DDC/DUC or hardware decimation). All mathematical processing falls to the host CPU over USB.
 \end{itemize}
 
 % =========================================================
-\section{Rangos de Frecuencia}
+\section{Frequency Ranges}
 % =========================================================
 
 \begin{itemize}
-    \item \textbf{Rango Nominal:} 1 MHz a 6 GHz.
-    \item \textbf{Arquitectura de Sintetización:}
+    \item \textbf{Nominal Range:} 1 MHz to 6 GHz.
+    \item \textbf{Synthesis Architecture:}
     \begin{itemize}
-        \item 2.3 GHz a 2.7 GHz: Conversión directa utilizando el transceptor MAX2837/MAX2839.
-        \item Fuera de esa banda: Utiliza el mezclador RFFC5071 para hacer up-conversion o down-conversion hacia la banda del transceptor.
+        \item 2.3 GHz to 2.7 GHz: Direct conversion using the MAX2837/MAX2839 transceiver.
+        \item Outside that band: Uses the RFFC5071 mixer to perform up-conversion or down-conversion into the transceiver band.
     \end{itemize}
-    \item \textbf{Nota de rendimiento:} Por debajo de 10 MHz, la eficiencia de los transformadores RF (baluns) disminuye.
+    \item \textbf{Performance note:} Below 10 MHz, the efficiency of the RF transformers (baluns) decreases.
 \end{itemize}
 
 % =========================================================
-\section{Sample Rate y Resolución}
+\section{Sample Rate and Resolution}
 % =========================================================
 
-Limitado por la capacidad del ADC/DAC (MAX5864) y el bus USB 2.0.
+Limited by the ADC/DAC (MAX5864) capability and the USB 2.0 bus.
 
 \begin{table}[h]
     \centering
     \begin{tabular}{llll}
         \toprule
-        \textbf{Modo} & \textbf{Resolución I/Q} & \textbf{Sample Rate} & \textbf{Ancho de Banda Máximo} \\
+        \textbf{Mode} & \textbf{I/Q Resolution} & \textbf{Sample Rate} & \textbf{Maximum Bandwidth} \\
         \midrule
-        Estándar  & 8-bit I / 8-bit Q & 2 a 20 MS/s & 20 MHz (Nyquist teórico) \\
+        Standard & 8-bit I / 8-bit Q & 2 to 20 MS/s & 20 MHz (theoretical Nyquist) \\
         \bottomrule
     \end{tabular}
 \end{table}
 
-\textbf{Nota:} Para evitar descartes de paquetes (dropped samples) a 20 MS/s, se recomienda conectar el HackRF a un controlador USB dedicado en el host que no comparta ancho de banda con otros periféricos de alta demanda. Tasas inferiores a 2 MS/s no están soportadas oficialmente.
+\textbf{Note:} To avoid packet drops (dropped samples) at 20 MS/s, it is recommended to connect the HackRF to a dedicated USB controller on the host that does not share bandwidth with other high-demand peripherals. Rates below 2 MS/s are not officially supported.
 
 % =========================================================
-\section{Correcciones IQ \& DC}
+\section{IQ \& DC Corrections}
 % =========================================================
 
 \begin{itemize}
-    \item \textbf{Pico DC (DC Offset / LO Leakage):} Debido a su arquitectura homodina (Zero-IF / Direct Conversion), el HackRF One presenta una espiga visible en el centro del espectro (0 Hz en banda base). \textbf{Debe corregirse en software} (ej. \textit{DC Blocker} en GNU Radio) o utilizando \textit{Offset Tuning} (sintonizar unos MHz al lado y desplazar digitalmente).
-    \item \textbf{Desbalance I/Q:}
-    \begin{pendiente}
-    Se puede percibir como frecuencias espejo fantasmas al trabajar con señales fuertes. Se recomienda calibrar la ganancia y fase IQ dentro del software host (SDR\#, GNU Radio) ya que el dispositivo no aplica correcciones automáticas de fábrica.
-    \end{pendiente}
+    \item \textbf{DC Peak (DC Offset / LO Leakage):} Due to its homodyne architecture (Zero-IF / Direct Conversion), the HackRF One shows a visible spike at the center of the spectrum (0 Hz in baseband). It \textbf{must be corrected in software} (e.g., \textit{DC Blocker} in GNU Radio) or by using \textit{Offset Tuning} (tuning a few MHz to the side and digitally shifting).
+    \item \textbf{I/Q Imbalance:}
+    \begin{pendingbox}
+    It can appear as ghost mirror frequencies when working with strong signals. It is recommended to calibrate IQ gain and phase in the host software (SDR\#, GNU Radio), since the device does not apply automatic factory corrections.
+    \end{pendingbox}
 \end{itemize}
 
 % =========================================================
-\section{Conectores y Entradas}
+\section{Connectors and Inputs}
 % =========================================================
 
 \begin{table}[h]
@@ -121,106 +121,106 @@ Limitado por la capacidad del ADC/DAC (MAX5864) y el bus USB 2.0.
     \small
     \begin{tabular}{p{0.18\textwidth}p{0.26\textwidth}p{0.44\textwidth}}
         \toprule
-        \textbf{Conector} & \textbf{Función} & \textbf{Especificación} \\
+        \textbf{Connector} & \textbf{Function} & \textbf{Specification} \\
         \midrule
-        Micro-USB   & Alimentación y datos  & USB 2.0 High Speed (480 Mbps). 5 V / $\approx$500 mA. \\
-        ANT (SMA)   & TX/RX principal       & Hembra, 50 $\Omega$. Half-duplex. 1 MHz -- 6 GHz. \\
-        CLKIN (SMA) & Referencia externa    & 10 MHz. Onda cuadrada, \textbf{0 V a 3.0 V}. No exceder 3.0 V ni bajar de 0 V. No usar otras frecuencias salvo modificación de firmware. \\
-        CLKOUT (SMA)& Reloj de salida       & 10 MHz, 3.3 V. Habilitado con \texttt{hackrf\_clock -o 1}. Para daisy chain entre unidades. \\
-        P20, P22, P28 & Headers de expansión & Pines del MCU LPC4320. 3.3 V lógicos, para módulos como PortaPack. \\
+        Micro-USB   & Power and data        & USB 2.0 High Speed (480 Mbps). 5 V / $\approx$500 mA. \\
+        ANT (SMA)   & Main TX/RX            & Female, 50 $\Omega$. Half-duplex. 1 MHz -- 6 GHz. \\
+        CLKIN (SMA) & External reference    & 10 MHz. Square wave, \textbf{0 V to 3.0 V}. Do not exceed 3.0 V or go below 0 V. Do not use other frequencies except with firmware modification. \\
+        CLKOUT (SMA)& Output clock          & 10 MHz, 3.3 V. Enabled with \texttt{hackrf\_clock -o 1}. For daisy chaining between units. \\
+        P20, P22, P28 & Expansion headers    & LPC4320 MCU pins. 3.3 V logic, for modules such as PortaPack. \\
         \bottomrule
     \end{tabular}
 \end{table}
 
 % =========================================================
-\section{Límites de Operación Seguros}
+\section{Safe Operating Limits}
 % =========================================================
 
-\begin{advertencia}
-\textbf{Advertencias críticas — Susceptibilidad del LNA / Frontend}
-\end{advertencia}
+\begin{warningbox}
+\textbf{Critical warnings - LNA / front-end susceptibility}
+\end{warningbox}
 
 \vspace{4pt}
 \begin{itemize}
-    \item \textbf{Potencia Máxima en RX:} NUNCA exceder \textbf{-5 dBm} ($\approx$0.3 mW) en el puerto de antena. Superarlo destruirá el amplificador de front-end. En teoría, con el AMP desactivado puede tolerar hasta +10 dBm, pero un error de software que lo reactive causaría daño permanente — usar siempre atenuador externo.
-    \item \textbf{Potencia TX por banda} (referencia para dimensionar loopback y amplificadores):
+    \item \textbf{Maximum RX Power:} NEVER exceed \textbf{-5 dBm} ($\approx$0.3 mW) at the antenna port. Exceeding it will destroy the front-end amplifier. In theory, with the AMP disabled it may tolerate up to +10 dBm, but a software error that re-enables it would cause permanent damage - always use an external attenuator.
+    \item \textbf{TX power by band} (reference for sizing loopback paths and amplifiers):
     \begin{itemize}
-        \item 1--10 MHz: 5 a 15 dBm (aumenta con la frecuencia).
-        \item 10--2170 MHz: 5 a 15 dBm (disminuye con la frecuencia).
-        \item 2170--2740 MHz: 13 a 15 dBm (mejor zona de rendimiento).
-        \item 2740--4000 MHz: 0 a 5 dBm.
-        \item 4000--6000 MHz: $-$10 a 0 dBm.
+        \item 1--10 MHz: 5 to 15 dBm (increases with frequency).
+        \item 10--2170 MHz: 5 to 15 dBm (decreases with frequency).
+        \item 2170--2740 MHz: 13 to 15 dBm (best performance region).
+        \item 2740--4000 MHz: 0 to 5 dBm.
+        \item 4000--6000 MHz: $-$10 to 0 dBm.
     \end{itemize}
-    \textbf{En loopback TX$\to$RX:} usar atenuación suficiente según la banda. Nunca conectar TX directo a RX.
-    \item \textbf{Puerto RF sin carga:} No transmitir sin antena o carga ficticia de 50 $\Omega$. La potencia reflejada puede quemar la etapa de TX.
-    \item \textbf{Voltajes de Reloj:} Las señales en CLKIN no deben ser negativas ni exceder \textbf{3.0 V}. Una senoidal centrada en 0 V requiere offset DC para cumplir este requisito.
-    \item \textbf{Alimentación Antena (Bias-T):} Puede proveer 3.3 V a 50 mA en el conector SMA para alimentar LNAs externos. No activar si el dispositivo conectado presenta cortocircuito en DC.
+    \textbf{In TX$\to$RX loopback:} use sufficient attenuation for the band. Never connect TX directly to RX.
+    \item \textbf{Unloaded RF port:} Do not transmit without an antenna or a 50 $\Omega$ dummy load. Reflected power can burn out the TX stage.
+    \item \textbf{Clock Voltages:} Signals on CLKIN must not be negative or exceed \textbf{3.0 V}. A sine wave centered at 0 V requires DC offset to meet this requirement.
+    \item \textbf{Antenna Power (Bias-T):} Can provide 3.3 V at 50 mA on the SMA connector to power external LNAs. Do not enable it if the connected device presents a DC short circuit.
 \end{itemize}
 
 % =========================================================
-\section{Clock y Sincronización}
+\section{Clock and Synchronization}
 % =========================================================
 
 \begin{itemize}
-    \item \textbf{Oscilador Interno:} Cristal de 10 MHz estándar. La estabilidad en ppm no está especificada oficialmente por Great Scott Gadgets; estimaciones comunitarias sugieren 20--30 ppm, susceptible a deriva térmica.
-    \item \textbf{Módulo TCXO (Externo/Adicional):} Para uso serio en frecuencias altas o modulación estrecha, acoplar un módulo TCXO de 0.5 ppm en el header P22 o usar CLKIN con referencia externa estable.
+    \item \textbf{Internal Oscillator:} Standard 10 MHz crystal. Ppm stability is not officially specified by Great Scott Gadgets; community estimates suggest 20--30 ppm, susceptible to thermal drift.
+    \item \textbf{TCXO Module (External/Additional):} For serious use at high frequencies or with narrow modulation, attach a 0.5 ppm TCXO module on header P22 or use CLKIN with a stable external reference.
     \item \textbf{CLKIN:}
     \begin{itemize}
-        \item Señal de 10 MHz, onda cuadrada de 0 a 3.0 V. Alta impedancia.
-        \item El dispositivo conmuta automáticamente al reloj externo al iniciar la siguiente operación TX/RX. Verificar detección con \texttt{hackrf\_debug --si5351c -n 0 -r} (salida \texttt{0x01} = clock detectado).
-        \item Se puede encadenar directamente CLKOUT de un HackRF One al CLKIN de otro.
+        \item 10 MHz signal, 0 to 3.0 V square wave. High impedance.
+        \item The device automatically switches to the external clock when the next TX/RX operation starts. Verify detection with \texttt{hackrf\_debug --si5351c -n 0 -r} (output \texttt{0x01} = clock detected).
+        \item CLKOUT from one HackRF One can be directly daisy chained to CLKIN on another.
     \end{itemize}
-    \item \textbf{CLKOUT:} Activar con \texttt{hackrf\_clock -o 1}. Permite sincronizar arrays de múltiples HackRF One con un único reloj maestro.
+    \item \textbf{CLKOUT:} Enable with \texttt{hackrf\_clock -o 1}. Allows synchronization of multi-HackRF One arrays with a single master clock.
 \end{itemize}
 
 % =========================================================
-\section{LEDs Indicadores}
+\section{Indicator LEDs}
 % =========================================================
 
-Seis LEDs montados a lo largo de la placa. Al conectar a USB, \textbf{cuatro deben encenderse}: 3V3, 1V8, RF y USB.
+Six LEDs are mounted along the board. When connected to USB, \textbf{four should turn on}: 3V3, 1V8, RF, and USB.
 
 \begin{table}[h]
     \centering
     \begin{tabular}{p{0.10\textwidth}p{0.38\textwidth}p{0.40\textwidth}}
         \toprule
-        \textbf{LED} & \textbf{Función} & \textbf{Estado e interpretación} \\
+        \textbf{LED} & \textbf{Function} & \textbf{State and interpretation} \\
         \midrule
-        \textbf{3V3} & Alimentación principal & Encendido al conectar USB. Indica que el regulador de 3.3 V funciona. Si no enciende: fallo de hardware. \\
+        \textbf{3V3} & Main power & On when USB is connected. Indicates that the 3.3 V regulator is working. If it does not turn on: hardware fault. \\
         \addlinespace
-        \textbf{1V8} & Firmware activo + alimentación secundaria & Encendido al conectar USB. Indica que el firmware está corriendo y ha activado fuentes de alimentación internas adicionales (1.8 V). Si no enciende con 3V3 encendido: problema de firmware. \\
+        \textbf{1V8} & Active firmware + secondary power & On when USB is connected. Indicates that the firmware is running and has enabled additional internal power rails (1.8 V). If it does not turn on while 3V3 is on: firmware problem. \\
         \addlinespace
-        \textbf{RF}  & Cadena RF energizada & Encendido al conectar USB. Indica que el firmware ha activado la alimentación del bloque RF. \\
+        \textbf{RF}  & RF chain powered & On when USB is connected. Indicates that the firmware has enabled power to the RF block. \\
         \addlinespace
-        \textbf{USB} & Comunicación USB activa & Encendido cuando el host reconoce el dispositivo correctamente. \\
+        \textbf{USB} & Active USB communication & On when the host recognizes the device correctly. \\
         \addlinespace
-        \textbf{RX}  & Recepción en curso & Encendido \textbf{solo} durante capturas activas. \\
+        \textbf{RX}  & Reception in progress & On \textbf{only} during active captures. \\
         \addlinespace
-        \textbf{TX}  & Transmisión en curso & Encendido \textbf{solo} durante emisión activa. \\
+        \textbf{TX}  & Transmission in progress & On \textbf{only} during active transmission. \\
         \bottomrule
     \end{tabular}
 \end{table}
 
-\textbf{Nota:} Los colores de los LEDs adyacentes son distintos para facilitar la distinción visual, pero los colores en sí no tienen significado funcional.
+\textbf{Note:} Adjacent LED colors are different to make visual distinction easier, but the colors themselves have no functional meaning.
 
 % =========================================================
-\section{Pinout de Expansión (P20 / P22 / P28)}
+\section{Expansion Pinout (P20 / P22 / P28)}
 % =========================================================
 
-Proporciona acceso a GPIOs del microcontrolador (diseñados para interconectar add-ons como el PortaPack). Operan a \textbf{3.3 V}.
+Provides access to microcontroller GPIOs (designed to interconnect add-ons such as the PortaPack). They operate at \textbf{3.3 V}.
 
-\subsection*{P20 y P28}
+\subsection*{P20 and P28}
 \begin{itemize}
-    \item Contienen pines para ADC interno del LPC, I2C, SPI y alimentación auxiliar.
-    \item Son la columna vertebral de la comunicación paralela para enviar muestras IQ hacia una pantalla táctil (PortaPack) en lugar de ir por USB.
+    \item Contain pins for the LPC internal ADC, I2C, SPI, and auxiliary power.
+    \item They are the backbone of parallel communication for sending IQ samples to a touchscreen (PortaPack) instead of going over USB.
 \end{itemize}
 
 \subsection*{P22}
 \begin{itemize}
-    \item Header de reloj y señales de expansión de bus.
-    \item Aquí se instalan los módulos \textbf{TCXO de 0.5 ppm}. Al insertarlo, el reloj primario cambia al de este header, estabilizando el PLL general.
-    \item También expone CLKIN alternativo (pin 2), activable con \texttt{hackrf\_clock -c p22}.
+    \item Clock header and bus expansion signals.
+    \item This is where the \textbf{0.5 ppm TCXO} modules are installed. When inserted, the primary clock changes to the one from this header, stabilizing the general PLL.
+    \item Also exposes alternate CLKIN (pin 2), enabled with \texttt{hackrf\_clock -c p22}.
 \end{itemize}
 
-\textbf{Nota de uso:} No exceder los umbrales de corriente del LPC43xx en ningún pin. Excederlos dañará permanentemente la lógica digital central.
+\textbf{Usage note:} Do not exceed the LPC43xx current thresholds on any pin. Exceeding them will permanently damage the central digital logic.
 
 \end{document}

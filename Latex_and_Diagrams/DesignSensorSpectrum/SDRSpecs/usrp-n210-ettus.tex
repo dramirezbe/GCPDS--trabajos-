@@ -1,6 +1,6 @@
 \documentclass[11pt]{article}
 \usepackage[utf8]{inputenc}
-\usepackage[spanish]{babel}
+\usepackage[english]{babel}
 \usepackage{geometry}
 \usepackage{amsmath}
 \usepackage{booktabs}
@@ -9,8 +9,8 @@
 
 \geometry{a4paper, margin=1in}
 
-\title{Especificaciones Técnicas: Ettus USRP N210}
-\author{Ingeniería de Radiofrecuencia}
+\title{Technical Specifications: Ettus USRP N210}
+\author{Radiofrequency Engineering}
 \date{\today}
 
 \newmdenv[
@@ -20,7 +20,7 @@
   roundcorner=4pt,
   innertopmargin=6pt,
   innerbottommargin=6pt
-]{advertencia}
+]{warningbox}
 
 \newmdenv[
   backgroundcolor=yellow!10,
@@ -29,7 +29,7 @@
   roundcorner=4pt,
   innertopmargin=6pt,
   innerbottommargin=6pt
-]{pendiente}
+]{pendingbox}
 
 \begin{document}
 
@@ -38,79 +38,83 @@
 \newpage
 
 % =========================================================
-\section{Ganancias}
+\section{Gains}
 % =========================================================
 
-Controladas a través del USRP Hardware Driver (\texttt{UHD}). Dependen directamente de la tarjeta hija (Daughterboard) instalada (ej. UBX, CBX, SBX):
+Controlled through the USRP Hardware Driver (\texttt{UHD}). They depend directly on the installed daughterboard (e.g., UBX, CBX, SBX):
 
 \begin{itemize}
-    \item \textbf{Ganancia Global RX:} \texttt{usrp->set\_rx\_gain()} — El rango y los pasos dependen de la tarjeta. En una UBX-40 típica, va de 0 a 31.5 dB.
-    \item \textbf{Ganancia Global TX:} \texttt{usrp->set\_tx\_gain()} — En una UBX-40, típicamente de 0 a 31.5 dB.
-    \item \textbf{Elementos Específicos (PGA/VGA):} \texttt{usrp->set\_rx\_gain(val, "PGA0")} — Permite ajustar etapas de amplificación individuales si la tarjeta hija lo soporta.
+    \item \textbf{Global RX Gain:} \texttt{usrp->set\_rx\_gain()} - The range and steps depend on the board. On a typical UBX-40, it goes from 0 to 31.5 dB.
+    \item \textbf{Global TX Gain:} \texttt{usrp->set\_tx\_gain()} - On a UBX-40, typically from 0 to 31.5 dB.
+    \item \textbf{Specific Elements (PGA/VGA):} \texttt{usrp->set\_rx\_gain(val, "PGA0")} - Allows adjustment of individual amplification stages if the daughterboard supports it.
 \end{itemize}
 
-\textbf{Nota:} Para maximizar el rango dinámico sin saturar el ADC (14-bit), se debe monitorizar el indicador de clipping en UHD (\texttt{O} para overruns, aunque la saturación analógica requiere observar el espectro en banda base).
+\textbf{Note:} To maximize dynamic range without saturating the ADC (14-bit), the clipping indicator in UHD should be monitored (\texttt{O} for overruns, although analog saturation requires observing the baseband spectrum).
 
 % =========================================================
-\section{Filtros Hardware}
+\section{Hardware Filters}
 % =========================================================
 
 \begin{itemize}
-    \item \textbf{Filtros Analógicos (Daughterboard):} Filtros paso bajo (LPF) o paso banda configurados automáticamente por UHD según la frecuencia y el ancho de banda analógico solicitado (\texttt{set\_rx\_bandwidth()}).
-    \item \textbf{Procesamiento Digital (FPGA Spartan 3A-DSP 3400):}\\
-    Implementa DDC (Digital Down Converter) en RX y DUC (Digital Up Converter) en TX con resolución de 25 MHz. Maneja la decimación e interpolación desde el reloj maestro fijo de 100 MHz de la tarjeta madre, utilizando filtros CIC seguidos de filtros FIR compensadores (half-band) para evitar aliasing.
+    \item \textbf{Analog Filters (Daughterboard):} Low-pass filters (LPF) or band-pass filters configured automatically by UHD according to the frequency and requested analog bandwidth (\texttt{set\_rx\_bandwidth()}).
+    \item \textbf{Digital Processing (Spartan 3A-DSP 3400 FPGA):}\\
+    Implements DDC (Digital Down Converter) in RX and DUC (Digital Up Converter) in TX with 25 MHz resolution. Handles decimation and interpolation from the motherboard's fixed 100 MHz master clock, using CIC filters followed by compensating FIR filters (half-band) to prevent aliasing.
 \end{itemize}
 
 % =========================================================
-\section{Rangos de Frecuencia}
+\section{Frequency Ranges}
 % =========================================================
 
 \begin{itemize}
-    \item \textbf{Rango Base (Motherboard):} DC a 100 MHz. Maneja señales de banda base o IF pura directamente si se usan tarjetas LFRX/LFTX.
-    \item \textbf{Rango RF (Depende de la Daughterboard):}
+    \item \textbf{Base Range (Motherboard):} DC to 100 MHz. Handles baseband or pure IF signals directly if LFRX/LFTX boards are used.
+    \item \textbf{RF Range (Depends on Daughterboard):}
     \begin{itemize}
-        \item \textbf{UBX-40:} 10 MHz a 6 GHz.
-        \item \textbf{CBX:} 1.2 GHz a 6 GHz.
-        \item \textbf{SBX:} 400 MHz a 4.4 GHz.
+        \item \textbf{UBX-40:} 10 MHz to 6 GHz.
+        \item \textbf{CBX:} 1.2 GHz to 6 GHz.
+        \item \textbf{SBX:} 400 MHz to 4.4 GHz.
     \end{itemize}
-    \item La tarjeta madre permite un ajuste fino digital en el FPGA (\textit{DSP tuning}) usando CORDICs, lo que permite cambios de frecuencia casi instantáneos sin el retardo de estabilización del PLL del sintetizador RF.
+    \item The motherboard supports fine FPGA-side frequency adjustment (\textit{DSP tuning}) using CORDICs. Frequency changes can be nearly instantaneous because they avoid the RF synthesizer PLL settling delay.
 \end{itemize}
 
 % =========================================================
-\section{Sample Rate y Resolución}
+\section{Sample Rate and Resolution}
 % =========================================================
 
-Limitado por la interfaz Gigabit Ethernet y los convertidores de la tarjeta madre: ADC de 100 MS/s (14-bit) y DAC de 400 MS/s (16-bit). El reloj maestro de la tarjeta es \textbf{fijo a 100 MHz} — a diferencia de otros USRP, no es configurable por el usuario.
+Limited by the Gigabit Ethernet interface and the motherboard converters: 100 MS/s ADC (14-bit) and 400 MS/s DAC (16-bit). The board clock is \textbf{fixed at 100 MHz} - unlike other USRPs, it is not user-configurable.
 
 \begin{table}[h]
     \centering
-    \begin{tabular}{llll}
+    \small
+    \begin{tabular}{@{}p{0.24\textwidth}p{0.20\textwidth}p{0.22\textwidth}p{0.25\textwidth}@{}}
         \toprule
-        \textbf{Formato} & \textbf{Resolución I/Q} & \textbf{Sample Rate máx.} & \textbf{Ancho de banda} \\
+        \textbf{Format} & \textbf{I/Q Resolution} & \textbf{Max. Sample Rate} & \textbf{Bandwidth} \\
         \midrule
-        \texttt{sc16} (Estándar) & 16-bit & 25 MS/s & 25 MHz observables \\
-        \texttt{sc8} (Alta vel.)  & 8-bit  & 50 MS/s & 50 MHz observables \\
-        \texttt{sc16} (MIMO)     & 16-bit & $\leq$ 12.5 MS/s/ch & 2 canales; límite práctico por ancho de banda Ethernet \\
+        \texttt{sc16} (Standard) & 16-bit & 25 MS/s & 25 MHz observable \\
+        \texttt{sc8} (High speed) & 8-bit & 50 MS/s & 50 MHz observable \\
+        \texttt{sc16} (MIMO) & 16-bit & $\leq$ 12.5 MS/s/ch & 2 channels; practical Ethernet-bandwidth limit \\
         \bottomrule
     \end{tabular}
 \end{table}
 
-\textbf{Nota:} Usar formato de cable \texttt{sc8} (\texttt{otw\_format}) permite duplicar el ancho de banda perdiendo resolución dinámica, expandiendo la señal de nuevo a 16 o 32 bits flotantes en el PC host.
+\textbf{Note:} Using the \texttt{sc8} wire format (\texttt{otw\_format}) allows the bandwidth to be doubled while losing dynamic resolution, expanding the signal again to 16- or 32-bit floating point on the host PC.
 
 % =========================================================
-\section{Correcciones IQ \& DC}
+\section{IQ \& DC Corrections}
 % =========================================================
 
 \begin{itemize}
-    \item \textbf{DC Offset \& LO Leakage:} UHD realiza rastreo dinámico y cancelación de DC por defecto en la FPGA.
-    \item \textbf{Desbalance I/Q:}
-    \begin{pendiente}
-    Aunque se mitiga por hardware, el desbalance I/Q en el frontend RF requiere calibración para aplicaciones críticas. Utilizar las utilidades \texttt{uhd\_cal\_rx\_iq\_balance} y \texttt{uhd\_cal\_tx\_iq\_balance} para generar y guardar los parámetros de compensación en la EEPROM.
-    \end{pendiente}
+    \item \textbf{DC Offset \& LO Leakage:} UHD performs dynamic DC tracking and cancellation by default in the FPGA.
+    \item \textbf{I/Q Imbalance:}
+    \begin{pendingbox}
+    Although mitigated by hardware, I/Q imbalance in the RF front end requires calibration for critical applications. Use the UHD calibration utilities to generate and save compensation parameters in the EEPROM:
+
+    \noindent\texttt{uhd\_cal\_rx\_iq\_balance}\\
+    \texttt{uhd\_cal\_tx\_iq\_balance}
+    \end{pendingbox}
 \end{itemize}
 
 % =========================================================
-\section{Conectores y Entradas}
+\section{Connectors and Inputs}
 % =========================================================
 
 \begin{table}[h]
@@ -118,96 +122,96 @@ Limitado por la interfaz Gigabit Ethernet y los convertidores de la tarjeta madr
     \small
     \begin{tabular}{p{0.18\textwidth}p{0.26\textwidth}p{0.44\textwidth}}
         \toprule
-        \textbf{Conector} & \textbf{Función} & \textbf{Especificación} \\
+        \textbf{Connector} & \textbf{Function} & \textbf{Specification} \\
         \midrule
-        Gigabit Ethernet & Datos & RJ45, 1000BASE-T. MTU 1500 recomendado (9000 para Jumbo). IP por defecto: 192.168.10.2. \\
-        Alimentación & Corriente DC & 6 V DC (fuente incluida: 3 A máx.). Consumo típico: 1.3 A en idle, 2.3 A con WBX. \\
-        REF IN (SMA) & Clock de referencia & 10 MHz. Nivel recomendado: 0 a +15 dBm. Onda cuadrada preferible; sinusoide aceptable. \\
-        PPS IN (SMA) & Trigger / sincronización & Pulso por segundo (1 PPS). Acepta TTL 0--3.3 V y 0--5 V. \\
-        MIMO Cable & Interconexión N210s & Comparte reloj y datos entre maestro y esclavo. Forma un sistema $2\times2$ coherente. \\
-        RF (SMA) & TX/RX (en Daughterboard) & 50 $\Omega$. Puertos TX/RX y RX2 según DB instalada. \\
+        Gigabit Ethernet & Data & RJ45, 1000BASE-T. MTU 1500 recommended (9000 for Jumbo). Default IP: 192.168.10.2. \\
+        Power & DC current & 6 V DC (included supply: 3 A max.). Typical consumption: 1.3 A at idle, 2.3 A with WBX. \\
+        REF IN (SMA) & Reference clock & 10 MHz. Recommended level: 0 to +15 dBm. Square wave preferred; sine wave acceptable. \\
+        PPS IN (SMA) & Trigger / synchronization & Pulse per second (1 PPS). Accepts TTL 0--3.3 V and 0--5 V. \\
+        MIMO Cable & N210 interconnection & Shares clock and data between master and slave. Forms a coherent $2\times2$ system. \\
+        RF (SMA) & TX/RX (on Daughterboard) & 50 $\Omega$. TX/RX and RX2 ports depending on installed DB. \\
         \bottomrule
     \end{tabular}
 \end{table}
 
 % =========================================================
-\section{Límites de Operación Seguros}
+\section{Safe Operating Limits}
 % =========================================================
 
-\begin{advertencia}
-\textbf{Advertencias críticas — La N210 y sus tarjetas hijas son sensibles}
-\end{advertencia}
+\begin{warningbox}
+\textbf{Critical warnings - the N210 and its daughterboards are sensitive}
+\end{warningbox}
 
 \vspace{4pt}
 \begin{itemize}
-    \item \textbf{Potencia máxima en RX:} No superar \textbf{+15 dBm} en el puerto RF de ninguna daughterboard (menos en algunas como la WBX). Daño permanente al LNA garantizado por encima de este umbral. Para linealidad óptima, mantener por debajo de -15 dBm.
-    \item \textbf{Loopback TX$\to$RX:} Nunca conectar TX directo a RX sin un atenuador de al menos 30 dB. La potencia de salida típica con una WBX ronda los \textbf{+15 dBm} — no los +20 dBm que puede indicar alguna fuente no oficial. El valor depende de la daughterboard y la frecuencia.
-    \item \textbf{Carga Térmica:} El ventilador debe estar operativo. El chasis disipa el calor del ADC, DAC y el FPGA. No obstruir las ranuras laterales.
-    \item \textbf{Voltajes de Sincronización:} No inyectar más de +15 dBm en REF IN. PPS IN acepta máximo 5 V TTL.
+    \item \textbf{Maximum RX power:} Do not exceed \textbf{+15 dBm} on the RF port of any daughterboard (less on some boards such as the WBX). Permanent LNA damage is guaranteed above this threshold. For optimal linearity, keep below -15 dBm.
+    \item \textbf{TX$\to$RX loopback:} Never connect TX directly to RX without an attenuator of at least 30 dB. Typical output power with a WBX is around \textbf{+15 dBm} - not the +20 dBm that some unofficial source may indicate. The value depends on the daughterboard and frequency.
+    \item \textbf{Thermal Load:} The fan must be operational. The chassis dissipates heat from the ADC, DAC, and FPGA. Do not block the side vents.
+    \item \textbf{Synchronization Voltages:} Do not inject more than +15 dBm into REF IN. PPS IN accepts a maximum of 5 V TTL.
 \end{itemize}
 
 % =========================================================
-\section{Clock y Sincronización}
+\section{Clock and Synchronization}
 % =========================================================
 
 \begin{itemize}
-    \item \textbf{Reloj Interno (TCXO):} Oscilador de referencia de \textbf{2.5 ppm}, activo por defecto. El reloj maestro de la tarjeta madre es fijo a 100 MHz y no es configurable por el usuario.
-    \item \textbf{GPSDO (Opcional):} Si se instala el módulo GPS disciplinado, mejora la precisión a \textbf{0.01 ppm}. UHD lo detecta automáticamente; requiere grabar un valor en la EEPROM para confirmarlo: \texttt{usrp\_burn\_mb\_eeprom --values="gpsdo=internal"}.
-    \item \textbf{Reloj Externo:} Señal de 10 MHz a través del SMA frontal (REF IN). Configurar en UHD con \texttt{usrp->set\_clock\_source("external")}. Onda cuadrada ofrece mejor ruido de fase; sinusoide es aceptable.
-    \item \textbf{Sincronización de Tiempo (1 PPS):} Fundamental para alinear capturas de múltiples N210 en el dominio del tiempo. Configurar con \texttt{usrp->set\_time\_source("external")} junto con \texttt{set\_time\_next\_pps()}.
-    \item \textbf{Cable MIMO:} Permite que un USRP (esclavo) comparta el reloj maestro y la red Ethernet de otro USRP (maestro). En el dispositivo esclavo: \texttt{usrp->set\_clock\_source("mimo")} y \texttt{usrp->set\_time\_source("mimo")}. El clock externo solo debe suministrarse al maestro.
+    \item \textbf{Internal Clock (TCXO):} \textbf{2.5 ppm} reference oscillator, active by default. The motherboard master clock is fixed at 100 MHz and is not user-configurable.
+    \item \textbf{GPSDO (Optional):} If the GPS-disciplined module is installed, it improves accuracy to \textbf{0.01 ppm}. UHD detects it automatically; it requires writing a value to the EEPROM to confirm it: \texttt{usrp\_burn\_mb\_eeprom --values="gpsdo=internal"}.
+    \item \textbf{External Clock:} 10 MHz signal through the front-panel SMA (REF IN). Configure in UHD with \texttt{usrp->set\_clock\_source("external")}. A square wave provides better phase noise; a sine wave is acceptable.
+    \item \textbf{Time Synchronization (1 PPS):} Fundamental for aligning captures from multiple N210 units in the time domain. Configure with \texttt{usrp->set\_time\_source("external")} together with \texttt{set\_time\_next\_pps()}.
+    \item \textbf{MIMO Cable:} Allows one USRP (slave) to share another USRP's (master) master clock and Ethernet network. On the slave device: \texttt{usrp->set\_clock\_source("mimo")} and \texttt{usrp->set\_time\_source("mimo")}. The external clock should only be supplied to the master.
 \end{itemize}
 
 % =========================================================
-\section{LEDs Indicadores}
+\section{Indicator LEDs}
 % =========================================================
 
-Ubicados en el panel frontal. Vitales para diagnosticar conectividad y estado del PLL sin necesidad de software.
+Located on the front panel. Vital for diagnosing connectivity and PLL status without needing software.
 
 \begin{table}[h]
     \centering
     \begin{tabular}{p{0.08\textwidth}p{0.28\textwidth}p{0.52\textwidth}}
         \toprule
-        \textbf{LED} & \textbf{Función} & \textbf{Estado e interpretación} \\
+        \textbf{LED} & \textbf{Function} & \textbf{State and interpretation} \\
         \midrule
-        \textbf{A} & Actividad TX & Encendido/parpadeando durante transmisión activa. \\
+        \textbf{A} & TX activity & On/blinking during active transmission. \\
         \addlinespace
-        \textbf{B} & Actividad RX & Encendido/parpadeando durante recepción activa. \\
+        \textbf{B} & RX activity & On/blinking during active reception. \\
         \addlinespace
-        \textbf{C} & Firmware cargado & \textbf{Encendido:} firmware activo y FPGA programada. \textbf{Apagado:} firmware no cargado — indica problema de arranque o imagen incorrecta. \\
+        \textbf{C} & Firmware loaded & \textbf{On:} active firmware and programmed FPGA. \textbf{Off:} firmware not loaded - indicates a boot problem or incorrect image. \\
         \addlinespace
-        \textbf{D} & Link Ethernet & Encendido o parpadeando cuando el enlace Gigabit está activo. \\
+        \textbf{D} & Ethernet link & On or blinking when the Gigabit link is active. \\
         \addlinespace
-        \textbf{E} & PLL Lock (Ref) & \textbf{Fijo:} PLL anclado al reloj maestro (interno o externo). \textbf{Parpadeando rápido:} PLL sin lock — señal REF IN ausente, débil o fuera de frecuencia. Normal que parpadee brevemente al arrancar o al detener una sesión. \\
+        \textbf{E} & PLL Lock (Ref) & \textbf{Steady:} PLL locked to the master clock (internal or external). \textbf{Fast blinking:} PLL not locked - REF IN signal absent, weak, or out of frequency. Brief blinking at boot or when stopping a session is normal. \\
         \addlinespace
-        \textbf{F} & PPS presente & Parpadea una vez por segundo si recibe señal PPS válida. \\
+        \textbf{F} & PPS present & Blinks once per second if it receives a valid PPS signal. \\
         \bottomrule
     \end{tabular}
 \end{table}
 
-\textbf{Estado normal al arrancar (sin sesión activa):} LEDs C, D y E deben estar encendidos. A y B apagados. F parpadea solo si hay señal PPS conectada.
+\textbf{Normal startup state (without an active session):} LEDs C, D, and E should be on. A and B off. F blinks only if a PPS signal is connected.
 
-\textbf{Trampas conocidas:}
+\textbf{Known pitfalls:}
 \begin{itemize}
-    \item Si LED C está apagado tras encender, el firmware no está cargado. Usar \texttt{uhd\_image\_loader} para reprogramar.
-    \item Si LED E parpadea rápidamente de forma persistente durante operación, el PLL ha perdido el lock — revisar la señal REF IN.
-    \item No cargar imágenes de USRP2 en el N210: son incompatibles y pueden dejar el dispositivo inoperable.
+    \item If LED C is off after power-on, the firmware is not loaded. Use \texttt{uhd\_image\_loader} to reprogram.
+    \item If LED E blinks rapidly and persistently during operation, the PLL has lost lock - check the REF IN signal.
+    \item Do not load USRP2 images on the N210: they are incompatible and can leave the device inoperable.
 \end{itemize}
 
 % =========================================================
-\section{Interfaces de Expansión (GPIO y Control)}
+\section{Expansion Interfaces (GPIO and Control)}
 % =========================================================
 
-\subsection*{GPIO de la Tarjeta Hija (Daughterboard GPIO)}
-Ciertas tarjetas (como la BasicRX/BasicTX o LFRX/LFTX) exponen pines de GPIO enrutables hacia el FPGA.
+\subsection*{Daughterboard GPIO}
+Certain boards (such as BasicRX/BasicTX or LFRX/LFTX) expose GPIO pins routable to the FPGA.
 \begin{itemize}
-    \item \textbf{Control UHD:} \texttt{set\_gpio\_attr()} en la API de UHD.
-    \item \textbf{Uso típico:} Control de relés de antena externos (T/R switches), atenuadores digitales, o conmutación de amplificadores de potencia (PA). Niveles lógicos de 3.3 V CMOS.
+    \item \textbf{UHD Control:} \texttt{set\_gpio\_attr()} in the UHD API.
+    \item \textbf{Typical use:} Control of external antenna relays (T/R switches), digital attenuators, or power-amplifier (PA) switching. 3.3 V CMOS logic levels.
 \end{itemize}
 
-\subsection*{Puerto JTAG}
-Conector interno estándar de Xilinx. Permite volcar un bitstream directamente a la FPGA Spartan 3A-DSP saltándose la memoria flash. Usado exclusivamente para desarrollo de IP personalizado con Xilinx ISE (herramienta compatible con Spartan 3).
+\subsection*{JTAG Port}
+Standard internal Xilinx connector. Allows a bitstream to be dumped directly to the Spartan 3A-DSP FPGA while bypassing flash memory. Used exclusively for custom IP development with Xilinx ISE (tool compatible with Spartan 3).
 
-\textbf{Nota:} El N210 no soporta RFNoC de forma nativa — esa capacidad es exclusiva de la serie X300/X310. Para personalizar el procesamiento en FPGA, modificar y compilar el árbol FPGA de UHD con las herramientas Xilinx compatibles con la arquitectura Spartan 3.
+\textbf{Note:} The N210 does not natively support RFNoC - that capability is exclusive to the X300/X310 series. To customize FPGA processing, modify and compile UHD's FPGA tree with Xilinx tools compatible with the Spartan 3 architecture.
 
 \end{document}
