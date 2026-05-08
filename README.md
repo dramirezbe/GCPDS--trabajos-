@@ -1,2 +1,0 @@
-# GCPDS--trabajos-
-GCPDS (trabajos)

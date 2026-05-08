@@ -1,1 +1,0 @@
-ALTER TABLE antennas ADD COLUMN IF NOT EXISTS inventory_code VARCHAR(255);
