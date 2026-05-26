@@ -101,6 +101,16 @@ if [[ ! -f "$VENV_DIR/bin/activate" ]]; then
   exit 1
 fi
 
+PYTHON_BIN="$VENV_DIR/bin/python"
+if [[ ! -x "$PYTHON_BIN" ]]; then
+  PYTHON_BIN="$VENV_DIR/bin/python3"
+fi
+
+if [[ ! -x "$PYTHON_BIN" ]]; then
+  echo "No encontré un intérprete Python ejecutable en $VENV_DIR/bin" >&2
+  exit 1
+fi
+
 if [[ ! -d "$POST_DIR" ]]; then
   echo "No existe el directorio $POST_DIR" >&2
   exit 1
@@ -122,15 +132,14 @@ if [[ "$DRY_RUN" == "1" ]]; then
   exit 0
 fi
 
-source "$VENV_DIR/bin/activate"
-
 cd "$POST_DIR"
 
 export ANE_LIC_CSV="$ANE_LIC_CSV_DEFAULT"
 unset ANE_ALLOW_JSON_PATH
 
 echo "Usando venv: $VENV_DIR"
+echo "PYTHON_BIN=$PYTHON_BIN"
 echo "ANE_LIC_CSV=$ANE_LIC_CSV"
 echo "Iniciando server_flask.py en $HOST:$PORT"
 
-exec python server_flask.py --host "$HOST" --port "$PORT" --debug
+exec "$PYTHON_BIN" server_flask.py --host "$HOST" --port "$PORT" --debug

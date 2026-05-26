@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>RTL-SDR FM Monitor</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 24px;
+            background: #111;
+            color: #eee;
+        }
+
+        h1 {
+            margin-bottom: 8px;
+        }
+
+        .panel {
+            background: #1d1d1d;
+            border: 1px solid #333;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+
+        label {
+            margin-right: 8px;
+        }
+
+        input {
+            width: 100px;
+            padding: 6px;
+            margin-right: 12px;
+            border-radius: 6px;
+            border: 1px solid #555;
+            background: #222;
+            color: #eee;
+        }
+
+        input[type="checkbox"] {
+            width: auto;
+            margin-right: 6px;
+        }
+
+        button {
+            padding: 8px 14px;
+            margin-right: 8px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            background: #2e7dff;
+            color: white;
+            font-weight: bold;
+        }
+
+        button:hover {
+            background: #5594ff;
+        }
+
+        canvas {
+            width: 100%;
+            height: 440px;
+            background: #050505;
+            border: 1px solid #333;
+            border-radius: 12px;
+        }
+
+        audio {
+            width: 100%;
+            margin-top: 12px;
+        }
+
+        .status {
+            font-family: monospace;
+            color: #8fd18f;
+        }
+
+        .warning {
+            color: #ffb86c;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>RTL-SDR FM Monitor</h1>
+
+    <div class="panel">
+        <label>Frequency [MHz]</label>
+        <input id="freqInput" type="number" step="0.1" value="98.0">
+
+        <label>LNA [dB]</label>
+        <input id="lnaGainInput" type="number" step="8" value="16">
+
+        <label>VGA [dB]</label>
+        <input id="vgaGainInput" type="number" step="2" value="16">
+
+        <label>
+            <input id="ampEnableInput" type="checkbox">
+            RF Amp
+        </label>
+
+        <button onclick="tune()">Tune</button>
+        <button onclick="playAudio()">Play FM Audio</button>
+        <button onclick="stopAudio()">Stop Audio</button>
+
+        <p class="status" id="statusText">Status: loading...</p>
+        <p class="warning">
+            Note: PSD and audio are centered at the selected frequency.
+        </p>
+    </div>
+
+    <div class="panel">
+        <canvas id="psdCanvas" width="1200" height="440"></canvas>
+    </div>
+
+    <div class="panel">
+        <audio id="audioPlayer" controls></audio>
+    </div>
+
+    <script>
+        const canvas = document.getElementById("psdCanvas");
+        const ctx = canvas.getContext("2d");
+
+        const statusText = document.getElementById("statusText");
+        const audioPlayer = document.getElementById("audioPlayer");
+
+        let latestPsd = null;
+
+        async function tune() {
+            const freqMHz = parseFloat(document.getElementById("freqInput").value);
+            const lnaGainDb = parseInt(document.getElementById("lnaGainInput").value, 10);
+            const vgaGainDb = parseInt(document.getElementById("vgaGainInput").value, 10);
+            const ampEnable = document.getElementById("ampEnableInput").checked;
+
+            statusText.textContent = `Status: tuning to ${freqMHz.toFixed(3)} MHz...`;
+
+            const response = await fetch("/api/tune", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    freq_mhz: freqMHz,
+                    lna_gain_db: lnaGainDb,
+                    vga_gain_db: vgaGainDb,
+                    amp_enable: ampEnable
+                })
+            });
+
+            const data = await response.json();
+
+            if (data.ok) {
+                statusText.textContent =
+                    `Status: tuned to ${data.center_freq_mhz.toFixed(3)} MHz, `
+                    + `LNA ${data.lna_gain_db} dB, VGA ${data.vga_gain_db} dB, `
+                    + `RF amp ${data.amp_enable ? "on" : "off"}`;
+            } else {
+                statusText.textContent = `Error: ${data.error}`;
+            }
+        }
+
+        function playAudio() {
+            // Add timestamp to prevent browser caching.
+            audioPlayer.src = "/audio.wav?t=" + Date.now();
+            audioPlayer.play();
+
+            statusText.textContent = "Status: audio streaming started.";
+        }
+
+        function stopAudio() {
+            audioPlayer.pause();
+            audioPlayer.removeAttribute("src");
+            audioPlayer.load();
+
+            statusText.textContent = "Status: audio stopped.";
+        }
+
+        async function fetchPsd() {
+            try {
+                const response = await fetch("/api/psd?t=" + Date.now());
+
+                if (!response.ok) {
+                    return;
+                }
+
+                const data = await response.json();
+
+                if (data.ok) {
+                    latestPsd = data;
+                    drawPsd(data);
+                }
+
+            } catch (error) {
+                console.log("PSD fetch error:", error);
+            }
+        }
+
+        function drawPsd(data) {
+            const freq = data.freq_mhz;
+            const psd = data.psd_db;
+
+            if (!freq || !psd || freq.length === 0) {
+                return;
+            }
+
+            const width = canvas.width;
+            const height = canvas.height;
+
+            const marginLeft = 70;
+            const marginRight = 20;
+            const marginTop = 20;
+            const marginBottom = 55;
+
+            const plotWidth = width - marginLeft - marginRight;
+            const plotHeight = height - marginTop - marginBottom;
+
+            const fMin = freq[0];
+            const fMax = freq[freq.length - 1];
+
+            const psdMin = Math.min(...psd);
+            const psdMax = Math.max(...psd);
+            const yMin = psdMin - 10;
+            const yMax = psdMax + 10;
+
+            ctx.clearRect(0, 0, width, height);
+
+            // Background
+            ctx.fillStyle = "#050505";
+            ctx.fillRect(0, 0, width, height);
+
+            // Grid
+            ctx.strokeStyle = "#222";
+            ctx.lineWidth = 1;
+
+            for (let i = 0; i <= 10; i++) {
+                const x = marginLeft + (i / 10) * plotWidth;
+                ctx.beginPath();
+                ctx.moveTo(x, marginTop);
+                ctx.lineTo(x, marginTop + plotHeight);
+                ctx.stroke();
+            }
+
+            for (let i = 0; i <= 8; i++) {
+                const y = marginTop + (i / 8) * plotHeight;
+                ctx.beginPath();
+                ctx.moveTo(marginLeft, y);
+                ctx.lineTo(marginLeft + plotWidth, y);
+                ctx.stroke();
+            }
+
+            // Axis
+            ctx.strokeStyle = "#888";
+            ctx.lineWidth = 1.5;
+
+            ctx.beginPath();
+            ctx.moveTo(marginLeft, marginTop);
+            ctx.lineTo(marginLeft, marginTop + plotHeight);
+            ctx.lineTo(marginLeft + plotWidth, marginTop + plotHeight);
+            ctx.stroke();
+
+            // Labels
+            ctx.fillStyle = "#ddd";
+            ctx.font = "14px Arial";
+
+            ctx.fillText("PSD [dB/Hz]", 10, marginTop + 15);
+            ctx.fillText("Frequency [MHz]", marginLeft + plotWidth / 2 - 50, height - 15);
+
+            ctx.font = "12px Arial";
+
+            for (let i = 0; i <= 5; i++) {
+                const value = fMin + (i / 5) * (fMax - fMin);
+                const x = marginLeft + (i / 5) * plotWidth;
+
+                ctx.fillText(value.toFixed(3), x - 22, marginTop + plotHeight + 22);
+            }
+
+            for (let i = 0; i <= 4; i++) {
+                const value = yMin + (i / 4) * (yMax - yMin);
+                const y = marginTop + plotHeight - ((value - yMin) / (yMax - yMin)) * plotHeight;
+
+                ctx.fillText(value.toFixed(0), 25, y + 4);
+            }
+
+            // PSD curve
+            ctx.strokeStyle = "#00e676";
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+
+            for (let i = 0; i < freq.length; i++) {
+                const x = marginLeft + ((freq[i] - fMin) / (fMax - fMin)) * plotWidth;
+                const y = marginTop + plotHeight - ((psd[i] - yMin) / (yMax - yMin)) * plotHeight;
+
+                if (i === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+            }
+
+            ctx.stroke();
+
+            // Title
+            ctx.fillStyle = "#fff";
+            ctx.font = "16px Arial";
+            ctx.fillText(
+                `Real-time PSD centered at ${data.center_freq_mhz.toFixed(3)} MHz | BW ≈ ${data.sample_rate_mhz.toFixed(3)} MHz`,
+                marginLeft,
+                18
+            );
+        }
+
+        // Fetch PSD approximately 5 times per second.
+        setInterval(fetchPsd, 200);
+
+        // Initial draw.
+        drawPsd({
+            freq_mhz: [97.4, 98.6],
+            psd_db: [-100, -100],
+            center_freq_mhz: 98.0,
+            sample_rate_mhz: 1.2
+        });
+    </script>
+</body>
+</html>
