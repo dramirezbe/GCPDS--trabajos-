@@ -1,4 +1,5 @@
 import asyncio
+from datetime import time
 from typing import Optional
 
 import numpy as np
@@ -165,6 +166,7 @@ class KeysightHandler:
         try:
             await self._write(f':SENS:FREQ:CENT {center_freq_hz}')
             await self._write(f':SENS:FREQ:SPAN {span_hz}')
+            await asyncio.sleep(0.1)  # allow some time for the instrument to update the trace
 
             trace_data = await self._query_ascii(':TRACe:DATA? TRACE1')
             return np.asarray(trace_data, dtype=float)

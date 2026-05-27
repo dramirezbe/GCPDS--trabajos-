@@ -1,96 +1,85 @@
+# preprocess.py
+"""
+Preprocessing and shape-focused metrics for signal comparison.
+- preprocessSignalsForShape: Standardizes and resamples signals for shape analysis.
+- computeSignalMetrics: Computes MSE, MAE, Pearson Correlation, and a custom Spectral Distance.
+"""
 import numpy as np
 from scipy import signal
-from sklearn.preprocessing import MinMaxScaler
+from scipy.stats import pearsonr
+from sklearn.preprocessing import StandardScaler
 
-def preprocessSignals(nom_signal, rec_signal):
-    """Preprocess two 1D signals for comparison.
-
-    - Resamples both signals to a common length (by default the shorter length)
-      using `scipy.signal.resample` (handles arbitrary length ratios).
-    - Replaces non-finite values with finite numbers using ``np.nan_to_num``.
-    - Scales signals to the range [0, 1] using `sklearn.preprocessing.MinMaxScaler`
-      fitted on the nominal (reference) signal so scaling is reversible.
-
-    Returns
-    -------
-    nom_scaled, rec_scaled, scaler, info
-        `nom_scaled` and `rec_scaled` are 1D numpy arrays of the same length.
-        `scaler` is the fitted MinMaxScaler (use `scaler.inverse_transform` to
-        revert scaling). `info` is a dict with original lengths and target length.
+def preprocessSignalsForShape(nominalSignal, recordedSignal):
     """
-    # Convert to numpy arrays and ensure 1D
-    nom = np.asarray(nom_signal).flatten()
-    rec = np.asarray(rec_signal).flatten()
+    Standardizes two signals to have Mean=0 and StdDev=1 to analyze shape.
+    Resamples the longer signal to match the shorter one.
+    """
+    # Ensure inputs are 1D arrays
+    nominalArray = np.asarray(nominalSignal).flatten()
+    recordedArray = np.asarray(recordedSignal).flatten()
 
-    # Replace NaNs / infs with finite numbers (avoid crashes in resampling)
-    if not np.isfinite(nom).all():
-        nom = np.nan_to_num(nom, nan=0.0, posinf=np.finfo(float).max, neginf=np.finfo(float).min)
-    if not np.isfinite(rec).all():
-        rec = np.nan_to_num(rec, nan=0.0, posinf=np.finfo(float).max, neginf=np.finfo(float).min)
+    # Clean data: Replace NaNs/Infs with the median to avoid math errors
+    nominalArray = np.nan_to_num(nominalArray, nan=np.nanmedian(nominalArray))
+    recordedArray = np.nan_to_num(recordedArray, nan=np.nanmedian(recordedArray))
 
-    len_nom = nom.size
-    len_rec = rec.size
+    # Determine common length
+    targetLength = min(nominalArray.size, recordedArray.size)
 
-    # Choose target length: the shorter of the two by default
-    target_len = min(len_nom, len_rec)
+    # Resample signals to the same length (Fourier method)
+    nominalResampled = signal.resample(nominalArray, targetLength)
+    recordedResampled = signal.resample(recordedArray, targetLength)
 
-    # Resample if needed (handles arbitrary ratios)
-    if len_nom != target_len:
-        nom_resampled = signal.resample(nom, target_len)
-    else:
-        nom_resampled = nom.astype(float)
+    # Erase Offset (Bias) and Power (Gain) using Z-Score Standardization
+    nominalScaler = StandardScaler()
+    recordedScaler = StandardScaler()
 
-    if len_rec != target_len:
-        rec_resampled = signal.resample(rec, target_len)
-    else:
-        rec_resampled = rec.astype(float)
+    # Fit_transform expects 2D, so we reshape then ravel back to 1D
+    nominalStandardized = nominalScaler.fit_transform(nominalResampled.reshape(-1, 1)).ravel()
+    recordedStandardized = recordedScaler.fit_transform(recordedResampled.reshape(-1, 1)).ravel()
 
-    # Scale to [0,1] with MinMaxScaler fitted on nominal/reference
-    nom_reshaped = nom_resampled.reshape(-1, 1)
-    rec_reshaped = rec_resampled.reshape(-1, 1)
-
-    scaler = MinMaxScaler(feature_range=(0, 1))
-    # Fit on nominal and transform both; safe if nominal is constant
-    nom_scaled = scaler.fit_transform(nom_reshaped).ravel()
-    # If scaler would divide by zero (constant signal), transform still returns zeros
-    rec_scaled = scaler.transform(rec_reshaped).ravel()
-
-    info = {
-        "original_lengths": (len_nom, len_rec),
-        "target_length": target_len,
+    # Package metadata for transparency
+    transformationMetadata = {
+        "nominalMean": nominalScaler.mean_[0],
+        "nominalStd": nominalScaler.scale_[0],
+        "recordedMean": recordedScaler.mean_[0],
+        "recordedStd": recordedScaler.scale_[0],
+        "sampleCount": targetLength
     }
 
-    return nom_scaled, rec_scaled, scaler, info
+    return nominalStandardized, recordedStandardized, transformationMetadata
 
-def mseMaeSpectralDistance(nom_signal, rec_signal):
-    """Compute MSE, MAE and a stable spectral-distance-like metric.
-
-    The spectral distance is defined here as 10*log10((MSE + eps) / (MAE + eps)).
-    A small epsilon prevents division-by-zero and keeps the metric numerically
-    stable. Inputs may be in linear units or dB; the caller should ensure both
-    signals use the same units.
-
-    Returns
-    -------
-    mse, mae, spectral_distance
-        Mean squared error, mean absolute error, and the spectral-distance value
-        (in dB). If both errors are zero, spectral_distance is 0. If MAE is zero
-        but MSE > 0, spectral_distance will be +inf.
+def computeSignalMetrics(nominalScaled, recordedScaled):
     """
-    a = np.asarray(nom_signal).flatten().astype(float)
-    b = np.asarray(rec_signal).flatten().astype(float)
+    Computes MSE, MAE, Pearson Correlation, and a custom Spectral Distance.
+    Expects standardized signals for accurate shape comparison.
+    """
+    # Ensure working with floats
+    arrayA = np.asarray(nominalScaled).astype(float)
+    arrayB = np.asarray(recordedScaled).astype(float)
 
-    if a.size != b.size:
-        raise ValueError("nom_signal and rec_signal must have the same length")
+    if arrayA.size != arrayB.size:
+        raise ValueError("Signals must be the same length. Run preprocessSignalsForShape first.")
 
-    diff = a - b
-    mse = np.mean(diff ** 2)
-    mae = np.mean(np.abs(diff))
+    # 1. Basic Error Metrics
+    signalDifference = arrayA - arrayB
+    meanSquaredError = np.mean(signalDifference ** 2)
+    meanAbsoluteError = np.mean(np.abs(signalDifference))
 
-    eps = 1e-12
-    if mae == 0.0:
-        spectral_distance = 0.0 if mse == 0.0 else float('inf')
+    # 2. Pearson Correlation (The primary 'Shape' metric)
+    # Result is a tuple (correlationCoefficient, pValue)
+    pearsonCorrelation, _ = pearsonr(arrayA, arrayB)
+
+    # 3. Stable Spectral Distance (Log-ratio of errors)
+    epsilon = 1e-12
+    if meanAbsoluteError <= epsilon:
+        spectralDistanceDb = 0.0 if meanSquaredError <= epsilon else float('inf')
     else:
-        spectral_distance = 10.0 * np.log10((mse + eps) / (mae + eps))
+        # Measures outlier significance relative to average error
+        spectralDistanceDb = 10.0 * np.log10((meanSquaredError + epsilon) / (meanAbsoluteError + epsilon))
 
-    return mse, mae, spectral_distance
+    return {
+        "meanSquaredError": meanSquaredError,
+        "meanAbsoluteError": meanAbsoluteError,
+        "pearsonCorrelation": pearsonCorrelation,
+        "spectralDistanceDb": spectralDistanceDb
+    }

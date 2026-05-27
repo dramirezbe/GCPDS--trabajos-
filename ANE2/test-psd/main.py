@@ -1,15 +1,29 @@
+# main.py
+"""
+Instrument vs radio signal comparison experiment.
+- Using proffesional Keysight instrument to acquire nominal sppectrum signal (reference)
+- scalate z-score shape-focused metrics
+- save results in CSV for later analysis and plotting
+"""
+
+DEVELOPMENT = True
+
 from dataclasses import asdict
 import asyncio
+from pathlib import Path
 import csv
 import json
-from pathlib import Path
-
 import numpy as np
 
 import cfg
 from functions import AcquireDual
-from libs.instrument import KeysightHandler
-from libs.preprocess import mseMaeSpectralDistance, preprocessSignals
+
+if DEVELOPMENT:
+    from libs.instrument_dummy import KeysightHandler
+else:
+    from libs.instrument import KeysightHandler
+    
+from libs.preprocess import preprocessSignalsForShape, computeSignalMetrics
 from utils import ZmqPairController, ServerRealtimeConfig
 
 log = cfg.set_logger()
@@ -24,8 +38,8 @@ SAMPLE_RATE_HZ = int(20e6)
 RBW_HZ = int(10e3)
 WINDOW = "hamming"
 OVERLAP = 0.5
-LNA_GAIN = 30
-VGA_GAIN = 20
+LNA_GAIN = 8
+VGA_GAIN = 8
 ANTENNA_AMP = True
 ANTENNA_PORT = 1
 
@@ -94,11 +108,12 @@ async def get_rec_sig(method_psd):
 
 async def main():
     DATA_DIR.mkdir(parents=True, exist_ok=True)
+    log.info(f"DATETIME:{cfg.human_readable(ts_ms=cfg.get_time_ms())} - Starting experiment with {NUM_REALIZATIONS} realizations for each method: {METH0DS_PSD_TEST}")
 
     for method in METH0DS_PSD_TEST:
         log.info(f"----------Testing method: {method}----------")
         data_filename = DATA_DIR / (
-            f"psd_{method}_CF{CENTER_FREQ_HZ}Hz_SR{SAMPLE_RATE_HZ}Hz_RBW{RBW_HZ}Hz_"
+            f"{cfg.human_readable(ts_ms=cfg.get_time_ms())}_{method}_CF{CENTER_FREQ_HZ/1e6}MHz_SR{SAMPLE_RATE_HZ/1e6}MHz_RBW{RBW_HZ/1e3}kHz_"
             f"{WINDOW}_overlap{OVERLAP}_LNA{LNA_GAIN}dB_VGA{VGA_GAIN}dB_"
             f"ANT{ANTENNA_AMP}_port{ANTENNA_PORT}.csv"
         )
@@ -113,17 +128,17 @@ async def main():
 
             for i in range(NUM_REALIZATIONS):
                 log.info(f"Realization {i+1}/{NUM_REALIZATIONS}")
-                input("Press Enter to continue...")
+                #input("Press Enter to continue...")
 
-                log.info("[INST]getting trace CF={CENTER_FREQ_HZ}Hz, SPAN={SAMPLE_RATE_HZ}Hz")
-                nom_sig = await inst.get_trace(center_freq_hz=float(CENTER_FREQ_HZ), span_hz=float(SAMPLE_RATE_HZ))
+                log.info(f"[INST]getting trace CF={CENTER_FREQ_HZ/1e6}MHz, SPAN={SAMPLE_RATE_HZ/1e6}MHz")
+                nom_sig = await inst.get_trace(center_freq_hz=float(CENTER_FREQ_HZ/1e6), span_hz=float(SAMPLE_RATE_HZ/1e6))
                 if nom_sig is not None:
                     log.info(f"Received nominal signal of length: {len(nom_sig)}")
                 else:
                     log.error("Failed to receive nominal signal")
                     continue
 
-                log.info("[RADIO]getting signal CF={CENTER_FREQ_HZ}Hz, SR={SAMPLE_RATE_HZ}Hz, RBW={RBW_HZ}Hz, WINDOW={WINDOW}, OVERLAP={OVERLAP}, LNA_GAIN={LNA_GAIN}dB, VGA_GAIN={VGA_GAIN}dB, ANTENNA_AMP={ANTENNA_AMP}, ANTENNA_PORT={ANTENNA_PORT}")
+                log.info(f"[RADIO]getting signal CF={CENTER_FREQ_HZ/1e6}MHz, SR={SAMPLE_RATE_HZ/1e6}MHz, RBW={RBW_HZ/1e3}kHz, WINDOW={WINDOW}, OVERLAP={OVERLAP}, LNA_GAIN={LNA_GAIN}dB, VGA_GAIN={VGA_GAIN}dB, ANTENNA_AMP={ANTENNA_AMP}, ANTENNA_PORT={ANTENNA_PORT}")
                 rec_sig = await get_rec_sig(method)
                 if rec_sig is not None:
                     log.info(f"Received signal of length: {len(rec_sig)}")
@@ -131,13 +146,20 @@ async def main():
                     log.error("Failed to receive signal")
                     continue
 
-                #preprocess
-                nom_sig, rec_sig, _, info = preprocessSignals(nom_sig, rec_sig)
-                mse, mae, spectral_distance = mseMaeSpectralDistance(nom_sig, rec_sig)
+                # Preprocess using shape-focused functions
+                nom_len_orig = len(nom_sig)
+                rec_len_orig = len(rec_sig)
+
+                nom_scaled, rec_scaled, metadata = preprocessSignalsForShape(nom_sig, rec_sig)
+                metrics = computeSignalMetrics(nom_scaled, rec_scaled)
+
+                mse = metrics.get("meanSquaredError")
+                mae = metrics.get("meanAbsoluteError")
+                spectral_distance = metrics.get("spectralDistanceDb")
 
                 log.info(
-                    f"Preprocessed signals to target length: {info['target_length']} "
-                    f"(original lengths: {info['original_lengths']})"
+                    f"Preprocessed signals to target length: {metadata.get('sampleCount')} "
+                    f"(original lengths: ({nom_len_orig}, {rec_len_orig}))"
                 )
 
                 write_csv_row(
@@ -145,11 +167,11 @@ async def main():
                     {
                         "method": method,
                         "realization": i + 1,
-                        "nominal_signal": json.dumps(np.asarray(nom_sig).tolist()),
-                        "received_signal": json.dumps(np.asarray(rec_sig).tolist()),
-                        "nominal_length": int(info["original_lengths"][0]),
-                        "received_length": int(info["original_lengths"][1]),
-                        "target_length": int(info["target_length"]),
+                        "nominal_signal": json.dumps(np.asarray(nom_scaled).tolist()),
+                        "received_signal": json.dumps(np.asarray(rec_scaled).tolist()),
+                        "nominal_length": int(nom_len_orig),
+                        "received_length": int(rec_len_orig),
+                        "target_length": int(metadata.get("sampleCount")),
                         "mse": float(mse),
                         "mae": float(mae),
                         "spectral_distance": float(spectral_distance),

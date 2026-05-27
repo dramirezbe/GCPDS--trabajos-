@@ -103,7 +103,7 @@ def human_readable(ts_ms: int, target_tz: str = "UTC") -> str:
     """Convierte un timestamp ms a cadena legible."""
     dt_utc = datetime.fromtimestamp(ts_ms / 1000, tz=ZoneInfo("UTC"))
     dt_local = dt_utc.astimezone(ZoneInfo(target_tz))
-    return dt_local.strftime('%Y-%m-%d %H:%M:%S')
+    return dt_local.strftime('%Y-%m-%d_%H:%M:%S')
 
 def get_mac() -> str:
     """
