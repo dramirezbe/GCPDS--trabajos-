@@ -1,6 +1,7 @@
 import argparse
 import csv
 import json
+import re
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -31,9 +32,28 @@ def to_array(values: str) -> np.ndarray:
     return np.asarray(json.loads(values), dtype=float)
 
 
+def parse_frequency_axis_from_name(csv_path: Path, sample_count: int) -> np.ndarray | None:
+    stem = csv_path.stem
+
+    center_match = re.search(r"(?:^|_)CF(?P<center>[0-9]+(?:\.[0-9]+)?)MHz(?:_|$)", stem)
+    span_match = re.search(r"(?:^|_)(?:SR|SP)(?P<span>[0-9]+(?:\.[0-9]+)?)MHz(?:_|$)", stem)
+    if center_match is None or span_match is None:
+        return None
+
+    center_hz = float(center_match.group("center")) * 1e6
+    span_hz = float(span_match.group("span")) * 1e6
+    return np.linspace(
+        center_hz - span_hz / 2.0,
+        center_hz + span_hz / 2.0,
+        sample_count,
+        dtype=float,
+    )
+
+
 class CsvTraceViewer:
-    def __init__(self, rows: list[dict]):
+    def __init__(self, rows: list[dict], csv_path: Path):
         self.rows = rows
+        self.csv_path = csv_path
         self.index = len(rows) - 1
 
         # leave room on the right for metrics panel
@@ -66,8 +86,16 @@ class CsvTraceViewer:
         row = self.rows[self.index]
         method = row.get("method", "unknown")
         realization = row.get("realization", "0")
+        frequency_hz = row.get("frequency_hz", "")
         nominal = to_array(row["nominal_signal"])
         received = to_array(row["received_signal"])
+
+        if frequency_hz:
+            freq_axis = to_array(frequency_hz)
+        else:
+            freq_axis = parse_frequency_axis_from_name(self.csv_path, len(nominal))
+            if freq_axis is None:
+                freq_axis = np.arange(len(nominal), dtype=float)
 
         mse = row.get("mse", "")
         mae = row.get("mae", "")
@@ -76,10 +104,10 @@ class CsvTraceViewer:
 
         self.ax.clear()
         plt.sca(self.ax)
-        plt.plot(nominal, label="Instrument (Nominal)", color="#1f77b4", linewidth=1.0)
-        plt.plot(received, label="Radio (Received)", color="#ff7f0e", linewidth=1.0)
+        plt.plot(freq_axis, nominal, label="Instrument (Nominal)", color="#1f77b4", linewidth=1.0)
+        plt.plot(freq_axis, received, label="Radio (Received)", color="#ff7f0e", linewidth=1.0)
         self.ax.set_title(f"Method: {method} | Realization: {realization}")
-        self.ax.set_xlabel("Sample Index")
+        self.ax.set_xlabel("Frequency (Hz)")
         self.ax.set_ylabel("Amplitude")
         self.ax.grid(True, alpha=0.3)
         self.ax.legend(loc="upper right")
@@ -129,7 +157,7 @@ def main() -> int:
         print("CSV has no data rows.")
         return 1
 
-    CsvTraceViewer(rows)
+    CsvTraceViewer(rows, csv_path)
     plt.show()
     return 0
 

@@ -6,7 +6,7 @@ Instrument vs radio signal comparison experiment.
 - save results in CSV for later analysis and plotting
 """
 
-DEVELOPMENT = True
+DEVELOPMENT = False
 
 from dataclasses import asdict
 import asyncio
@@ -29,7 +29,7 @@ from utils import ZmqPairController, ServerRealtimeConfig
 log = cfg.set_logger()
 
 #intrument parameters
-IP_INST = "192.168.0.100"
+IP_INST = "10.42.0.41"
 TIMEOUT_INST_MS = 5000
 
 #radio parameters
@@ -38,8 +38,8 @@ SAMPLE_RATE_HZ = int(20e6)
 RBW_HZ = int(10e3)
 WINDOW = "hamming"
 OVERLAP = 0.5
-LNA_GAIN = 8
-VGA_GAIN = 8
+LNA_GAIN = 0
+VGA_GAIN = 0
 ANTENNA_AMP = True
 ANTENNA_PORT = 1
 
@@ -53,6 +53,7 @@ DATA_DIR = Path("./data_results")
 CSV_FIELDNAMES = [
     "method",
     "realization",
+    "frequency_hz",
     "nominal_signal",
     "received_signal",
     "nominal_length",
@@ -113,7 +114,7 @@ async def main():
     for method in METH0DS_PSD_TEST:
         log.info(f"----------Testing method: {method}----------")
         data_filename = DATA_DIR / (
-            f"{cfg.human_readable(ts_ms=cfg.get_time_ms())}_{method}_CF{CENTER_FREQ_HZ/1e6}MHz_SR{SAMPLE_RATE_HZ/1e6}MHz_RBW{RBW_HZ/1e3}kHz_"
+            f"{cfg.human_readable(ts_ms=cfg.get_time_ms())}_{method}_CF{CENTER_FREQ_HZ/1e6}MHz_SP{SAMPLE_RATE_HZ/1e6}MHz_RBW{RBW_HZ/1e3}kHz_"
             f"{WINDOW}_overlap{OVERLAP}_LNA{LNA_GAIN}dB_VGA{VGA_GAIN}dB_"
             f"ANT{ANTENNA_AMP}_port{ANTENNA_PORT}.csv"
         )
@@ -125,18 +126,29 @@ async def main():
             #Press Intro to continue
             input("Press Enter to continue...")
             await inst.clear_errors()
+            await inst.config_params(center_freq_hz=float(CENTER_FREQ_HZ), span_hz=float(SAMPLE_RATE_HZ))
+
+            log.info("Waiting for instrument to apply settings...")
+            await asyncio.sleep(1)  # allow some time for the instrument to apply settings
 
             for i in range(NUM_REALIZATIONS):
                 log.info(f"Realization {i+1}/{NUM_REALIZATIONS}")
                 #input("Press Enter to continue...")
 
                 log.info(f"[INST]getting trace CF={CENTER_FREQ_HZ/1e6}MHz, SPAN={SAMPLE_RATE_HZ/1e6}MHz")
-                nom_sig = await inst.get_trace(center_freq_hz=float(CENTER_FREQ_HZ/1e6), span_hz=float(SAMPLE_RATE_HZ/1e6))
+                nom_sig = await inst.get_trace()
                 if nom_sig is not None:
                     log.info(f"Received nominal signal of length: {len(nom_sig)}")
                 else:
                     log.error("Failed to receive nominal signal")
                     continue
+
+                frequency_hz = np.linspace(
+                    CENTER_FREQ_HZ - SAMPLE_RATE_HZ / 2.0,
+                    CENTER_FREQ_HZ + SAMPLE_RATE_HZ / 2.0,
+                    len(nom_sig),
+                    dtype=float,
+                )
 
                 log.info(f"[RADIO]getting signal CF={CENTER_FREQ_HZ/1e6}MHz, SR={SAMPLE_RATE_HZ/1e6}MHz, RBW={RBW_HZ/1e3}kHz, WINDOW={WINDOW}, OVERLAP={OVERLAP}, LNA_GAIN={LNA_GAIN}dB, VGA_GAIN={VGA_GAIN}dB, ANTENNA_AMP={ANTENNA_AMP}, ANTENNA_PORT={ANTENNA_PORT}")
                 rec_sig = await get_rec_sig(method)
@@ -167,6 +179,7 @@ async def main():
                     {
                         "method": method,
                         "realization": i + 1,
+                        "frequency_hz": json.dumps(np.asarray(frequency_hz).tolist()),
                         "nominal_signal": json.dumps(np.asarray(nom_scaled).tolist()),
                         "received_signal": json.dumps(np.asarray(rec_scaled).tolist()),
                         "nominal_length": int(nom_len_orig),

@@ -37,6 +37,8 @@ class KeysightHandler:
         self.timeout_ms = timeout_ms
         self.rm: Optional[pyvisa.ResourceManager] = None
         self.inst = None
+        self.center_freq_hz: Optional[float] = None
+        self.span_hz: Optional[float] = None
 
     async def __aenter__(self):
         """Open the VISA session and configure ASCII trace format.
@@ -147,8 +149,8 @@ class KeysightHandler:
         except Exception as e:
             print(f"Error clearing instrument status: {e}")
 
-    async def get_trace(self, center_freq_hz: float, span_hz: float) -> np.ndarray:
-        """Acquire TRACE1 power values for a given center frequency and span.
+    async def config_params(self, center_freq_hz: float, span_hz: float):
+        """Configure the sweep center frequency and span once.
 
         Parameters
         ----------
@@ -157,6 +159,18 @@ class KeysightHandler:
         span_hz : float
             Frequency span in Hz.
 
+        """
+        try:
+            self.center_freq_hz = float(center_freq_hz)
+            self.span_hz = float(span_hz)
+            await self._write(f':SENS:FREQ:CENT {center_freq_hz}')
+            await self._write(f':SENS:FREQ:SPAN {span_hz}')
+        except Exception as e:
+            print(f"Error configuring trace parameters: {e}")
+
+    async def get_trace(self) -> np.ndarray:
+        """Acquire TRACE1 power values using the previously configured sweep.
+
         Returns
         -------
         numpy.ndarray
@@ -164,8 +178,9 @@ class KeysightHandler:
             any communication or parsing failure.
         """
         try:
-            await self._write(f':SENS:FREQ:CENT {center_freq_hz}')
-            await self._write(f':SENS:FREQ:SPAN {span_hz}')
+            if self.center_freq_hz is None or self.span_hz is None:
+                raise RuntimeError('Trace parameters are not configured.')
+
             await asyncio.sleep(0.1)  # allow some time for the instrument to update the trace
 
             trace_data = await self._query_ascii(':TRACe:DATA? TRACE1')

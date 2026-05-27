@@ -15,6 +15,8 @@ class KeysightHandler:
         self.ip = ip
         self.timeout_ms = timeout_ms
         self.inst: Optional[bool] = None
+        self.center_freq_hz: Optional[float] = None
+        self.span_hz: Optional[float] = None
 
     async def __aenter__(self):
         self.inst = True
@@ -36,17 +38,26 @@ class KeysightHandler:
     async def clear_errors(self):
         await asyncio.sleep(0)
 
-    async def get_trace(self, center_freq_hz: float, span_hz: float) -> np.ndarray:
+    async def config_params(self, center_freq_hz: float, span_hz: float):
         self._require_inst()
+        self.center_freq_hz = float(center_freq_hz)
+        self.span_hz = float(span_hz)
+        await asyncio.sleep(0)
+
+    async def get_trace(self) -> np.ndarray:
+        self._require_inst()
+
+        if self.center_freq_hz is None or self.span_hz is None:
+            raise RuntimeError("Trace parameters are not configured.")
 
         n_points = 10_000
         freqs = np.linspace(
-            center_freq_hz - span_hz / 2.0,
-            center_freq_hz + span_hz / 2.0,
+            self.center_freq_hz - self.span_hz / 2.0,
+            self.center_freq_hz + self.span_hz / 2.0,
             n_points,
         )
 
-        rng_seed = int(abs(center_freq_hz) + abs(span_hz)) % (2**32)
+        rng_seed = int(abs(self.center_freq_hz) + abs(self.span_hz)) % (2**32)
         rng = np.random.default_rng(rng_seed)
 
         noise_floor_db = -90.0
@@ -54,12 +65,12 @@ class KeysightHandler:
         spectrum_db = noise_db.copy()
 
         # Four FM-like peaks around the carrier (carrier + three sidebands).
-        peak_offsets = np.array([0.0, -0.18 * span_hz, 0.12 * span_hz, 0.28 * span_hz])
+        peak_offsets = np.array([0.0, -0.18 * self.span_hz, 0.12 * self.span_hz, 0.28 * self.span_hz])
         peak_heights = np.array([35.0, 20.0, 16.0, 12.0])
-        peak_bw = 0.01 * span_hz
+        peak_bw = 0.01 * self.span_hz
 
         for offset, height in zip(peak_offsets, peak_heights):
-            center = center_freq_hz + offset
+            center = self.center_freq_hz + offset
             spectrum_db += height * np.exp(-0.5 * ((freqs - center) / peak_bw) ** 2)
 
         return spectrum_db.astype(float)
