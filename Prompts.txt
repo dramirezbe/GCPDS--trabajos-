@@ -1,5 +1,0 @@
-"Yo soy investyigador en el are de sistemas de monitoreo de radiofrecuencia. Estoy diseñando un Spectrum Sensing System Design orientado al monitoreo de servicios de telecomunicaciones. Quiero saber si el hardware propuesto en el reporte me permite implementar un sistema con arquitectura abierta que asegure la interoperabilidad ,que sea expalndible, con un compromiso entre rendimiento y costos adecuados"
-
-"I am a researcher in the field of radio-frequency monitoring systems and I am currently designing a spectrum sensing system for the monitoring of telecommunications services. The purpose of this evaluation is to determine whether the hardware proposed in the report enables the implementation of an open-architecture system that ensures interoperability among components, supports future scalability, and achieves an appropriate trade-off between system performance and implementation and operational costs"
-
-"Deseo en vez de usar la USRP B210 usar una pluto open source de opensourcesdrlab.com 7020-sdr-ad9361. Qué tanto mejora o empeora le idea de diseño planteada anteriormente con la nueva tarjeta"
