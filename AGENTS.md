@@ -17,6 +17,14 @@
 - A notebook audit skill exists at `.agents/skills/notebook-audit/SKILL.md`. When auditing notebooks, load this skill first — it defines a 5-phase audit process (structure, data, training, evaluation, refactoring).
 - Audit outputs go to `audit/`.
 
+## SDD Workshop / HTML presentations (`*TutorialSDDAgents*`)
+
+- Self-contained HTML slide decks (embedded CSS/JS/SVG, no build step). Open in browser to view.
+- `sdd_workshop_guide.md` is the source material; HTML renders in `dist/` or `examples/from-chat-to-cognitive-system/`.
+- Navigation: arrow keys, PageUp/Down, Home/End, F for focus mode (hides sidebar), touch swipe.
+- Style: dark theme (Space Grotesk + Source Serif 4), left content panel + right SVG diagram per slide.
+- Diagrams are inline SVG with viewBox="0 0 520 360" — keep text short to fit bounding boxes.
+
 ## Working with this repo
 
 - Before modifying a project directory, inspect its immediate neighbors for tech stack clues (`.py` imports, `package.json`, `buildozer.spec`) rather than assuming a shared toolchain.
