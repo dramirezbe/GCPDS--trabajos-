@@ -1,0 +1,688 @@
+\documentclass[12pt,a4paper]{article}
+
+% ── Encoding & Language ───────────────────────────────────────────
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[spanish,english]{babel}
+\usepackage{csquotes}
+
+% ── Geometry & Spacing ────────────────────────────────────────────
+\usepackage[top=3cm,bottom=2.5cm,left=2.5cm,right=2.5cm]{geometry}
+\usepackage{setspace}
+\onehalfspacing
+
+% ── Graphics & Figures ────────────────────────────────────────────
+\usepackage{graphicx}
+\usepackage{tikz}
+\usetikzlibrary{shapes.geometric, arrows.meta, positioning, fit, backgrounds}
+\usepackage{float}
+
+% ── Tables & Lists ────────────────────────────────────────────────
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{multirow}
+\usepackage{enumitem}
+\setlist{nosep,leftmargin=*}
+
+% ── Maths ─────────────────────────────────────────────────────────
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{siunitx}
+\sisetup{detect-all}
+
+% ── Hyperlinks & Metadata ─────────────────────────────────────────
+\usepackage[colorlinks=true,linkcolor=blue,citecolor=blue,urlcolor=blue]{hyperref}
+\usepackage{url}
+
+% ── Captions ──────────────────────────────────────────────────────
+\usepackage{caption}
+\usepackage{subcaption}
+
+% ── Title Metadata ────────────────────────────────────────────────
+\title{
+  \vspace{-2cm}
+  \textbf{Propuesta de Diseño Conceptual}\\[0.3cm]
+  \large Sistema de Monitoreo SDR de Exposición a Campos Eléctricos\\
+  en Entornos Interiores con Alta Densidad IoT
+}
+\author{
+  \small
+  Grupo de Control y Procesamiento Digital de Señales (GCPDS)\\
+  Universidad Nacional de Colombia --- Sede Manizales\\
+  \vspace{0.2cm}\\
+  Universidad de Caldas
+}
+\date{\small \today}
+
+\begin{document}
+
+\maketitle
+\thispagestyle{empty}
+
+% ── Abstract ──────────────────────────────────────────────────────
+\begin{abstract}
+\noindent
+Este documento presenta el diseño conceptual de una plataforma IoT basada en Radio Definida por Software (SDR) para el monitoreo de exposición humana a campos eléctricos en entornos interiores con alta densidad de dispositivos IoT. La arquitectura propuesta consta de cinco componentes principales: hardware SDR, motor de adquisición en tiempo real en C, procesamiento digital de señales y lógica de negocio en Python, base de datos temporal TimescaleDB, y una interfaz web reactiva. El sistema emplea técnicas de aprendizaje automático para umbralización adaptativa, sensado cooperativo de espectro, e interpolación geoestadística (Kriging) para la generación de mapas térmicos de exposición electromagnética, todo en conformidad con las normas ICNIRP y UIT-T K.52. Se incluye la lista de materiales (BOM) del hardware, la cadena de señal RF, y la planificación temporal del proyecto.
+\end{abstract}
+
+\vspace{1cm}
+{\small
+\noindent\textbf{Palabras clave:} SDR, IoT, exposición electromagnética, Kriging, aprendizaje automático, USRP B210, Jetson Orin, mapas térmicos.
+}
+
+\newpage
+\tableofcontents
+\newpage
+
+% ═══════════════════════════════════════════════════════════════════════
+% 1. INTRODUCTION
+% ═══════════════════════════════════════════════════════════════════════
+\section{Introducción}
+
+\subsection{Planteamiento del Problema}
+
+La proliferación de dispositivos IoT en entornos laborales cerrados (oficinas, fábricas, centros de datos) genera una preocupación creciente sobre la exposición acumulativa a campos eléctricos. Los analizadores de espectro tradicionales son costosos, voluminosos y poco prácticos para estudios densos o móviles en interiores. El Radio Definido por Software (SDR) surge como una alternativa de menor costo y mayor flexibilidad, aunque con limitaciones en rango dinámico, comportamiento ADC/DAC y banda de frecuencia utilizable.
+
+El sistema debe operar en el rango propuesto de \qtyrange{700}{3500}{\MHz}, abarcando las principales bandas IoT y de telecomunicaciones (LTE, WiFi 2.4~GHz, ISM). Los entornos interiores requieren numerosas mediciones rápidas para identificar zonas de alta radiación y compararlas con las normas de exposición.
+
+\subsection{Justificación}
+
+La umbralización estática resulta insuficiente en entornos IoT ruidosos y dinámicos. La propuesta incorpora umbralización adaptativa basada en aprendizaje automático y sensado cooperativo. Los mapas de exposición de campo eléctrico permiten correlacionar densidad de dispositivos, uso frecuencial y niveles de exposición, constituyendo una herramienta tanto científica como regulatoria.
+
+\subsection{Pregunta de Investigación}
+
+\noindent
+\textit{¿Cómo influye la densidad de dispositivos IoT en los niveles de exposición a campos eléctricos en entornos cerrados y qué impacto puede tener dicha exposición en la salud de los trabajadores, utilizando un sistema de monitoreo basado en SDR y técnicas avanzadas de aprendizaje automático para la detección y análisis?}
+
+\subsection{Objetivos}
+
+\paragraph{Objetivo General}
+Desarrollar un sistema de evaluación de niveles de exposición humana a campos eléctricos, basado en SDR y técnicas de aprendizaje automático, que permita medir la densidad de radiación en entornos interiores con alta ocupación de dispositivos IoT.
+
+\paragraph{Objetivos Específicos}
+\begin{enumerate}[label=OE\arabic*:,leftmargin=2.5em]
+  \item Diseñar y construir un módulo de medición SDR para monitoreo espectral de redes IoT de alta densidad en espacios interiores, usando técnicas de sensado de espectro.
+  \item Desarrollar algoritmos de umbralización y procesos cooperativos basados en métodos de aprendizaje automático para manejar la variabilidad de mediciones en entornos interiores con alta interferencia.
+  \item Generar mapas espaciales de campos eléctricos usando técnicas avanzadas de medición y análisis de datos para evaluar conformidad con regulaciones de exposición humana.
+\end{enumerate}
+
+% ═══════════════════════════════════════════════════════════════════════
+% 2. SYSTEM ARCHITECTURE
+% ═══════════════════════════════════════════════════════════════════════
+\section{Arquitectura del Sistema}
+
+\subsection{Visión General}
+
+El sistema se compone de cinco módulos principales que operan en conjunto para capturar, procesar, almacenar y visualizar datos de exposición a campos eléctricos. La arquitectura está diseñada bajo los principios de procesamiento en tiempo real, baja latencia y desacoplamiento de componentes, permitiendo la evolución independiente de cada módulo.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  node distance=1.2cm and 1.5cm,
+  box/.style={rectangle, draw=black, rounded corners, minimum width=4cm, minimum height=0.9cm, align=center, font=\small\sffamily},
+  sbox/.style={box, minimum width=3.2cm, minimum height=0.7cm, font=\footnotesize\sffamily},
+  >={Stealth[scale=0.8]},
+  line/.style={draw, ->, >=Stealth},
+  doubleline/.style={draw, <->, >=Stealth},
+]
+  % ── SDR ────────────────────────────────────
+  \node[box, fill=red!15] (sdr) {SDR\\Hardware};
+
+  % ── C Layer ────────────────────────────────
+  \node[box, fill=blue!12, right=of sdr, minimum height=4.5cm, minimum width=6cm] (clayer) {};
+  \node[font=\small\sffamily\bfseries, above=0.1cm of clayer.north] {Capa C (Tiempo Real)};
+  \node[sbox, fill=blue!8, above=1.2cm of clayer.south] (buffers) {Buffers};
+  \node[sbox, fill=blue!8, below=0.0cm of buffers] (engine) {Motor de Eventos\\(No Polling)};
+  \node[sbox, fill=blue!8, below=0.0cm of engine] (psd) {PSD + Modelo IA};
+
+  % ── Python Layer ───────────────────────────
+  \node[box, fill=green!12, right=of clayer, minimum height=3cm, minimum width=4.5cm] (python) {};
+  \node[font=\small\sffamily\bfseries, above=0.1cm of python.north] {Capa Python (DSP)};
+  \node[sbox, fill=green!8, above=0.8cm of python.south] (dsp) {DSP-RF};
+  \node[sbox, fill=green!8, below=0.0cm of dsp] (queries) {Consultas (Queries)};
+
+  % ── Database ───────────────────────────────
+  \node[box, fill=yellow!15, below=of python, minimum width=4cm] (db) {Base de Datos\\TimescaleDB (PostgreSQL)};
+
+  % ── Frontend ───────────────────────────────
+  \node[box, fill=purple!12, right=of python, minimum height=2.5cm, minimum width=4cm] (frontend) {};
+  \node[font=\small\sffamily\bfseries, above=0.1cm of frontend.north] {Frontend};
+  \node[sbox, fill=purple!8, above=0.5cm of frontend.south] (react) {Vite + React\\Mapas Térmicos, Espectro,\\ Dashboard, Reportes};
+
+  % ── Connections ────────────────────────────
+  \draw[doubleline] (sdr) -- node[above,font=\footnotesize] {RF Raw} (buffers);
+  \draw[doubleline] (engine.west) -- ++(-0.5,0) |- node[pos=0.25,left,font=\footnotesize,align=center] {ZMQ\\IPC} (dsp.west);
+  \draw[line, dashed] (dsp.west) -- ++(-0.3,0) |- node[pos=0.25,left,font=\footnotesize,align=center] {Medición\\Programada} (engine.west);
+  \draw[line] (clayer.north east) -- ++(0.5,0) |- node[pos=0.25,right,font=\footnotesize,align=center] {WebSocket\\Binario} (frontend.north west);
+  \draw[line, dashed] (frontend.south west) -- ++(-0.5,0) |- node[pos=0.25,right,font=\footnotesize,align=center] {Trigger,\\Parámetros} (clayer.south east);
+  \draw[doubleline] (dsp.east) -- node[above,font=\footnotesize] {Query / Program} (react.west);
+  \draw[doubleline] (queries.south) -- (db.north);
+
+\end{tikzpicture}
+\caption{Diagrama conceptual de la arquitectura de 5 componentes. Las líneas continuas representan flujos de datos primarios; las punteadas representan comandos de control.}
+\label{fig:arch}
+\end{figure}
+
+\subsection{Componente 1: SDR (Radio Definida por Software)}
+
+\textbf{Rol:} Dispositivo externo de captura RF.
+
+El SDR es el punto de entrada de señales electromagnéticas al sistema. Captura muestras crudas de RF, cubriendo el rango de \qtyrange{698}{6000}{\MHz} con un ancho de banda instantáneo de hasta \qty{56}{\MHz}. El hardware seleccionado para el prototipo es el USRP B210 de Ettus Research, que ofrece arquitectura MIMO 2$\times$2 con resolución ADC/DAC de 12 bits e interfaz USB~3.0.
+
+La conexión con el sistema es bidireccional: las muestras crudas fluyen hacia los buffers de la capa C, mientras que comandos de configuración (frecuencia, ganancia, tasa de muestreo) pueden ser enviados de vuelta al SDR.
+
+\subsection{Componente 2: Capa C --- Motor de Tiempo Real}
+
+\textbf{Rol:} Adquisición y preprocesamiento de señales de alto rendimiento.
+
+La capa C es el núcleo de procesamiento en tiempo real del sistema. Está implementada en C11 y se ejecuta directamente sobre el hardware del host (no en contenedor), ya que requiere acceso directo a los periféricos USB del SDR. Se compone de tres submódulos:
+
+\paragraph{Buffers}
+Actúan como puente entre el hardware SDR y el procesamiento interno. Reciben muestras crudas del SDR en modo bidireccional y las entregan al motor de eventos, garantizando flujo continuo sin pérdida de datos.
+
+\paragraph{Motor de Eventos (No Polling)}
+Arquitectura dirigida por eventos que evita explícitamente el \textit{polling} para minimizar uso de CPU y latencia en el procesamiento de señales en tiempo real. Reacciona ante la llegada de datos desde los buffers y:
+\begin{itemize}
+  \item Envía datos y eventos a la capa Python mediante \textbf{ZMQ sobre IPC} (comunicación entre procesos) para procesamiento de alto nivel.
+  \item Recibe comandos de control desde Python (\textit{medición programada}).
+  \item Transmite datos espectrales binarios directamente al frontend web mediante \textbf{WebSocket} (Libwebsockets), evitando el paso por Python para flujos sensibles a latencia.
+  \item Recibe comandos de control desde el frontend (\textit{trigger}, \textit{cambio de parámetros}).
+\end{itemize}
+
+\paragraph{PSD (Power Spectral Density) + Modelo IA}
+Módulo de análisis de Densidad Espectral de Potencia embebido directamente en la capa C. Incorpora un modelo de inteligencia artificial para análisis espectral y detección de anomalías, operando cerca de la fuente de datos para inferencia de baja latencia. El modelo se entrena para umbralización adaptativa y reducción de falsas alarmas en entornos con alta interferencia.
+
+\subsection{Componente 3: Capa Python --- DSP y Lógica de Negocio}
+
+\textbf{Rol:} Procesamiento digital de señales de alto nivel, orquestación de datos y lógica de negocio.
+
+La capa Python aprovecha el ecosistema científico (NumPy, SciPy) para procesamiento RF que no requiere la latencia mínima de la capa C. Se compone de dos submódulos:
+
+\paragraph{DSP-RF}
+Módulo de Procesamiento Digital de Señales enfocado en RF. Recibe eventos y datos desde la capa C vía ZMQ IPC, aplica algoritmos de análisis espectral avanzado, y envía comandos de medición programada de vuelta a la capa C. También se comunica bidireccionalmente con el frontend para operaciones de \textit{consulta} y \textit{programación} de campañas de medición.
+
+\paragraph{Consultas (Queries)}
+Capa de acceso a datos que gestiona toda la persistencia. Interactúa bidireccionalmente con la base de datos para almacenar mediciones, resultados de algoritmos, configuraciones, campañas y reportes. Implementa la lógica de negocio para trazabilidad científica: cada medición se relaciona con su configuración de adquisición, modelo de IA, campaña y ubicación espacial.
+
+\subsection{Componente 4: Base de Datos --- TimescaleDB}
+
+\textbf{Rol:} Almacenamiento persistente de series temporales con capacidades de consulta analítica.
+
+TimescaleDB (extensión sobre PostgreSQL 16) proporciona:
+\begin{itemize}
+  \item Almacenamiento eficiente de series temporales (mediciones espectrales con timestamp).
+  \item Compresión nativa y particionamiento automático (hypertables) para datos de alta frecuencia.
+  \item Modelo relacional completo para metadatos: sensores, antenas, configuraciones, campañas, algoritmos, umbrales, alertas, usuarios y reportes de cumplimiento.
+  \item Trazabilidad completa desde la captura cruda hasta el reporte exportable.
+\end{itemize}
+
+\subsection{Componente 5: Frontend --- Interfaz de Usuario}
+
+\textbf{Rol:} Visualización reactiva para monitoreo, control y consulta.
+
+Aplicación de página única (SPA) construida con Vite + React + TypeScript, diseñada con Material UI (tema oscuro). Los componentes principales de visualización incluyen:
+
+\begin{itemize}
+  \item \textbf{Espectro en Vivo:} Gráfico de cascada (waterfall) y FFT en tiempo real, alimentados directamente por el flujo binario WebSocket desde la capa C (Plotly.js).
+  \item \textbf{Mapa Térmico IoT:} Mapa de exposición de campo eléctrico sobre planos de planta, generado mediante interpolación Kriging a partir de mediciones espaciales. Permite superposición de cuadrícula (\textit{grid}) y colocación de puntos de medición.
+  \item \textbf{Estado de Sensores:} Monitoreo de salud, telemetría y conectividad de los sensores SDR desplegados.
+  \item \textbf{Gestión de Campañas:} Programación de campañas de medición con asignación de sensores, rangos de frecuencia, resolución e intervalos.
+  \item \textbf{Reportes Exportables:} Generación automática de reportes de cumplimiento normativo (ICNIRP, UIT-T K.52) con caché de resultados.
+  \item \textbf{Panel de Configuración:} Estado de servicios, parámetros del sistema y control de acceso.
+\end{itemize}
+
+% ═══════════════════════════════════════════════════════════════════════
+% 3. COMMUNICATION CHANNELS
+% ═══════════════════════════════════════════════════════════════════════
+\section{Canales de Comunicación}
+
+La Tabla~\ref{tab:channels} resume los canales de comunicación entre componentes, el protocolo utilizado y la dirección del flujo de datos.
+
+\begin{table}[H]
+\centering
+\caption{Canales de comunicación del sistema}
+\label{tab:channels}
+\begin{tabular}{@{}llll@{}}
+\toprule
+\textbf{Origen} & \textbf{Destino} & \textbf{Protocolo} & \textbf{Dirección} \\
+\midrule
+SDR & Buffers (C) & Muestras RF crudas & Bidireccional \\
+Buffers (C) & Motor de Eventos (C) & Flujo interno & Interno \\
+Motor de Eventos (C) & DSP-RF (Python) & ZMQ sobre IPC & Bidireccional \\
+DSP-RF (Python) & Motor de Eventos (C) & Medición programada & Python $\to$ C \\
+Capa C & Frontend (React) & WebSocket binario & C $\to$ Frontend \\
+Frontend (React) & Capa C & WebSocket (control) & Frontend $\to$ C \\
+DSP-RF (Python) & Frontend (React) & HTTP (REST) & Bidireccional \\
+Consultas (Python) & Base de Datos & SQL & Bidireccional \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Decisiones de Diseño de Comunicación}
+
+\begin{description}
+  \item[ZMQ sobre IPC] ZeroMQ con comunicación entre procesos (IPC) proporciona mensajería de baja latencia entre los procesos C y Python que coexisten en el mismo host, eliminando la sobrecarga de la pila de red.
+  \item[WebSocket binario directo] El flujo de datos espectrales se transmite directamente desde la capa C al navegador sin pasar por Python. Esto minimiza la latencia para visualizaciones en tiempo real (cascada, FFT) que requieren alta tasa de actualización.
+  \item[HTTP REST para consultas] Las operaciones de consulta y programación entre frontend y backend Python utilizan HTTP/REST, adecuado para operaciones transaccionales que no requieren flujo continuo.
+\end{description}
+
+% ═══════════════════════════════════════════════════════════════════════
+% 4. HARDWARE BILL OF MATERIALS
+% ═══════════════════════════════════════════════════════════════════════
+\section{Lista de Materiales de Hardware (BOM)}
+
+El sistema de monitoreo es portátil y autocontenido, diseñado para capturar, procesar y visualizar señales RF en el rango de \qtyrange{698}{6000}{\MHz}. A continuación se detalla cada componente de hardware con su rol, especificaciones, proveedor y costo.
+
+\subsection{Resumen de Costos}
+
+\begin{table}[H]
+\centering
+\caption{Resumen de costos del hardware}
+\label{tab:cost}
+\begin{tabular}{@{}lrr@{}}
+\toprule
+\textbf{Componente} & \textbf{Precio Unitario (USD)} & \textbf{Precio Importado (USD)} \\
+\midrule
+USRP B210 & \$2,200.00 & \$2,860.00 \\
+Antena 698--2700 MHz & \$200.00   & \$260.00   \\
+Filtros de Preselección ($\times$2) & \$200.00   & \$260.00   \\
+Jetson Orin Nano Super & \$300.00   & \$390.00   \\
+Pantalla Táctil 7'' & \$60.00    & \$78.00    \\
+Carcaza Personalizada & \$100.00   & \$130.00   \\
+\midrule
+\textbf{TOTAL} & \textbf{\$3,060.00} & \textbf{\$3,978.00} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Especificaciones por Componente}
+
+\subsubsection{SDR --- Ettus Research USRP B210}
+
+\textbf{Rol:} Front-end RF principal. Captura de espectro de banda ancha y transmisión vía USB 3.0 al módulo de cómputo.
+
+\begin{table}[H]
+\centering
+\caption{Especificaciones del USRP B210}
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Parámetro} & \textbf{Valor} \\
+\midrule
+Modelo / Parte & USRP B210 (Kit, UB210-KIT) \\
+Proveedor & Ettus Research (National Instruments) \\
+Rango de frecuencia & \qtyrange{70}{6000}{\MHz} continuo \\
+Ancho de banda RF & Hasta \qty{56}{\MHz} instantáneo \\
+Arquitectura & MIMO 2$\times$2 (2 TX, 2 RX) \\
+ADC/DAC & 12 bits \\
+Interfaz host & USB 3.0 \\
+FPGA & Xilinx Spartan-6 XC6SLX150 \\
+Figura de ruido & $\approx$\qty{8}{\dB} \\
+Impedancia & \qty{50}{\ohm} \\
+Conectores RF & 4 SMA (RX/TX por canal) \\
+Software soportado & GNU Radio, UHD, MATLAB, LabVIEW \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsubsection{Módulo de Cómputo --- NVIDIA Jetson Orin Nano Super}
+
+\textbf{Rol:} Unidad central de procesamiento para inferencia de IA, procesamiento de señales, control del sistema y salida de pantalla.
+
+\begin{table}[H]
+\centering
+\caption{Especificaciones del Jetson Orin Nano Super}
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Parámetro} & \textbf{Valor} \\
+\midrule
+Modelo & Jetson Orin Nano Super Developer Kit (945-13766-0005-000) \\
+Rendimiento IA & Hasta 67 TOPS \\
+GPU & NVIDIA Ampere, 1024 núcleos CUDA \\
+CPU & 6 núcleos ARM Cortex-A78AE \\
+RAM & 8~GB LPDDR5, 102~GB/s ancho de banda \\
+Almacenamiento & 2$\times$ M.2 Key M (NVMe SSD) \\
+USB & 4$\times$ USB 3.2 Gen 2 Type-A, 1$\times$ USB-C \\
+Video & DisplayPort 1.2 (HDMI vía adaptador) \\
+Conectividad & Wi-Fi (M.2 Key E), Gigabit Ethernet \\
+GPIO & Header de 40 pines \\
+Sistema operativo & JetPack (Ubuntu Linux) \\
+Soporte IA & TensorRT, PyTorch, ROS 2, GNU Radio \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsubsection{Antena Omnidireccional --- L-com LCANOM1075}
+
+\textbf{Rol:} Elemento principal de captación de señal RF en el rango de \qtyrange{698}{2700}{\MHz}.
+
+\begin{table}[H]
+\centering
+\caption{Especificaciones de la antena}
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Parámetro} & \textbf{Valor} \\
+\midrule
+Modelo & LCANOM1075 \\
+Fabricante & L-com \\
+Rango de frecuencia & \qtyrange{698}{2700}{\MHz} \\
+Ganancia & 6.5~dBi \\
+Patrón de radiación & Omnidireccional \\
+Polarización & Vertical \\
+Conector & SMA Macho (resorte, \qty{5.5}{\mm}) \\
+Radomo & Fibra de vidrio, negro \\
+Impedancia & \qty{50}{\ohm} \\
+VSWR & $\leq$ 2.0 (típico) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsubsection{Filtros de Preselección --- Mini-Circuits}
+
+\textbf{Rol:} Filtrado pasabanda entre la antena y el USRP B210. Suprimen interferencia fuera de banda antes de la digitalización, mejorando la sensibilidad y reduciendo la intermodulación. Se utilizan dos filtros, uno por cada canal RX del USRP B210.
+
+\begin{table}[H]
+\centering
+\caption{Filtro 1 --- VBFZ-925-S+}
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Parámetro} & \textbf{Valor} \\
+\midrule
+Modelo & VBFZ-925-S+ \\
+Fabricante & Mini-Circuits \\
+Tipo & Filtro pasabanda conectorizado \\
+Pasabanda & \qtyrange{800}{1050}{\MHz} \\
+Conector & SMA \\
+Impedancia & \qty{50}{\ohm} \\
+Cobertura espectral & GSM 850, GSM 900, LTE B5/B8/B20 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Filtro 2 --- BPF-A1340+}
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Parámetro} & \textbf{Valor} \\
+\midrule
+Modelo & BPF-A1340+ \\
+Fabricante & Mini-Circuits \\
+Tipo & Filtro pasabanda LC \\
+Pasabanda & \qtyrange{1000}{1800}{\MHz} \\
+Conector & SMA \\
+Impedancia & \qty{50}{\ohm} \\
+Cobertura espectral & GPS L1 (1575 MHz), DCS 1800, LTE B1/B3/B4/B10 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+La combinación de ambos filtros proporciona preselectividad en el rango de \qtyrange{800}{1800}{\MHz}, permitiendo monitoreo simultáneo de dos bandas independientes.
+
+\subsubsection{Pantalla Táctil --- Waveshare 7'' HDMI LCD (C)}
+
+\textbf{Rol:} Interfaz de usuario táctil para visualización de espectro, mapas térmicos, dashboards y estado del sistema.
+
+\begin{table}[H]
+\centering
+\caption{Especificaciones de la pantalla}
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Parámetro} & \textbf{Valor} \\
+\midrule
+Modelo & Waveshare 7'' HDMI LCD (C), Rev 4.1 \\
+Tamaño & 7~pulgadas \\
+Tipo de panel & IPS \\
+Resolución & 1024 $\times$ 600 \\
+Táctil & Capacitivo, 5 puntos \\
+Interfaz de video & HDMI \\
+Interfaz táctil & USB Micro-B (HID) \\
+Sistemas soportados & Ubuntu, Raspbian, Windows, JetPack \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsubsection{Carcaza Personalizada}
+
+\textbf{Rol:} Contenedor mecánico para todos los componentes. Proporciona protección física, gestión de cables, puntos de montaje para la antena y la pantalla.
+
+\textbf{Requisitos de diseño:}
+\begin{itemize}
+  \item Alojar PCB del USRP B210, Jetson Orin Nano, pantalla de 7~pulgadas.
+  \item Puerto de montaje externo para antena (pasamuros SMA).
+  \item Acceso a puerto USB 3.0 para conexión del USRP B210.
+  \item Ventilación para disipación térmica (Jetson $\approx$ \qty{15}{\W}).
+  \item Ventana para pantalla ($\approx$ \qtyproduct{165 x 100}{\mm} de área visible).
+  \item Factor de forma portátil, tipo maletín de instrumento robusto.
+\end{itemize}
+
+\subsection{Cadena de Señal RF}
+
+La Figura~\ref{fig:signalchain} muestra el flujo de la señal RF desde la antena hasta la visualización.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  node distance=0.8cm,
+  block/.style={rectangle, draw, rounded corners, minimum width=5.5cm, minimum height=0.8cm, align=center, font=\footnotesize\sffamily},
+  >={Stealth[]},
+]
+  \node[block, fill=gray!10] (ant) {ANTENA\\L-com LCANOM1075 --- \qtyrange{698}{2700}{\MHz}};
+  \node[block, fill=blue!10, below=of ant] (filtros) {FILTROS DE PRESELECCIÓN\\VBFZ-925-S+ (800--1050 MHz) + BPF-A1340+ (1000--1800 MHz)};
+  \node[block, fill=red!10, below=of filtros] (usrp) {SDR --- USRP B210\\2$\times$2 MIMO, \qty{56}{\MHz} BW instantáneo};
+  \node[block, fill=green!10, below=of usrp] (jetson) {CÓMPUTO --- Jetson Orin Nano Super\\67 TOPS, GNU Radio, IA (TensorRT / PyTorch)};
+  \node[block, fill=purple!10, below=of jetson] (display) {VISUALIZACIÓN --- Waveshare 7''\\HDMI + USB Touch};
+  \node[draw, dashed, rounded corners, fit=(ant)(jetson), inner sep=10pt, label={[font=\footnotesize\sffamily]below:Carcaza Personalizada}] {};
+
+  \draw[->,thick] (ant) -- node[right,font=\footnotesize] {SMA} (filtros);
+  \draw[->,thick] (filtros) -- node[right,font=\footnotesize] {SMA} (usrp);
+  \draw[->,thick] (usrp) -- node[right,font=\footnotesize] {USB 3.0} (jetson);
+  \draw[->,thick] (jetson) -- node[right,font=\footnotesize] {HDMI + USB} (display);
+\end{tikzpicture}
+\caption{Cadena de señal RF: desde la antena hasta la visualización.}
+\label{fig:signalchain}
+\end{figure}
+
+% ═══════════════════════════════════════════════════════════════════════
+% 5. AI AND INTERPOLATION STRATEGY
+% ═══════════════════════════════════════════════════════════════════════
+\section{Estrategia de IA e Interpolación}
+
+\subsection{Umbralización Adaptativa y Sensado Cooperativo}
+
+El sistema de umbralización estática tradicional no es adecuado para entornos IoT con alta densidad de dispositivos, donde los niveles de ruido e interferencia varían significativamente. La propuesta incorpora:
+
+\begin{itemize}
+  \item \textbf{Autoencoders} para extracción de características y reducción de dimensionalidad en datos espectrales crudos. Permiten identificar patrones de interferencia característicos de entornos IoT y diferenciarlos de anomalías que requieren atención.
+  \item \textbf{Umbralización de dos niveles} inspirada en sistemas cooperativos de comunicación (como 5G): un primer umbral rápido para detección gruesa y un segundo umbral refinado, validado cooperativamente entre múltiples barridos o frecuencias, para reducción de falsas alarmas.
+  \item \textbf{Modelo de IA embebido en la capa C} (módulo PSD) que opera con inferencia de baja latencia, cerca de la fuente de datos, sin requerir transferencia al backend Python para decisiones en tiempo real.
+\end{itemize}
+
+\subsection{Interpolación Kriging}
+
+Para la generación de mapas espaciales de exposición a campos eléctricos se emplea interpolación Kriging, un método geoestadístico que:
+
+\begin{itemize}
+  \item Estima valores en ubicaciones no muestreadas a partir de un conjunto discreto de puntos de medición con coordenadas geográficas (latitud, longitud).
+  \item Proporciona no solo la estimación puntual, sino también la varianza del error de estimación, permitiendo evaluar la confiabilidad del mapa generado.
+  \item Reduce el número de puntos de medición necesarios mediante muestreo selectivo inteligente, preservando la calidad del mapa y optimizando el tiempo de caracterización de un entorno interior.
+\end{itemize}
+
+% ═══════════════════════════════════════════════════════════════════════
+% 6. DATA MODEL CONCEPT
+% ═══════════════════════════════════════════════════════════════════════
+\section{Modelo de Datos Conceptual}
+
+El modelo de datos está diseñado para garantizar trazabilidad científica completa: cada medición puede ser rastreada hasta su configuración de adquisición, sensor, campaña, modelo de IA y ubicación.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  node distance=1.2cm and 1.5cm,
+  entity/.style={rectangle, draw, rounded corners, minimum width=3cm, minimum height=0.7cm, align=center, font=\small\sffamily},
+  rel/.style={draw, ->, >=Stealth},
+]
+  \node[entity, fill=blue!10] (sensor) {Sensores\\+ Antenas};
+  \node[entity, fill=blue!10, right=of sensor] (config) {Configuración\\de Adquisición};
+  \node[entity, fill=green!10, below=of config] (data) {Mediciones\\(Sensor Data)};
+  \node[entity, fill=yellow!10, below=of sensor] (campaign) {Campañas\\de Medición};
+  \node[entity, fill=red!10, right=4.5cm of data] (algo) {Algoritmos\\+ Umbrales};
+  \node[entity, fill=purple!10, below=of data] (report) {Reportes de\\Cumplimiento};
+  \node[entity, fill=gray!10, right=of campaign] (user) {Usuarios\\+ Auditoría};
+
+  \draw[rel] (sensor) -- (config);
+  \draw[rel] (sensor) -- (data);
+  \draw[rel] (config) -- (data);
+  \draw[rel] (campaign) -- (data);
+  \draw[rel] (algo) -- (data);
+  \draw[rel] (data) -- (report);
+  \draw[rel] (campaign) -- (report);
+  \draw[rel] (user) -- (campaign);
+\end{tikzpicture}
+\caption{Modelo conceptual de datos: trazabilidad desde el sensor hasta el reporte de cumplimiento.}
+\label{fig:datamodel}
+\end{figure}
+
+Las entidades principales del modelo incluyen: sensores, antenas, configuraciones de adquisición, datos de medición (con coordenadas espaciales), campañas, algoritmos (con versiones), umbrales de exposición configurables, reportes de cumplimiento y registros de auditoría.
+
+% ═══════════════════════════════════════════════════════════════════════
+% 7. TIMELINE
+% ═══════════════════════════════════════════════════════════════════════
+\section{Planificación Temporal}
+
+\subsection{Cronograma de Ejecución (12 Semanas)}
+
+El plan de ejecución práctico se organiza en tres meses con hitos definidos:
+
+\begin{table}[H]
+\centering
+\caption{Cronograma de 12 semanas}
+\label{tab:schedule}
+\begin{tabular}{@{}p{2.5cm}p{2.5cm}p{9cm}@{}}
+\toprule
+\textbf{Mes} & \textbf{Semanas} & \textbf{Actividades Principales} \\
+\midrule
+\multirow{3}{*}{Mes 1} & 1 & Escritura de artículo; auditoría de base de datos; documentación matemática de algoritmos de adquisición; configuración inicial del hardware SDR. \\
+& 2 & Scripts de limpieza de datos históricos; definición de parámetros de umbralización para detección IoT; validación de tasa de transferencia sensor--base de datos. \\
+& 3 & Conexión API / dashboard; entorno Autoencoder para extracción de características; ajustes de antenas y posicionamiento de dispositivos. \\
+& 4 & Primeras pruebas de visualización web con puntos de datos aislados; pruebas de filtrado con datos reales; estabilidad operacional SDR (TRL 7). \\
+\midrule
+\multirow{3}{*}{Mes 2} & 5 & Diseño UI de mapa térmico para oficina; implementación de interpolación Kriging; recolección sistemática de datos. \\
+& 6 & Entrenamiento de Autoencoder con datos limpios; integración de lógica de algoritmos en plataforma visual; soporte a calibración de sensores. \\
+& 7 & Optimización del dashboard para renderizado en tiempo real; ajuste de modelo matemático según normas ICNIRP; refinamiento de IA para reducir falsas alarmas. \\
+& 8 & Prueba integrada completa: captura $\to$ procesamiento/IA $\to$ visualización. \\
+\midrule
+\multirow{3}{*}{Mes 3} & 9 & Validación de precisión del mapa frente a mediciones de control manual; reportes exportables automáticos; documentación de lógica cooperativa. \\
+& 10 & Desmontaje o fijación final del prototipo; validación de rendimiento del Autoencoder; corrección de bugs y seguridad de acceso. \\
+& 11 & Pruebas finales del sistema; entrega de manual de usuario y manual técnico. \\
+& 12 & Cierre de plan de trabajo, revisión de hitos y preparación de presentación de resultados. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Hitos Principales}
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{Semana 4:} Datos de sensor fluyendo a la plataforma de forma organizada.
+  \item \textbf{Semana 8:} Primera versión funcional de mapa térmico con interpolación Kriging.
+  \item \textbf{Semana 12:} Sistema operativo, validado y con entregables finales.
+\end{enumerate}
+
+% ═══════════════════════════════════════════════════════════════════════
+% 8. REGULATORY COMPLIANCE
+% ═══════════════════════════════════════════════════════════════════════
+\section{Cumplimiento Normativo}
+
+El sistema está diseñado para evaluar exposición electromagnética conforme a:
+
+\begin{itemize}
+  \item \textbf{ICNIRP} (Comisión Internacional de Protección contra Radiación No Ionizante): Directrices para limitación de exposición a campos eléctricos y magnéticos.
+  \item \textbf{UIT-T K.52}: Orientación sobre el cumplimiento de los límites de exposición de las personas a los campos electromagnéticos.
+  \item \textbf{Regulación de espectro en Colombia} por la ANE (Agencia Nacional del Espectro).
+\end{itemize}
+
+Los umbrales de exposición se modelan como datos de dominio configurables (no valores fijos en código), permitiendo actualización cuando las normas evolucionen.
+
+% ═══════════════════════════════════════════════════════════════════════
+% 9. EXPECTED RESULTS
+% ═══════════════════════════════════════════════════════════════════════
+\section{Resultados Esperados}
+
+\begin{itemize}
+  \item Sistema funcional de monitoreo de exposición a campos eléctricos validado en entornos reales con nivel TRL 7.
+  \item Prototipo integrado de hardware y software con arquitectura de 5 componentes.
+  \item Algoritmos de umbralización adaptativa y sensado cooperativo con reducción de falsas alarmas.
+  \item Generación de mapas espaciales de exposición mediante Kriging.
+  \item Al menos una publicación científica indexada en revista categorizada por Minciencias.
+  \item Registro de software ante la Dirección Nacional de Derecho de Autor.
+  \item Repositorio público con código fuente, instaladores, manuales y documentación de soporte.
+  \item Reportes técnicos y documentos de tesis de estudiantes vinculados.
+\end{itemize}
+
+% ═══════════════════════════════════════════════════════════════════════
+% PARTICIPANTS
+% ═══════════════════════════════════════════════════════════════════════
+\section{Participantes}
+
+\begin{table}[H]
+\centering
+\caption{Equipo del proyecto}
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{Rol} & \textbf{Nombre} & \textbf{Responsabilidad} \\
+\midrule
+Grupo de investigación & GCPDS, UNAL Manizales & Coordinación, cronograma, integración \\
+Investigador principal & Julio César García Álvarez & Liderazgo científico y técnico \\
+Coinvestigador & Marcelo Herrera González & Supervisión de análisis de información \\
+Estudiante de pregrado & Alejandro Patiño Bedoya & Recolección de datos de campo \\
+Estudiante de pregrado & Luis Felipe Giraldo Díaz & Reportes técnicos y artículos \\
+Estudiante de maestría & Julián Andrés Salazar Parias & Diseño y optimización de algoritmos IA \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Entidades de apoyo: Universidad Nacional de Colombia, Universidad de Caldas, Open Business Consulting S.A.S., Inference S.A.S., Dunderlab S.A.S.
+
+% ═══════════════════════════════════════════════════════════════════════
+% REFERENCES
+% ═══════════════════════════════════════════════════════════════════════
+\begin{thebibliography}{9}
+
+\bibitem{icnirp}
+ICNIRP,
+\textit{Guidelines for Limiting Exposure to Electromagnetic Fields (100~kHz to 300~GHz)},
+Health Physics, vol.~118, no.~5, pp.~483--524, 2020.
+
+\bibitem{uitk52}
+ITU-T Recommendation K.52,
+\textit{Guidance on complying with limits for human exposure to electromagnetic fields},
+International Telecommunication Union, 2021.
+
+\bibitem{kriging}
+M.~A.~Oliver, R.~Webster,
+\textit{Kriging: a method of interpolation for geographical information systems},
+International Journal of Geographical Information Systems, vol.~4, no.~3, pp.~313--332, 1990.
+
+\bibitem{usrp}
+Ettus Research,
+\textit{USRP B210 Product Overview},
+\url{https://www.ettus.com/all-products/ub210-kit/}
+
+\bibitem{jetson}
+NVIDIA Corporation,
+\textit{Jetson Orin Nano Super Developer Kit},
+\url{https://developer.nvidia.com/embedded/jetson-orin-nano}
+
+\bibitem{gnuradio}
+GNU Radio Project,
+\textit{GNU Radio: The Free and Open Software Radio Ecosystem},
+\url{https://www.gnuradio.org/}
+
+\bibitem{timescaledb}
+Timescale Inc.,
+\textit{TimescaleDB Documentation},
+\url{https://docs.timescale.com/}
+
+\end{thebibliography}
+
+\end{document}
