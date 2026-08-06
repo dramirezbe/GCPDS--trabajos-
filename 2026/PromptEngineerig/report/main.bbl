@@ -1,0 +1,166 @@
+% $ biblatex auxiliary file $
+% $ biblatex bbl format version 3.3 $
+% Do not modify the above lines!
+%
+% This is an auxiliary file used by the 'biblatex' package.
+% This file may safely be deleted. It will be recreated as
+% required.
+%
+\begingroup
+\makeatletter
+\@ifundefined{ver@biblatex.sty}
+  {\@latex@error
+     {Missing 'biblatex' package}
+     {The bibliography requires the 'biblatex' package.}
+      \aftergroup\endinput}
+  {}
+\endgroup
+
+\datalist[entry]{nty/global//global/global/global}
+  \entry{khojah2025impact}{article}{}{}
+    \name{author}{4}{}{%
+      {{hash=KR}{%
+         family={Khojah},
+         familyi={K\bibinitperiod},
+         given={Ranim},
+         giveni={R\bibinitperiod},
+      }}%
+      {{hash=dONFG}{%
+         prefix={de},
+         prefixi={d\bibinitperiod},
+         family={Oliveira\bibnamedelima Neto},
+         familyi={O\bibinitperiod\bibinitdelim N\bibinitperiod},
+         given={Francisco\bibnamedelima Gomes},
+         giveni={F\bibinitperiod\bibinitdelim G\bibinitperiod},
+      }}%
+      {{hash=MM}{%
+         family={Mohamad},
+         familyi={M\bibinitperiod},
+         given={Mazen},
+         giveni={M\bibinitperiod},
+      }}%
+      {{hash=LP}{%
+         family={Leitner},
+         familyi={L\bibinitperiod},
+         given={Philipp},
+         giveni={P\bibinitperiod},
+      }}%
+    }
+    \strng{namehash}{KR+1}
+    \strng{fullhash}{KRONFGdMMLP1}
+    \field{labelnamesource}{author}
+    \field{labeltitlesource}{title}
+    \field{sortinit}{K}
+    \field{sortinithash}{K}
+    \field{title}{The Impact of Prompt Programming on Function-Level Code
+  Generation}
+    \verb{url}
+    \verb https://arxiv.org/abs/2412.20545
+    \endverb
+    \field{journaltitle}{arXiv preprint arXiv:2412.20545}
+    \field{year}{2025}
+  \endentry
+
+  \entry{midolo2026guidelines}{article}{}{}
+    \name{author}{6}{}{%
+      {{hash=MA}{%
+         family={Midolo},
+         familyi={M\bibinitperiod},
+         given={Alessandro},
+         giveni={A\bibinitperiod},
+      }}%
+      {{hash=GA}{%
+         family={Giagnorio},
+         familyi={G\bibinitperiod},
+         given={Alessandro},
+         giveni={A\bibinitperiod},
+      }}%
+      {{hash=ZF}{%
+         family={Zampetti},
+         familyi={Z\bibinitperiod},
+         given={Fiorella},
+         giveni={F\bibinitperiod},
+      }}%
+      {{hash=TR}{%
+         family={Tufano},
+         familyi={T\bibinitperiod},
+         given={Rosalia},
+         giveni={R\bibinitperiod},
+      }}%
+      {{hash=BG}{%
+         family={Bavota},
+         familyi={B\bibinitperiod},
+         given={Gabriele},
+         giveni={G\bibinitperiod},
+      }}%
+      {{hash=DPM}{%
+         family={Di\bibnamedelima Penta},
+         familyi={D\bibinitperiod\bibinitdelim P\bibinitperiod},
+         given={Massimiliano},
+         giveni={M\bibinitperiod},
+      }}%
+    }
+    \strng{namehash}{MA+1}
+    \strng{fullhash}{MAGAZFTRBGDPM1}
+    \field{labelnamesource}{author}
+    \field{labeltitlesource}{title}
+    \field{sortinit}{M}
+    \field{sortinithash}{M}
+    \field{title}{Guidelines to Prompt Large Language Models for Code
+  Generation: An Empirical Characterization}
+    \verb{url}
+    \verb https://arxiv.org/abs/2601.13118
+    \endverb
+    \field{journaltitle}{arXiv preprint arXiv:2601.13118}
+    \field{year}{2026}
+  \endentry
+
+  \entry{otten2025prompting}{article}{}{}
+    \name{author}{5}{}{%
+      {{hash=OD}{%
+         family={Otten},
+         familyi={O\bibinitperiod},
+         given={Daniel},
+         giveni={D\bibinitperiod},
+      }}%
+      {{hash=ST}{%
+         family={Stalnaker},
+         familyi={S\bibinitperiod},
+         given={Trevor},
+         giveni={T\bibinitperiod},
+      }}%
+      {{hash=WN}{%
+         family={Wintersgill},
+         familyi={W\bibinitperiod},
+         given={Nathan},
+         giveni={N\bibinitperiod},
+      }}%
+      {{hash=CO}{%
+         family={Chaparro},
+         familyi={C\bibinitperiod},
+         given={Oscar},
+         giveni={O\bibinitperiod},
+      }}%
+      {{hash=PD}{%
+         family={Poshyvanyk},
+         familyi={P\bibinitperiod},
+         given={Denys},
+         giveni={D\bibinitperiod},
+      }}%
+    }
+    \strng{namehash}{OD+1}
+    \strng{fullhash}{ODSTWNCOPD1}
+    \field{labelnamesource}{author}
+    \field{labeltitlesource}{title}
+    \field{sortinit}{O}
+    \field{sortinithash}{O}
+    \field{title}{Prompting in Practice: Investigating Software Practitioners'
+  Use of Generative AI Tools}
+    \verb{url}
+    \verb https://arxiv.org/abs/2510.06000v2
+    \endverb
+    \field{journaltitle}{arXiv preprint arXiv:2510.06000v2}
+    \field{year}{2025}
+  \endentry
+\enddatalist
+\endinput
