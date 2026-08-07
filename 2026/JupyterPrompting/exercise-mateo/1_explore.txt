@@ -1,0 +1,35 @@
+Analyze the attached Jupyter Notebook (.ipynb) covering transfer learning and generate a thorough technical breakdown. Systematic details must be extracted across the following categories:
+
+1. Framework & Tools:
+   - Primary deep learning framework (e.g., PyTorch, TensorFlow/Keras, Hugging Face).
+   - Data handling and augmentation libraries (e.g., OpenCV, Albumentations, Pandas, NumPy).
+   - Visualization and experiment tracking tools (e.g., Matplotlib, Seaborn, TensorBoard, WandB).
+
+2. Transfer Learning Strategy & Architecture:
+   - Pre-trained backbone model (e.g., ResNet50, EfficientNet, BERT, MobileNet) and original weights source (e.g., ImageNet, COCO).
+   - Modification of classifier head ( custom Dense/Linear layers, Dropout, Activation functions).
+   - Fine-tuning approach: Feature extraction (frozen backbone), partial unfreezing, or end-to-end fine-tuning.
+   - Unfreezing schedule or differential learning rates applied to different layers (if applicable).
+
+3. Dataset & Data Pipeline:
+   - Dataset name, domain, total sample size, and number of classes/target labels.
+   - Data split ratios (train / validation / test).
+   - Preprocessing and normalization steps (e.g., mean/std normalization, target resize dimensions).
+   - Data augmentation techniques used during training.
+
+4. Hyperparameters & Training Configuration:
+   - Optimizer (e.g., Adam, SGD, AdamW) and weight decay parameters.
+   - Learning rate (initial value, decay strategy, or learning rate schedulers like CosineAnnealing/ReduceLROnPlateau).
+   - Loss function (e.g., Categorical Cross-Entropy, Binary Cross-Entropy, Focal Loss).
+   - Batch size, total epochs, and early stopping rules.
+
+5. Evaluation Metrics & Results:
+   - Metrics tracked (e.g., Accuracy, Precision, Recall, F1-Score, ROC-AUC, Loss).
+   - Final numerical results on validation/test sets.
+   - Visual outputs generated (e.g., learning curves, confusion matrix, misclassified image samples).
+
+6. Code Quality & Implementation Highlights:
+   - Custom callbacks, custom data loaders, or notable helper functions.
+   - Any potential code issues, data leakage risks, or performance bottlenecks observed in the implementation.
+
+Present the analysis using clear markdown headings and structured bullet points for quick reference.

@@ -1,0 +1,14 @@
+nb_name = "mateo_fix2.ipynb"
+threshold_condition = ">8/10"
+
+Act as a Senior Machine Learning Engineer and Code Quality Auditor. Perform an iterative, self-correcting coherence and consistency audit on nb_name.
+
+Threshold Rule: Report ONLY critical issues scored strictly greater than (threshold_condition). Ignore all lower-severity issues.
+
+### Iterative Audit Loop:
+Run a multi-pass audit following these steps:
+
+1. Pass 1: Identify all critical issues (threshold_condition). (do NOT write code patches).
+2. Pass 2+: Edit the code virtually to apply the fixes. Re-audit the same nb_name finding new issues (threshold_condition).
+3. Repeat until an audit pass discovers zero new issues (threshold_condition).
+4. Final Output: Provide the final updated notebook with 0 errors threshold_condition.

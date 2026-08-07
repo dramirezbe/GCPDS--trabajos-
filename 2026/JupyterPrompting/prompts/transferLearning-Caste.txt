@@ -1,0 +1,52 @@
+Act as an expert Machine Learning Engineer.
+Goal: Design a notebook structure for mastering transfer learning, so the notebook itself serves as a clear teaching artifact aligned with the previously shown roadmap.
+Input:
+Roadmap = 
+
+"
+\section*{Transfer Learning}
+
+\begin{defbox}{Definition}
+	Given a source domain \(D_s = \{\mathcal{X}_s, P(X_s)\}\) and learning task \(T_s = \{\mathcal{Y}_s, f_s(\cdot)\}\), and a target domain \(D_t = \{\mathcal{X}_t, P(X_t)\}\) and learning task \(T_t = \{\mathcal{Y}_t, f_t(\cdot)\}\), transfer learning aims to help improve the learning of the target predictive function \(f_t(\cdot)\) in \(D_t\), using the knowledge in \(D_s\) and \(T_s\), where \(D_s \neq D_t\) or \(T_s \neq T_t\).
+	
+	\medspace
+	
+	\textbf{Main purpose:} Transfer learning is a machine learning method in which knowledge learned from a source task is reused to improve performance on a target task. It is most useful when the \textsl{tasks are related}, the \textsl{transferred features remain relevant}, and the target task has limited data or computational resources.
+\end{defbox}
+
+\textbf{Assumptions}
+
+\begin{itemize}
+	\item \textbf{Feature Transferability:} The features learned from the source task must be general enough to be suitable for the target task. In deep learning, this usually means low-level features (e.g., edges, textures) are highly transferable.
+	\item \textbf{Data Asymmetry (Motivation):} Transfer learning is typically motivated by having abundant data for the source task and limited data for the target task, though it is also used to save computational time.
+	\item \textbf{Task/Domain Relatedness:} The source and target domains or tasks must share some underlying structural similarity; otherwise, ``negative transfer'' may occur, hurting target performance.
+\end{itemize}
+
+Transfer learning workflows, particularly in deep learning, generally involve two parts:
+
+\begin{enumerate}
+	\item \textit{Pretraining (Knowledge Acquisition)}: How to acquire prior knowledge in the first place.
+	
+	For using Pretraining, there are two main alternatives: 
+	\begin{itemize}
+		\item \textbf{Using a pre-trained model:} Leveraging open-source models (e.g., ResNet, BERT) trained on massive, generalized datasets.
+		\item \textbf{Building a source model:} Training a model from scratch on a large, available proprietary dataset for an initial task, to serve as the starting point.
+	\end{itemize}
+	
+	\item \textit{Adaptation (Knowledge Transfer)}: How to tune prior knowledge to solve a new task.
+	A second training phase is needed to adapt the model to the specific target data:
+	\begin{itemize}
+		\item \textbf{Network Modification:} The output layer (and sometimes top layers) of the pre-trained network are removed and replaced with new layers suited to the target task's output space.
+		\item \textbf{Fine-Tuning:} A training phase is performed on the target data. Depending on the target dataset size and similarity to the source, practitioners can:
+		\begin{itemize}
+			\item \textit{Freeze} pre-trained layers and train only the new layers (recommended for very small target datasets).
+			\textit{Note:} In cases of class imbalance or domain shift, unfreezing only the last block/layer can be a justified controlled exception, provided it is deliberate and monitored for overfitting.
+			\item Perform \textit{Full fine-tuning}, updating weights across the whole network (recommended for larger target datasets).
+			\item Apply \textit{Parameter-Efficient Fine-Tuning (PEFT)} (e.g., LoRA, Adapters), which updates small, injected modules rather than the whole network, preserving original knowledge while reducing computational cost.
+		\end{itemize}
+	\end{itemize}
+\end{enumerate}
+"
+
+Output: Provide a step-by-step notebook structure that follows this conceptual sequence: pre-trained model  source task and target task  -> feature reuse  -> freezing and fine-tuning  -> task relatedness.
+Scope & Quality: The structure should be written in plain text, be properly detailed, and include explanatory comments for each section.
