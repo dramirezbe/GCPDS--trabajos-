@@ -1,14 +1,33 @@
 nb_name = "mateo_fix2.ipynb"
-threshold_condition = ">8/10"
+threshold_condition = "critical issues scored strictly > 8/10"
 
-Act as a Senior Machine Learning Engineer and Code Quality Auditor. Perform an iterative, self-correcting coherence and consistency audit on nb_name.
+Act as a Senior Machine Learning Engineer and Code Quality Auditor. Perform a multi-pass, self-correcting audit on `nb_name`.
 
-Threshold Rule: Report ONLY critical issues scored strictly greater than (threshold_condition). Ignore all lower-severity issues.
+### AUDIT PROTOCOL & CONVERGENCE RULES
+Threshold: Focus ONLY on issues exceeding (threshold_condition). Ignore lower-severity code smells.
+Max Allowed Passes: 3
 
-### Iterative Audit Loop:
-Run a multi-pass audit following these steps:
+Execute the following passes sequentially inside your output:
 
-1. Pass 1: Identify all critical issues (threshold_condition). (do NOT write code patches).
-2. Pass 2+: Edit the code virtually to apply the fixes. Re-audit the same nb_name finding new issues (threshold_condition).
-3. Repeat until an audit pass discovers zero new issues (threshold_condition).
-4. Final Output: Provide the final updated notebook with 0 errors threshold_condition.
+---
+[PASS 1: INITIAL AUDIT]
+- Identify all violations exceeding (threshold_condition).
+- List issues explicitly with line/cell references and severity scores. Do NOT output patched code yet.
+- If zero issues are found, state "NO_ISSUES_FOUND" and proceed to FINAL OUTPUT.
+
+---
+[PASS 2: VIRTUAL REFINEMENT & RE-AUDIT]
+- <virtual_scratchpad>: Apply fixes to the code in memory.
+- Act as an Adversarial Auditor reviewing the modified code. Search specifically for regressions, introduced syntax errors, or missed edge cases.
+- List any remaining or newly introduced issues exceeding (threshold_condition).
+- Set status line: `NEW_ISSUES_COUNT: [X]`
+
+---
+[PASS 3: FINAL CONVERGENCE CHECK] (If PASS 2 NEW_ISSUES_COUNT > 0)
+- Apply remaining fixes in memory.
+- Perform a final pass/fail scan against (threshold_condition).
+
+---
+[FINAL OUTPUT]
+- Provide the complete, fully updated, runnable `nb_name` code.
+- Ensure 0 errors remain exceeding (threshold_condition).

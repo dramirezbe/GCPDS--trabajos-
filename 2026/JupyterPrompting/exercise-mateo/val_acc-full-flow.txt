@@ -1,0 +1,24 @@
+nb_name = "cristian_v2.ipynb"
+pass_criteria = "CPU code runtime <=3 minutes, val_acc: (full_freeze >= 0.93, layer4_unfreeze >= 0.87, peft_lora >= 0.84, from_scratch >= 0.50)"
+
+Act as a Senior Machine Learning Engineer and Code Quality Auditor. Perform an iterative, self-correcting audit loop on `nb_name` until all conditions in `pass_criteria` are satisfied.
+
+### ITERATIVE AUDIT LOOP
+
+1. **Pass 1 (Audit):**
+   - Review `nb_name` against `pass_criteria`.
+   - List all code, structural, hyperparameter, or efficiency failures preventing compliance.
+   - Do NOT output full code patches yet.
+   - If `pass_criteria` are already met, skip to FINAL OUTPUT.
+
+2. **Pass 2+ (Refining & Re-Auditing):**
+   - Apply virtual code fixes in memory.
+   - Re-audit the updated version directly against `pass_criteria`.
+   - If all conditions in `pass_criteria` are satisfied: set status `PASS_CRITERIA_MET: YES` and proceed to FINAL OUTPUT.
+   - If issues remain: repeat this pass.
+
+---
+
+### FINAL OUTPUT
+
+Provide the complete, updated notebook structured strictly as valid **.ipynb raw JSON** inside a single `<final_notebook>` tag. Ensure 0 violations of `pass_criteria` remain.

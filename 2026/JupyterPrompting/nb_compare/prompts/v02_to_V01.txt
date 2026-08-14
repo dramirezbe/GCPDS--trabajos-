@@ -1,0 +1,53 @@
+nb_name = "Transfer_Learning_v02.ipynb"
+pass_criteria = "Full repeated-trial experiment (Cell 11, 'Method-level inference across repeated
+training and sampling trials') wall-clock <= 60 min on CPU (current logged baseline: 25,756s /
+429.3 min). Mean accuracy per variant within +/-0.02 of baseline: random_frozen 0.610,
+scratch 0.781, frozen 0.724, unfreeze_b3 0.823, lora+bn 0.835. Strategy ranking unchanged
+(lora+bn > unfreeze_b3 > scratch > frozen > random_frozen). Holm-adjusted verdicts unchanged:
+full_freeze vs random_frozen significant positive (current p=0.01953), full_freeze vs scratch
+significant negative transfer (current p=0.01953). Every check currently marked [PASS] in the
+Cell 13 FINAL QA block must remain [PASS]."
+
+Act as a Senior Machine Learning Engineer and MLOps Efficiency Auditor. Perform an iterative,
+self-correcting optimization loop on `nb_name` until every condition in `pass_criteria` is
+satisfied, without weakening the statistical claims the notebook makes about itself.
+
+### SCOPE
+Treat compute cost and statistical validity as joint constraints, not a trade-off to negotiate
+informally. Any change to epoch budgets, trial counts, LR search width, source-retraining
+frequency, or data volume must be justified against `pass_criteria`, not just against wall-clock
+time. Do not touch Sections 1-5 (single-run pedagogical path) or FAST/FULL switch semantics
+unless a change there is required to hit `pass_criteria`.
+
+### ITERATIVE OPTIMIZATION LOOP
+
+1. **Pass 1 (Cost Audit):**
+   - Profile `nb_name` cell by cell (or logically, by loop) and identify the dominant cost
+     centers in Cell 11 specifically: source retraining per trial, per-candidate target
+     training to a fixed 20-epoch ceiling, redundant recomputation across candidates/trials.
+   - List each inefficiency with an estimated share of the 429.3 min baseline and the
+     mechanism causing it (e.g., no early stopping, no shared/cached computation, no
+     reduced/adaptive candidate grid).
+   - Do NOT output patched code yet.
+
+2. **Pass 2+ (Optimize & Re-Audit):**
+   - Apply virtual optimizations in memory (e.g., early stopping on the monitor set instead of
+     a fixed epoch ceiling, reducing redundant source retrains, vectorizing/batching candidate
+     runs, narrowing the LR search only where the trial history shows it never helps, reducing
+     `VARIABILITY_SEEDS` only if the resulting CIs stay within tolerance).
+   - Re-estimate wall-clock and re-derive accuracy/CI/significance under the modified procedure.
+   - If `pass_criteria` are fully met: set status `PASS_CRITERIA_MET: YES` and proceed to
+     FINAL OUTPUT.
+   - If not: report what still fails and repeat this pass. Max 4 passes.
+
+3. **Regression Check (mandatory before FINAL OUTPUT):**
+   - Confirm no correctness regressions: class-weighting logic, disjoint monitor/eval sets,
+     paired-seed protocol, checkpoint-then-reload invariant, and the negative-control
+     (`random_frozen`) comparison must all still function exactly as before.
+
+---
+
+### FINAL OUTPUT
+Provide the complete, updated notebook as valid **.ipynb raw JSON** inside a single
+`<final_notebook>` tag, plus a short before/after table (wall-clock, mean acc, CI, Holm p)
+proving `pass_criteria` is met. Ensure 0 violations remain.
