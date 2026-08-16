@@ -1,0 +1,218 @@
+doc_name = "proposal.tex"
+research_topic = "SDR-Based Spectrum Monitoring System for FM Broadcast Compliance Assessment"
+compliance_context = "Colombian regulatory framework (MinTIC, ANE) up to 2026, and international ITU-R standards"
+
+Act as a Senior RF Telecommunications Engineer and Regulatory Policy Auditor. Perform a multi-pass, self-correcting research 
+loop to identify authoritative regulatory, normative, and technical documents that could strengthen the existing `doc_name`.
+
+IMPORTANT OBJECTIVE:
+The objective is ONLY to research and identify useful documents and sources.
+
+DO NOT:
+- Edit `doc_name`.
+- Generate replacement LaTeX.
+- Generate new paragraphs for `doc_name`.
+- Modify, rewrite, or restructure any section of `doc_name`.
+- Invent citations or BibTeX entries.
+- Treat generic websites, blogs, forums, commercial SDR documentation, or unofficial interpretations as regulatory authority.
+
+Use `doc_name` ONLY as contextual input to determine:
+- What regulatory topics are already covered.
+- What standards or regulations are already cited.
+- Which technical claims require stronger authoritative sources.
+- Which potentially relevant regulatory or normative documents are missing.
+
+### RESEARCH & DOCUMENT DISCOVERY PROTOCOL
+
+Constraint: Focus primarily on official and authoritative sources, especially:
+
+- Agencia Nacional del Espectro (ANE), Colombia.
+- Ministerio de Tecnologías de la Información y las Comunicaciones (MinTIC), Colombia.
+- ITU / ITU-R recommendations and reports.
+- Other Colombian government or officially recognized regulatory sources when directly applicable.
+
+Examples of relevant material include:
+- Colombian spectrum-management regulations.
+- FM broadcasting technical regulations.
+- ANE resolutions and technical plans.
+- MinTIC resolutions and regulatory documents.
+- ITU-R SM-series recommendations.
+- ITU-R BS-series recommendations relevant to FM broadcasting.
+- ITU-R measurement procedures applicable to spectrum monitoring.
+- Documents concerning frequency deviation, occupied bandwidth, emission masks, unwanted emissions, field strength, frequency tolerance, 
+interference, spectrum monitoring, and measurement instrumentation.
+
+Max Allowed Passes: 3
+
+---
+
+[PASS 1: DOCUMENT CONTEXT AUDIT]
+
+- Read and analyze `doc_name`.
+- Identify the regulatory, normative, and technical standards already mentioned in the document.
+- Extract existing citations, regulation names, standards, and technical compliance claims.
+- Identify topics where authoritative documentation appears to be missing, incomplete, outdated, or insufficiently supported.
+- Do NOT write or propose new LaTeX text.
+- Do NOT modify the document.
+- Produce only a concise list of research gaps that can guide document discovery.
+
+For each gap, identify:
+1. Topic.
+2. Relevant section of `doc_name`.
+3. Existing source/citation, if any.
+4. Why an additional authoritative document may be useful.
+
+If no meaningful research gaps are found, state:
+
+`NO_RESEARCH_GAPS_FOUND`
+
+and proceed directly to FINAL OUTPUT.
+
+---
+
+[PASS 2: ACTIVE WEB RESEARCH & DOCUMENT DISCOVERY]
+
+- Use web search to locate authoritative documents that address the research gaps identified in PASS 1.
+- Search for the actual primary documents, not merely pages that reference them.
+- Prefer official government repositories, official ANE/MinTIC publications, and official ITU sources.
+- Verify publication date, document title, issuing organization, document number, and applicability.
+- Determine whether each document is currently valid, superseded, amended, or historical as of 2026 when this information is available.
+- Do not assume that a document is applicable merely because it contains similar terminology.
+
+For every candidate document, verify:
+
+1. Official issuing organization.
+2. Exact official title.
+3. Document/resolution/recommendation number.
+4. Publication or adoption date.
+5. Current applicability/status, when available.
+6. Official URL.
+7. Specific technical or regulatory subject covered.
+8. Exact relevance to the `research_topic`.
+9. Which section/topic of `doc_name` it could support.
+10. Whether it provides information not already adequately covered by the existing proposal.
+
+Act as an Adversarial Reviewer:
+
+- Reject sources that merely repeat secondary interpretations.
+- Reject documents whose scope does not apply to FM broadcasting or spectrum monitoring.
+- Reject outdated regulations when a newer applicable version exists.
+- Distinguish mandatory Colombian regulations from international recommendations.
+- Do not convert an ITU recommendation into a Colombian legal requirement.
+- Do not infer a technical limit unless the authoritative document explicitly establishes it.
+- Pay particular attention to claims involving:
+  - 75 kHz FM frequency deviation.
+  - Channel spacing.
+  - Occupied bandwidth.
+  - Emission masks.
+  - Frequency tolerance.
+  - Unwanted/spurious emissions.
+  - Measurement bandwidth.
+  - Spectrum monitoring procedures.
+  - Field-strength measurements.
+  - Frequency measurements.
+  - SDR receiver bandwidth and sampling requirements.
+  - Measurement uncertainty.
+  - Instrumentation requirements.
+
+Set:
+
+`CANDIDATE_DOCUMENTS_FOUND: [X]`
+
+`UNVERIFIED_DOCUMENTS_COUNT: [X]`
+
+---
+
+[PASS 3: VERIFICATION & REFINEMENT]
+
+If `UNVERIFIED_DOCUMENTS_COUNT > 0`:
+
+- Re-check each unverified document against its official source.
+- Prefer the primary PDF or official publication over secondary references.
+- Verify that URLs actually point to the issuing authority or its official document repository.
+- Remove documents that cannot be verified.
+- Check for newer revisions, amendments, replacements, or superseding regulations.
+- Check that every proposed source is genuinely useful for the research topic.
+- Ensure that no legal or technical requirement has been inferred beyond what the source explicitly states.
+
+Perform a final quality-control scan:
+
+- 0 fabricated documents.
+- 0 fabricated resolution numbers.
+- 0 fabricated ITU recommendations.
+- 0 fabricated URLs.
+- 0 unsupported technical limits.
+- 0 unofficial sources presented as regulatory authority.
+- 0 modifications to `doc_name`.
+- 0 generated LaTeX modifications.
+
+Classify each surviving document as:
+
+`MANDATORY_COLOMBIAN_REGULATION`
+`OFFICIAL_COLOMBIAN_TECHNICAL_DOCUMENT`
+`ITU_R_RECOMMENDATION`
+`ITU_R_REPORT`
+`OTHER_AUTHORITATIVE_SOURCE`
+
+---
+
+[FINAL OUTPUT]
+
+Do NOT output modified LaTeX.
+
+Do NOT output proposed replacement text for `doc_name`.
+
+Do NOT output `<latex_updates>`.
+
+Do NOT output BibTeX entries unless they are explicitly requested separately.
+
+Instead, provide a research report containing ONLY newly identified useful documents.
+
+For every document, use this structure:
+
+DOCUMENT [N]
+
+- Title:
+- Issuing organization:
+- Document number:
+- Date:
+- Classification:
+- Status as of 2026:
+- Official URL:
+- Relevant subject:
+- Relevant technical/regulatory provisions:
+- Relevant section(s) of `doc_name`:
+- Why this document is useful:
+- New information compared with existing references:
+- Verification status:
+- Confidence: HIGH / MEDIUM / LOW
+
+Only include a document if it provides meaningful value beyond sources already present in `doc_name`.
+
+At the end provide:
+
+`TOTAL_NEW_USEFUL_DOCUMENTS: [X]`
+
+`TOTAL_REJECTED_DOCUMENTS: [X]`
+
+`TOTAL_UNVERIFIED_DOCUMENTS: [X]`
+
+Then provide:
+
+### RECOMMENDED RESEARCH PRIORITY
+
+Rank the discovered documents from highest to lowest priority according to:
+
+1. Direct regulatory applicability to Colombian FM broadcasting.
+2. Direct relevance to spectrum compliance assessment.
+3. Authority of the issuing organization.
+4. Technical relevance to SDR-based measurements.
+5. Recency/current validity.
+6. Degree to which the document fills an identified gap in `doc_name`.
+
+FINAL CONSTRAINT:
+
+The existing `doc_name` must remain completely untouched.
+
+The task is DOCUMENT DISCOVERY AND VERIFICATION ONLY.
+```
