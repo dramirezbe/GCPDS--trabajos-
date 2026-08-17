@@ -7,7 +7,7 @@ Status: PLANNING COMPLETE — awaiting builder execution with per-section human 
 ## 0. Relation to LAP1 (read these first, mandatory)
 
 - LAP1 = `PLAN_RAG_latex.md`, executed via `PLAN_CHECKPOINTS.md`. All 11 gates approved (2026-08-16, JS). Final roll-up: 1265 lines (current file is 1260 lines; the +5/−5 difference is whitespace drift — re-baseline in Gate 0).
-- LAP2 reviews the **post-LAP1 text**. All line numbers below are **current** (2026-08-16) and refer to `template/03SpectrumSensingFM0-copy.tex`.
+- LAP2 reviews the **post-LAP1 text**. All line numbers below are **current** (2026-08-16) and refer to `report/RAG-informed-SpectrumSensing.tex` (the primary document; `template/03SpectrumSensingFM0-copy.tex` is the legacy pre-refactor copy and is NOT a LAP2 target).
 - **LAP2 differs from LAP1 in intent**: LAP1 fixed wrong/unverifiable claims. LAP2 hunts **gaps, redundancies, contradictions, and weak or unsupported arguments** — including defects introduced by LAP1's own edits (every LAP1 change must be re-verified in context).
 - Numbering continuity: LAP1 numbered the sections 1–11; the LaTeX document numbers them 1–10 with an unnumbered Introduction. **Keep LAP1's numbering** in all logs (both checkpoint files cross-reference it) and note the document section number in each gate report.
 
@@ -19,7 +19,7 @@ Status: PLANNING COMPLETE — awaiting builder execution with per-section human 
 | 4 | FM Compliance Measurands | 224–359 | §3 |
 | 5 | Node-Level DSP Pipeline | 361–478 | §4 |
 | 6 | Array-Level Coordination | 480–510 | §5 |
-| 7 | HackRF One Platform Assessment | 512–649 | §6 |
+| 7 | Baseline SDR Platform Assessment | 512–649 | §6 |
 | 8 | Reference Requirements | 651–713 | §7 |
 | 9 | Estimation Pipeline | 715–1070 | §8 |
 | 10 | Uncertainty Budget | 1072–1144 | §9 |
@@ -75,7 +75,7 @@ Run at least **two queries per section**, scoped per `context/SCOPE-RAG.md` mapp
 Every edit is logged in `PLAN_CHECKPOINTS_lap2.md` with: current line, exact change, why, and **Source** = `file@chunk` (corpus), `EXTERNAL` (no corpus support, consciously kept), or `INTERNAL` (consistency fix). Never invent a citation; never attribute a claim to a standard the corpus does not contain.
 
 ### R7 — Compile after every gate
-`latexmk -g template/03SpectrumSensingFM0-copy.tex && latexmk -c` from the project root. Zero errors required; warnings tolerated only if pre-existing (compare against Gate 0 baseline).
+`latexmk -g -outdir=report report/RAG-informed-SpectrumSensing.tex && latexmk -c -outdir=report report/RAG-informed-SpectrumSensing.tex` from the project root. Zero errors required; warnings tolerated only if pre-existing (compare against Gate 0 baseline). `-outdir=report` is mandatory — without it latexmk writes the PDF to the project root.
 
 ### R8 — Unresolvable claims escalate
 If the corpus cannot settle a finding, do NOT guess. Leave the text unchanged with the finding flagged, present the options at the gate, and let the human decide. One question at a time.
@@ -84,7 +84,7 @@ If the corpus cannot settle a finding, do NOT guess. Leave the text unchanged wi
 Deletion is forbidden except: (a) a redundancy verified by at least two corpus sources or two internal cross-references, AND (b) explicit human approval recorded at that section's gate. Net length change per section: ≤ ±5% of that section's line count.
 
 ### R10 — Re-verify LAP1's out-of-corpus register against the grown index
-The index has changed since LAP1: `context/SCOPE-RAG.md` now lists **12 documents / 7,836 chunks** vs LAP1's baseline of 8 / 7,083 (documents previously "dropped" — BS.1698-1, M.2225, M.2242, CRC-162 — appear in the current scope list). At Gate 0, run `local-rag_status` and reconcile. Re-run the negative findings of LAP1 (400 kHz BS.412, ANE tolerance formula) and re-check every EXTERNAL row of LAP1 §6 against the current index. If the index did not actually change, record that and proceed — do not assume growth.
+The index has **not** changed since LAP1: `local-rag_status` verified live (2026-08-16) reports **8 documents / 7,083 chunks**. The "12 documents / 7,836 chunks" figure in `context/SCOPE-RAG.md` is the **full catalog** of all documents considered during planning (8 ingested + 4 dropped: BS.1698-1 EMF, M.2225/M.2242 cognitive radio, CRC-162-2025 corrupted) — it is NOT the live index. At Gate 0, run `local-rag_status` and record the numbers; if they changed since this reconciliation, re-run the negative findings of LAP1 (400 kHz BS.412, ANE tolerance formula) and re-check every EXTERNAL row of LAP1 §6 against the current index. If unchanged, record that and proceed.
 
 ---
 
@@ -102,7 +102,7 @@ Same as LAP1 (`PLAN_RAG_latex.md` §3): hybrid keyword+semantic search, `scope` 
 |------|----------|
 | `§` in all `.md` files is **valid UTF-8** U+00A7 SECTION SIGN | bytes `C2 A7` (octal `302 247`) in `README.md`, `AGENTS.md`, `PLAN_RAG_latex.md`, `PLAN_CHECKPOINTS.md`, `context/SCOPE-RAG.md` |
 | **No mojibake exists** | zero occurrences of `Â§` (`C3 82 C2 A7`, the classic double-encoded artifact) in any file |
-| `.tex` files contain **zero** `§` | `template/03SpectrumSensingFM0-copy.tex` and `template/sdr_diagram.tex` are pure ASCII; the only `\S` hits are `\node`/`\font` commands |
+| `.tex` files contain **zero** `§` | `report/RAG-informed-SpectrumSensing.tex`, `template/03SpectrumSensingFM0-copy.tex` and `template/sdr_diagram.tex` are pure ASCII; the only `\S` hits are `\node`/`\font` commands |
 | 119 occurrences total, all in `.md` | PLAN_RAG_latex.md 46 · PLAN_CHECKPOINTS.md 47 · SCOPE-RAG.md 19 · README.md 4 · AGENTS.md 3 |
 
 **Conclusion**: the premise "encoding error present across all .md and .tex files" is **falsified for .tex** (no occurrences to fix) and **unsupported for .md** (valid UTF-8, correctly rendered by any UTF-8-aware editor). The character is a legitimate legal-citation convention (`§73.1545`, `§5.1.1`). If the user sees a rendering error, it is a viewer/font/encoding-setting issue in their tool, not a file defect.
@@ -384,7 +384,7 @@ The builder creates `PLAN_CHECKPOINTS_lap2.md` at Gate 0, **same template as `PL
    b. Run the section's queries; record strings + hits (R4).
    c. Compile the findings (R5); present at the gate with proposed verdicts.
    d. Apply only the changes the human approves at the gate.
-   e. Compile: `latexmk -g template/03SpectrumSensingFM0-copy.tex && latexmk -c`. Zero errors.
+   e. Compile: `latexmk -g -outdir=report report/RAG-informed-SpectrumSensing.tex && latexmk -c -outdir=report report/RAG-informed-SpectrumSensing.tex`. Zero errors.
    f. Fill the gate block in `PLAN_CHECKPOINTS_lap2.md`; **STOP** for approval (R2).
 4. After Section 11: final full compile + clean; fill the Final Roll-Up; done.
 

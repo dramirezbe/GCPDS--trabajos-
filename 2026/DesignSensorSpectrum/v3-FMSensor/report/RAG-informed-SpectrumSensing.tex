@@ -186,7 +186,7 @@ The architecture resulting from these design considerations is summarized in Fig
 % ---- Processing Unit ----
 \node[swbox, minimum height=1.3cm] (proc) at (0,4.3) {Processing Unit};
 \draw[arr] (rf.south) -- (proc.north)
-    node[midway, right, lbl, xshift=2mm] {HackRF\\87.5--108 MHz\\Up to 20 MS/s};
+    node[midway, right, lbl, xshift=2mm] {SDR\\87.5--108 MHz\\Up to 20 MS/s};
 \node[lbl, blue] at (2.5,5.55) {USB};
 \node[align=center, font=\tiny] at (0,3.4) {Dragonboard/RPi/PC\\GNU Radio / Python\\Spectrum Sensing};
 
@@ -511,13 +511,13 @@ For example, the array may adopt a rule in which a regulatory alert is issued on
 
 \end{description}
 
-\section{Baseline HackRF One Platform Assessment}
+\section{Baseline SDR Platform Assessment}
 
 \subsection*{Measurement Capability, Platform Limitations, and Suitability}
 
-The HackRF One was selected for large-scale deployment on the basis of cost and reconfigurability. Its use as a primary sensor node entails a trade-off between cost-efficiency and metrological rigour that must be explicitly characterised before any compliance determination is made.
+A low-cost SDR device was selected for large-scale deployment on the basis of cost and reconfigurability. Its use as a primary sensor node entails a trade-off between cost-efficiency and metrological rigour that must be explicitly characterised before any compliance determination is made.
 
-Regulatory emission masks (FCC Part 73 \S73.317(b)--(d); ANE Resoluci\'on 105, Anexo~2) impose stepped out-of-band attenuation: 25~dB at 120--240~kHz offset, 35~dB at 240--600~kHz, and the lesser of $43 + 10\log_{10} P$~(W) or 80~dB beyond 600~kHz under FCC rules (the ANE plan applies the same $43 + 10\log_{10} P$ expression beyond 600~kHz without the 80~dB cap), whereas the HackRF One's 8-bit ADC offers a theoretical dynamic range of only $\approx 50$~dB ($6.02 \times 8 + 1.76$~dB). In regulatory monitoring, the Effective Number of Bits (ENOB) is more critical than nominal bit depth: thermal noise, non-linearity, and input-power-dependent compression typically reduce practical resolution to $\approx 7$ bits ($\approx 42$~dB), with further degradation at the band edges of the 20~MHz observation window. This limitation renders ACLR measurements and any measurand dependent on high dynamic range unreliable without external filtering and strict gain-staging.
+Regulatory emission masks (FCC Part 73 \S73.317(b)--(d); ANE Resoluci\'on 105, Anexo~2) impose stepped out-of-band attenuation: 25~dB at 120--240~kHz offset, 35~dB at 240--600~kHz, and the lesser of $43 + 10\log_{10} P$~(W) or 80~dB beyond 600~kHz under FCC rules (the ANE plan applies the same $43 + 10\log_{10} P$ expression beyond 600~kHz without the 80~dB cap), whereas the baseline SDR device's 8-bit ADC offers a theoretical dynamic range of only $\approx 50$~dB ($6.02 \times 8 + 1.76$~dB). In regulatory monitoring, the Effective Number of Bits (ENOB) is more critical than nominal bit depth: thermal noise, non-linearity, and input-power-dependent compression typically reduce practical resolution to $\approx 7$ bits ($\approx 42$~dB), with further degradation at the band edges of the instantaneous observation window. This limitation renders ACLR measurements and any measurand dependent on high dynamic range unreliable without external filtering and strict gain-staging.
 
 To maintain metrological integrity, strict gain-staging protocols are required. Peak signal levels shall be maintained at least 6~dB below full scale to prevent clipping. In distributed deployments where the signal environment varies across nodes, this requires either manual gain profiling at each site or verified AGC with mandatory state logging. If AGC is employed, its state shall be recorded and timestamped for every sample block; measurements acquired without this metadata shall not be used for calibrated received power reporting and shall be flagged as invalid in the acquisition record.
 
@@ -527,7 +527,7 @@ The hardware's wideband nature introduces three DSP-level pathologies that affec
 
 \item[DC spectral artifact] The LO leakage produces a narrowband spike at DC in the baseband spectrum. Offset tuning (setting $f_{LO} = f_{target} + f_{off}$, $f_{off} = f_s/4$) displaces the spike away from the measurement band and is the required mitigation. This increases acquisition complexity: precise mapping between the LO frequency, applied offset, and true RF frequency must be maintained and recorded in metadata.
 
-\item[I/Q imbalance] Amplitude imbalance $g$ and phase error $\phi$ between the I and Q channels produce a mirror image of the desired signal at $-f_{offset}$ in the baseband spectrum. The correction applied in the preprocessing stage (a $2 \times 2$ widely-linear matrix with scalar $g$ and $\phi$) is frequency-independent. Across the 20~MHz observation bandwidth, the HackRF One's imbalance parameters are frequency-dependent; the scalar correction leaves a residual imbalance at frequencies remote from the calibration tone. Nodes operating with channel targets more than approximately 5~MHz from the calibration tone frequency shall re-estimate $g$ and $\phi$ at a tone within 500~kHz of the target channel, or shall bound the residual mirror power by measurement and record it as an uncertainty contributor. The corrected mirror power shall remain below $-40$~dBc after correction; results exceeding this threshold shall trigger the \texttt{IQ\_RESIDUAL} flag and shall not be used for occupied-bandwidth compliance estimation.
+\item[I/Q imbalance] Amplitude imbalance $g$ and phase error $\phi$ between the I and Q channels produce a mirror image of the desired signal at $-f_{offset}$ in the baseband spectrum. The correction applied in the preprocessing stage (a $2 \times 2$ widely-linear matrix with scalar $g$ and $\phi$) is frequency-independent. Across the instantaneous observation bandwidth, the SDR device's imbalance parameters are frequency-dependent; the scalar correction leaves a residual imbalance at frequencies remote from the calibration tone. Nodes operating with channel targets more than approximately 5~MHz from the calibration tone frequency shall re-estimate $g$ and $\phi$ at a tone within 500~kHz of the target channel, or shall bound the residual mirror power by measurement and record it as an uncertainty contributor. The corrected mirror power shall remain below $-40$~dBc after correction; results exceeding this threshold shall trigger the \texttt{IQ\_RESIDUAL} flag and shall not be used for occupied-bandwidth compliance estimation.
 
 \item[Frequency-dependent noise floor] The receive chain exhibits a non-flat noise and gain profile across the observation bandwidth. A relative (Tier 3) calibration is required to characterise and correct this variation. The detection margin $\Delta_{det}$ used in Stage 4 channel detection is not a fixed absolute value; it shall be set as a site-calibrated offset above the locally verified noise floor, derived from the Tier 2 noise-floor verification required by the channel occupancy preconditions in Table~\ref{tab:capability}. A default value of 8~dB may be used only during initial commissioning prior to site verification; it shall not be used for compliance-grade or conditional-compliance-grade occupancy reporting.
 
@@ -541,15 +541,15 @@ If any measurand class exceeds the validated hardware capability as defined in T
 
 \subsection*{Upgrade Paths and Hybrid Architectures}
 
-Deployments that require compliance-grade measurement of measurands currently classified as Screening-Grade or Unsupported in Table~\ref{tab:capability} shall implement one of the following strategies. The strategies differ in scope: Strategy~1 achieves compliance-grade coverage across all primary measurands; Strategy~2 achieves compliance-grade determination through array-level corroboration while retaining HackRF One screening nodes; Strategy~3 elevates a defined subset of measurands to compliance-grade or Conditional Compliance-Grade on the HackRF One platform through hardware augmentation and validation. In all cases, measurands classified as Conditional Compliance-Grade remain subject to the preconditions specified in Table~\ref{tab:capability}, regardless of which strategy is adopted.
+Deployments that require compliance-grade measurement of measurands currently classified as Screening-Grade or Unsupported in Table~\ref{tab:capability} shall implement one of the following strategies. The strategies differ in scope: Strategy~1 achieves compliance-grade coverage across all primary measurands; Strategy~2 achieves compliance-grade determination through array-level corroboration while retaining baseline SDR screening nodes; Strategy~3 elevates a defined subset of measurands to compliance-grade or Conditional Compliance-Grade on the baseline SDR platform through hardware augmentation and validation. In all cases, measurands classified as Conditional Compliance-Grade remain subject to the preconditions specified in Table~\ref{tab:capability}, regardless of which strategy is adopted.
 
 \begin{enumerate}
 
-\item \textbf{Hardware Upgrade.} Replace the HackRF One with a higher-performance SDR platform offering 12--16 bit ADC resolution, lower phase noise, improved SFDR, and a factory-calibrated or externally disciplined frequency reference. Candidate platforms include the Ettus Research USRP B200/B210 and the Airspy R2 or Airspy Mini (24--1800~MHz); equivalent instrumentation-grade receivers operating across the VHF-II band (87.5--108~MHz) are also acceptable. Full Tier 1 calibration of the replacement platform is mandatory prior to compliance-use declaration. Measurands classified as Conditional Compliance-Grade in Table~\ref{tab:capability} remain subject to their precondition lists even after a hardware upgrade.
+\item \textbf{Hardware Upgrade.} Replace the baseline SDR device with a higher-performance SDR platform offering 12--16 bit ADC resolution, lower phase noise, improved SFDR, and a factory-calibrated or externally disciplined frequency reference. Candidate platforms include the Ettus Research USRP B200/B210 and the Airspy R2 or Airspy Mini (24--1800~MHz); equivalent instrumentation-grade receivers operating across the VHF-II band (87.5--108~MHz) are also acceptable. Full Tier 1 calibration of the replacement platform is mandatory prior to compliance-use declaration. Measurands classified as Conditional Compliance-Grade in Table~\ref{tab:capability} remain subject to their precondition lists even after a hardware upgrade.
 
-\item \textbf{Hybrid Screening and Validation Architecture.} Deploy HackRF One nodes for wide-area screening and event detection (Screening-Grade), supported by a smaller number of compliance-grade validation nodes equipped with higher-capability instrumentation at strategic locations. When a screening node triggers an alert, the event shall be corroborated by a compliance-grade node before any formal regulatory determination is issued. Corroboration shall follow the array-level fusion rules defined in Section~5, including eligibility criteria, inter-node calibration verification, timing alignment, and consistency checks. A single-node screening alert that cannot be corroborated within the defined time window and uncertainty bounds shall be retained as a provisional alert and escalated to operator review; it shall not constitute a standalone compliance determination.
+\item \textbf{Hybrid Screening and Validation Architecture.} Deploy baseline SDR nodes for wide-area screening and event detection (Screening-Grade), supported by a smaller number of compliance-grade validation nodes equipped with higher-capability instrumentation at strategic locations. When a screening node triggers an alert, the event shall be corroborated by a compliance-grade node before any formal regulatory determination is issued. Corroboration shall follow the array-level fusion rules defined in Section~5, including eligibility criteria, inter-node calibration verification, timing alignment, and consistency checks. A single-node screening alert that cannot be corroborated within the defined time window and uncertainty bounds shall be retained as a provisional alert and escalated to operator review; it shall not constitute a standalone compliance determination.
 
-\item \textbf{External Reference and Filtering Augmentation.} Retain the HackRF One platform and augment each node with the following, all of which are mandatory for compliance-use declaration of the affected measurands:
+\item \textbf{External Reference and Filtering Augmentation.} Retain the baseline SDR platform and augment each node with the following, all of which are mandatory for compliance-use declaration of the affected measurands:
 \begin{itemize}
     \item External GPSDO providing a traceable 10~MHz reference and 1~PPS timing signal (required for carrier frequency error);
     \item External preselector or tunable bandpass filter to improve dynamic range for adjacent-channel measurements;
@@ -563,14 +563,14 @@ This approach elevates carrier frequency error and channel occupancy toward thei
 
 \subsection*{Capability Classification by Primary Measurand}
 
-Table~\ref{tab:capability} summarises the baseline capability classification for each primary compliance measurand when the monitoring node is implemented using the HackRF One SDR receiver. The classification reflects the limitations imposed by the 8-bit ADC (effective $\approx 7$ bits, $\approx 42$~dB dynamic range), $\pm 20$~ppm uncalibrated frequency reference, front-end linearity, and noise floor characteristics described above.
+Table~\ref{tab:capability} summarises the baseline capability classification for each primary compliance measurand when the monitoring node is implemented using a baseline SDR receiver. The classification reflects the limitations imposed by the 8-bit ADC (effective $\approx 7$ bits, $\approx 42$~dB dynamic range), $\pm 20$~ppm uncalibrated frequency reference, front-end linearity, and noise floor characteristics described above.
 
 The classification is a baseline: a node that has completed all mandatory preconditions listed for a Conditional Compliance-Grade measurand, and holds a current calibration certificate attesting to that completion, is reclassified to Compliance-Grade for that measurand only. In the absence of a valid certificate, the measurand shall revert to Screening-Grade regardless of any other system configuration.
 
 For Unsupported measurands, the listed factors are hardware-imposed disqualifying limitations that cannot be resolved by calibration or software alone; the required platform capability is stated to guide upgrade decisions. For Screening-Grade measurands, the listed items are mandatory qualifications that must be satisfied before the measurand output is used for any monitoring purpose.
 
 \begin{longtable}{L{3.2cm}L{2.2cm}L{8.6cm}}
-\caption{Measurement Capability Matrix for HackRF One--Based Monitoring Node. Classifications are baseline values; see paragraph above for reclassification conditions.}
+\caption{Measurement Capability Matrix for the Baseline SDR--Based Monitoring Node. Classifications are baseline values; see paragraph above for reclassification conditions.}
 \label{tab:capability}\\
 \toprule
 \rowcolor{headerbg}
@@ -589,10 +589,10 @@ Carrier Frequency Error & Screening &
 External GPSDO required as the sole path to compliance-grade; post-hoc calibration alone is insufficient to correct in-situ thermal drift. Tier 1 calibration of frequency reference mandatory. Residual uncertainty shall be characterised and reported. Measurements acquired without a locked GPSDO shall be flagged \texttt{UNCALIBRATED\_REFERENCE} and treated as screening-grade regardless of other configuration. \\
 
 Calibrated Received Power & Screening &
-AGC state shall be recorded and timestamped for every sample block; measurements acquired without this metadata shall not be used for power reporting. Tier 1 and Tier 2 calibration of gain chain mandatory. Absolute power accuracy limited by gain quantisation ($\pm 2$--8~dB steps) and front-end uncertainty. Valid only when clipping is absent and gain state is recorded. \\
+AGC state shall be recorded and timestamped for every sample block; measurements acquired without this metadata shall not be used for power reporting. Tier 1 and Tier 2 calibration of gain chain mandatory. Absolute power accuracy limited by gain quantisation (device-defined step sizes) and front-end uncertainty. Valid only when clipping is absent and gain state is recorded. \\
 
 Field Strength & Unsupported &
-Disqualifying limitations: (i) dynamic range of 35--45~dB is insufficient for weak-signal monitoring in the presence of strong co-channel or adjacent interference; (ii) no factory antenna-factor characterisation is available for the HackRF One receive chain. Reclassification requires a platform with $\geq 12$-bit ADC, full end-to-end Tier 1 calibration including antenna factor, feedline loss, and environmental correction, and a validated site-specific antenna pattern. \\
+Disqualifying limitations: (i) dynamic range of 35--45~dB is insufficient for weak-signal monitoring in the presence of strong co-channel or adjacent interference; (ii) no factory antenna-factor characterisation is available for the baseline SDR receive chain. Reclassification requires a platform with $\geq 12$-bit ADC, full end-to-end Tier 1 calibration including antenna factor, feedline loss, and environmental correction, and a validated site-specific antenna pattern. \\
 
 Occupied Bandwidth & Conditional Compliance &
 Mandatory preconditions --- all must be satisfied and attested by calibration certificate: (1)~FFT size, window function, and percentile method documented and version-controlled. (2)~Frequency-response flatness validated by Tier 3 calibration across the full analysis span, with residual ripple $< 0.5$~dB. (3)~RBW equivalent characterised and recorded in measurement metadata. (4)~Interference control within analysis span verified against a defined co-channel rejection criterion. (5)~I/Q imbalance correction residual verified $<-40$~dBc at the target channel frequency; results exceeding this threshold shall trigger \texttt{IQ\_RESIDUAL} and invalidate bandwidth estimates. (6)~Cross-validation against reference instrumentation (minimum one traceable signal generator sweep) completed and archived prior to first compliance-use deployment. \\
@@ -610,19 +610,19 @@ Mandatory preconditions --- all must be satisfied and attested by calibration ce
 
 \subsection*{Theoretical vs. Practical Hardware Performance}
 
-Table~\ref{tab:hardware} presents the theoretical versus practical hardware performance of the HackRF One for regulatory FM monitoring, together with the affected measurands.
+Table~\ref{tab:hardware} presents the theoretical versus practical hardware performance of the baseline SDR device for regulatory FM monitoring, together with the affected measurands.
 
 \begin{longtable}{L{2.6cm}L{2.2cm}L{2.4cm}L{6.4cm}}
-\caption{Theoretical vs. practical hardware performance of the HackRF One for regulatory FM monitoring. Affected measurands are identified to make the table actionable.}
+\caption{Theoretical vs. practical hardware performance of the baseline SDR device for regulatory FM monitoring. Affected measurands are identified to make the table actionable.}
 \label{tab:hardware}\\
 \toprule
 \rowcolor{headerbg}
-\textbf{Parameter} & \textbf{Theoretical} & \textbf{Practical (HackRF One)} & \textbf{Impact on compliance (affected measurands)} \\
+\textbf{Parameter} & \textbf{Theoretical} & \textbf{Practical (baseline SDR)} & \textbf{Impact on compliance (affected measurands)} \\
 \midrule
 \endfirsthead
 \toprule
 \rowcolor{headerbg}
-\textbf{Parameter} & \textbf{Theoretical} & \textbf{Practical (HackRF One)} & \textbf{Impact on compliance (affected measurands)} \\
+\textbf{Parameter} & \textbf{Theoretical} & \textbf{Practical (baseline SDR)} & \textbf{Impact on compliance (affected measurands)} \\
 \midrule
 \endhead
 \bottomrule
@@ -637,22 +637,22 @@ Limited ability to distinguish weak spurs near strong carriers. Primary impact: 
 I/Q imbalance (scalar correction residual) & 0~dB mirror rejection (ideal) & $<-40$~dBc within $\pm 5$~MHz of cal.\ tone; degrades at band edges &
 Mirror images bias spectral estimates and generate false candidates. Primary impact: carrier frequency estimation, occupied bandwidth. Frequency-dependent; re-calibration required per site channel. \\
 
-LO phase noise & $<-100$~dBc/Hz at 10~kHz offset (ideal) & $-80$ to $-85$~dBc/Hz at 10~kHz offset (stock XO) &
+LO phase noise & $<-100$~dBc/Hz at 10~kHz offset (ideal) & $-80$ to $-85$~dBc/Hz at 10~kHz offset (stock crystal oscillator) &
 Broadens spectral estimates and raises close-in noise floor. Primary impact: carrier frequency error, occupied bandwidth edge interpolation. Mitigated by GPSDO with low-phase-noise 10~MHz reference. \\
 
 Sampling rate (sustained) & Up to 20~Msps & Reliable at 10--16~Msps &
 Limits instantaneous observation bandwidth for multi-channel survey. Primary impact: wideband acquisition coverage, multi-channel occupancy. \\
 
-Frequency reference accuracy & N/A (XO-dependent) & $\pm 20$~ppm (stock XO) &
+Frequency reference accuracy & N/A (XO-dependent) & $\pm 20$~ppm (stock crystal oscillator) &
 $\pm 2$~kHz absolute error at 100~MHz; exceeds carrier-frequency compliance tolerance without GPSDO. Primary impact: carrier frequency error. \\
 
 \end{longtable}
 
-\noindent\small\textit{Sources: Dynamic range and SFDR values based on the MAX2837 datasheet and empirical HackRF One characterisation. Phase noise figures are indicative; site measurement is recommended for compliance-critical deployments.}
+\noindent\small\textit{Sources: Dynamic range and SFDR values are based on the empirical characterisation of the baseline SDR device and on the following representative RF front-end and ADC datasheets: the Analog Devices (Maxim) MAX2837 direct-conversion RF transceiver (94~dB receive gain-control range); the Analog Devices (Maxim) MAX5865 dual 8-bit ADC front end (48.4~dB SINAD, 40~Msps class); the Realtek RTL2832U DVB-T demodulator with integrated 8-bit ADC (28.8~MHz reference crystal, $\pm$100~ppm class oscillator); the Rafael Micro R820T2 silicon tuner (24--1766~MHz); the Mirics MSI001 tuner (25~MHz--1.75~GHz); the Analog Devices AD9361/AD9363 agile transceivers with 12-bit ADCs (USRP B200/B210, ADALM-PLUTO); and the Lime Microsystems LMS7002M transceiver with 12-bit ADC (LimeSDR). Values for the 8-bit class are empirical baseline characterisations; values for the 12--16-bit classes are indicative datasheet figures. Phase noise figures are indicative; site measurement is recommended for compliance-critical deployments.}
 
 \section{Reference Requirements for Full Compliance-Grade Deployments}
 
-The following requirements apply to each measurand when compliance-grade or Conditional Compliance-Grade reporting is sought. Requirements for measurands classified as Unsupported on the baseline HackRF One platform (field strength, ACLR) are scoped to upgraded or augmented platforms as defined in the Upgrade Paths section; they do not imply that these measurands are achievable on the unaugmented HackRF One. All requirements are in addition to, not in substitution for, the preconditions listed in Table~\ref{tab:capability}.
+The following requirements apply to each measurand when compliance-grade or Conditional Compliance-Grade reporting is sought. Requirements for measurands classified as Unsupported on the baseline SDR platform (field strength, ACLR) are scoped to upgraded or augmented platforms as defined in the Upgrade Paths section; they do not imply that these measurands are achievable on the unaugmented baseline SDR device. All requirements are in addition to, not in substitution for, the preconditions listed in Table~\ref{tab:capability}.
 
 \subsection*{Carrier Frequency Error and Stability}
 
@@ -675,7 +675,7 @@ The following requirements apply to each measurand when compliance-grade or Cond
 \subsection*{Field Strength (upgraded or augmented platforms only)}
 
 \begin{itemize}
-    \item \textbf{Scope.} Field strength is classified Unsupported on the baseline HackRF One. The following requirements apply only to platforms satisfying the reclassification criteria stated in Table~\ref{tab:capability} (Field Strength row).
+    \item \textbf{Scope.} Field strength is classified Unsupported on the baseline SDR platform. The following requirements apply only to platforms satisfying the reclassification criteria stated in Table~\ref{tab:capability} (Field Strength row).
     \item \textbf{Antenna factor application.} Frequency-dependent antenna factors (AF) shall be applied to convert calibrated terminal power to field strength in dB$\mu$V/m. The AF table shall be derived from a Tier 1 antenna calibration and shall cover the full operating bandwidth at the deployment site.
     \item \textbf{Reference plane.} The field-strength reference plane is the antenna terminals. All feedline losses and connector corrections shall be characterised and applied as part of the Tier 1 calibration.
 \end{itemize}
@@ -692,7 +692,7 @@ The following requirements apply to each measurand when compliance-grade or Cond
 \subsection*{Adjacent-Channel and Out-of-Band Emission (upgraded platforms only)}
 
 \begin{itemize}
-    \item \textbf{Scope.} ACLR is classified Unsupported on the baseline HackRF One. The following requirements apply only to platforms satisfying the reclassification criteria stated in Table~\ref{tab:capability} (ACLR row).
+    \item \textbf{Scope.} ACLR is classified Unsupported on the baseline SDR platform. The following requirements apply only to platforms satisfying the reclassification criteria stated in Table~\ref{tab:capability} (ACLR row).
     \item \textbf{SFDR margin gate.} Before any ACLR measurement is reported, the system shall verify that the platform's in-situ SFDR exceeds the applicable regulatory mask limit by at least 15~dB. If this condition is not met, the measurement shall be suppressed and flagged \texttt{UNSUPPORTED}.
     \item \textbf{Integration bandwidth.} The integration window shall be defined as 200~kHz (FCC channelization) or 100~kHz (ANE channel plan) centred on the adjacent or alternate channel carrier. For Colombian deployments, the applicable adjacent-channel threshold is the ANE protection ratio (25~dB at $\pm 100$~kHz; 7~dB at $\pm 200$~kHz for station classes A/B/C/D).
     \item \textbf{Uncertain results.} Uncertain ACLR results shall not support a non-compliance determination. Escalation shall follow the array-level coordination procedure in Section~5 using a higher-dynamic-range validation node where available.
@@ -719,11 +719,11 @@ The following requirements apply to each measurand when compliance-grade or Cond
 
 \subsection*{Reference Carrier-Frequency Estimation Procedure}
 
-The processing pipeline is specified for estimating the carrier centre frequency of an FM broadcast signal from complex baseband samples acquired with a HackRF One software-defined radio receiver. The implementation is organised as six sequential stages. The pipeline is explicitly designed to retain intermediate quantities so that spectral estimates, candidate selection, carrier estimates, and confidence scores remain auditable and can be reinterpreted if calibration metadata are updated.
+The processing pipeline is specified for estimating the carrier centre frequency of an FM broadcast signal from complex baseband samples acquired with an SDR receiver. The implementation is organised as six sequential stages. The pipeline is explicitly designed to retain intermediate quantities so that spectral estimates, candidate selection, carrier estimates, and confidence scores remain auditable and can be reinterpreted if calibration metadata are updated.
 
 \subsubsection*{Stage 1: Acquisition Configuration}
 
-The acquisition stage constructs a validated hardware configuration for one HackRF capture session. In the notebook implementation, the receiver is configured with
+The acquisition stage constructs a validated hardware configuration for one SDR capture session. In the notebook implementation, the receiver is configured with
 \begin{equation}
 f_{LO} = f_{target} + f_{off}, \qquad f_{off} = \frac{f_s}{4},
 \end{equation}
@@ -733,25 +733,40 @@ so the observed FM channel is offset from the DC bin by one quarter of the sampl
 \end{equation}
 so that the target FM allocation remains well separated from the DC region and inside the usable complex baseband span.
 
-The user-facing HackRF receive controls are:
+The user-facing SDR receive controls are:
 \begin{itemize}
-    \item RF amplifier state \texttt{amp\_enable} (internal +14~dB front-end amplifier),
-    \item IF gain \texttt{if\_gain\_db} in 8~dB steps over 0 to 40~dB,
-    \item baseband gain \texttt{baseband\_gain\_db} in 2~dB steps over 0 to 62~dB.
+    \item RF amplifier state (internal front-end amplifier gain $G_{RF}$),
+    \item IF gain in the device's native steps over its IF gain range,
+    \item baseband gain in the device's native steps over its baseband gain range.
 \end{itemize}
 
-For compatibility with older naming, legacy fields \texttt{lna\_gain\_db} and \texttt{vga\_gain\_db} are accepted and mapped to IF gain and baseband gain respectively. The configuration records $f_{target}, f_{off}, f_{LO}, f_s$, together with the individual gain settings and the total receiver gain
+For compatibility with legacy drivers, alternate gain-control identifiers may be accepted and mapped to the IF and baseband gain stages respectively. The configuration records $f_{target}, f_{off}, f_{LO}, f_s$, together with the individual gain settings and the total receiver gain
 \begin{equation}
-G_{RX} = G_{IF} + G_{BB} + \begin{cases} 14~\text{dB}, & \text{if RF amp is enabled}, \\ 0, & \text{otherwise}. \end{cases}
+G_{RX} = G_{RF} + G_{IF} + G_{BB},
 \end{equation}
+where $G_{RF}$ is the front-end amplifier gain specified by the device datasheet, taken as zero when the RF amplifier is disabled.
 
 A warning is emitted when the total gain exceeds the notebook warning level of 32~dB, but clipping prevention is not enforced analytically at this stage.
 
-During capture, the HackRF is configured in the sequence sample-rate $\rightarrow$ frequency $\rightarrow$ gain chain. A short tuning settling pause is inserted after setting the LO. Raw interleaved int8 I/Q data are collected, converted to complex baseband as
+During capture, the SDR device is configured in the sequence sample-rate $\rightarrow$ frequency $\rightarrow$ gain chain. A short tuning settling pause is inserted after setting the LO. Raw interleaved I/Q samples in the device's native format are collected and converted to normalized complex baseband as
 \begin{equation}
-x[n] = \frac{I[n] + jQ[n]}{128},
+x[n] = \frac{I[n] + jQ[n]}{2^{b-1}},
+\label{eq:iq-normalization}
 \end{equation}
-and a warm-up segment of 131{,}072 complex samples is discarded before the final retained block is formed. Clipping is detected directly from the raw ADC stream by checking whether any sample equals 127 or $-128$, and this boolean clipping outcome is propagated to later stages.
+where $b$ is the ADC resolution in bits and $2^{b-1}$ normalizes the signed full-scale range, and a warm-up segment of 131{,}072 complex samples is discarded before the final retained block is formed. Clipping is detected directly from the raw ADC stream by checking whether any sample equals a full-scale code, and this boolean clipping outcome is propagated to later stages.
+
+SDR devices deliver raw I/Q samples in a device-specific numeric format that shall be recorded in the acquisition metadata. The commonly encountered formats, in the SoapySDR/GNU Radio nomenclature (a leading letter for the number type --- \texttt{C} complex, \texttt{F} floating point, \texttt{S} signed integer, \texttt{U} unsigned integer --- followed by the bit width of each I and Q component), are:
+
+\begin{itemize}
+    \item \texttt{CF32} --- complex float32 (8~bytes per sample): the DSP-native representation and de facto standard for stored IQ captures (the \texttt{.cfile} convention); no re-scaling is required and full dynamic range is preserved, at the cost of the highest transport and storage bandwidth;
+    \item \texttt{CS16} --- complex int16 (4~bytes per sample): the workhorse for receivers with 12--16-bit ADCs; only the lower 12~bits are typically meaningful, and the valid bits may be left- or right-justified within the 16-bit word, so justification and byte order shall be recorded in metadata;
+    \item \texttt{CS12} --- complex int12 (3~bytes per sample): packed 12-bit signed format used by several modern front ends to halve the wire bandwidth relative to \texttt{CS16};
+    \item \texttt{CS8} --- complex int8 (2~bytes per sample): signed 8-bit format of 8-bit-ADC devices; halves transport bandwidth relative to \texttt{CS16} at the cost of coarse quantisation ($\approx 42$~dB dynamic range);
+    \item \texttt{CU8} --- complex uint8 (2~bytes per sample): unsigned 8-bit format centred at mid-scale (code 127.5); the host shall re-centre the samples before DSP, and any residual DC bias is a property of the capture, not a defect of the format;
+    \item \texttt{CS4} --- complex int4 (1~byte per sample): extreme-bandwidth-compressed signed format, occasionally used to sustain very wide observation spans over constrained links.
+\end{itemize}
+
+Samples are conventionally interleaved (I and Q components contiguous within each sample); planar and block-interleaved arrangements also occur and shall be identified in metadata. Conversion to the normalized complex representation of Eq.~\eqref{eq:iq-normalization} shall divide signed integer samples by the full-scale value $2^{b-1}$; unsigned formats (e.g., \texttt{CU8}) shall first be re-centred by subtracting the mid-scale code $2^{b-1}$. The reverse conversion shall clamp before truncation so that a hot sample cannot wrap around the integer range into a spurious value. The sample format, byte order, bit justification, and scale factor shall be version-controlled fields of the acquisition record.
 
 \subsubsection*{Stage 2: Preprocessing}
 
@@ -1232,7 +1247,7 @@ Calibrated Received Power & Shared-Risk &
 Flag for field-strength verification using a calibrated mobile unit or compliance-grade co-located node. Do not issue a violation notice based solely on an uncertain received-power result. \\
 
 Field Strength & N/A (Unsupported) &
-No compliance determination is made. Result shall be suppressed and flagged \texttt{UNSUPPORTED} in all reports. This row applies to upgraded platforms meeting the reclassification criteria; Field Strength is Unsupported on the baseline HackRF One platform. \\
+No compliance determination is made. Result shall be suppressed and flagged \texttt{UNSUPPORTED} in all reports. This row applies to upgraded platforms meeting the reclassification criteria; Field Strength is Unsupported on the baseline SDR platform. \\
 
 Occupied Bandwidth & Guard-Band &
 Repeat with doubled FFT size (finer bin resolution). Any change to FFT size shall be logged as a processing configuration change and is subject to version control per Table~\ref{tab:capability} precondition (1) for occupied bandwidth. If the uncertain zone width $2U < 5$~kHz after repetition, accept with a qualification note recording $U$, FFT size, and window function. \\

@@ -4,8 +4,8 @@ Purpose: map each ingested document to the sections of the specification it supp
 
 ## Index Stats
 
-- Documents: 12
-- Chunks: 7,836
+- **Catalog** (all documents considered during planning): 12 documents / 7,836 chunks — 8 ingested + 4 dropped (BS.1698-1 EMF, M.2225/M.2242 cognitive radio, CRC-162-2025 corrupted)
+- **Live index** (check with `local-rag_status`): 8 documents / 7,083 chunks
 - Search mode: hybrid (keyword + semantic)
 
 ---
@@ -20,7 +20,7 @@ Purpose: map each ingested document to the sections of the specification it supp
 
 **Relevant to:**
 - Section 3 FM Compliance Measurands — frequency tolerance (±2 kHz), occupied bandwidth (99%), emission mask thresholds
-- Section 6 HackRF Assessment — regulatory standards requiring >80 dB out-of-band attenuation
+- Section 6 Baseline SDR Platform Assessment — regulatory standards requiring >80 dB out-of-band attenuation
 - Section 7 Reference Requirements — carrier-frequency tolerance (2 kHz per FCC Part 73), guard-band decision logic
 - Section 9 Uncertainty Budget — compliance thresholds for decision rules
 - Section 10 Compliance Decision Logic — measurand-specific threshold values
@@ -35,7 +35,7 @@ Purpose: map each ingested document to the sections of the specification it supp
 
 **Relevant to:**
 - Section 3 FM Compliance Measurands — Colombian-specific technical parameters and thresholds
-- Section 6 HackRF Assessment — Colombian regulatory requirements context
+- Section 6 Baseline SDR Platform Assessment — Colombian regulatory requirements context
 - Section 7 Reference Requirements — jurisdictional limits for carrier frequency tolerance
 
 ### ITU-R Standards — Broadcasting
