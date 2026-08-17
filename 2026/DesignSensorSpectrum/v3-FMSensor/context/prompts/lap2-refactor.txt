@@ -1,0 +1,9 @@
+Rules for this task:
+- Do not write code or edit files yet. Just create a detailed plan in a new file named PLAN_FEEDBACK.md (LAP2)
+- Before anything else, read @PLAN_RAG_latex.md and @PLAN_CHECKPOINTS.md to account for what was already approved in LAP1
+
+Task:
+- Plan a second pass (LAP2) that reads each section of the refactored document, with the same HITL stops used in the current plan
+- For each section: after reading it in full, run RAG queries against the relevant sources to identify gaps, redundancies, contradictions, and weak or unsupported arguments
+- As a rule for the agent builder: it must wait for human review (HITL) after presenting findings for each section, before moving to the next — same as LAP1
+- Log every change in a new file named PLAN_CHECKPOINTS_lap2.md, following the same template as @PLAN_CHECKPOINTS.md, referencing the source document used for each entry

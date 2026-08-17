@@ -124,17 +124,18 @@ Check current index state with `local-rag_status`:
 
 ## Document Sections
 
-The specification covers:
-1. **Introduction** — Purpose, scope, regulatory context (FCC, ANE, ITU-R, ISO)
+The specification covers (Introduction is an unnumbered `\section*` in the compiled PDF; numbered sections run 1–10):
+1. **Introduction** (unnumbered) — Purpose, scope, regulatory context (FCC, ANE, ITU-R, ISO)
 2. **System-Level Requirements** — Reconfigurability, cost, remote monitoring, cybersecurity, multi-channel capacity, measurement integrity
 3. **Functional Decomposition** — RF front-end, signal acquisition, software processing engine, data management
-4. **FM Compliance Measurands** — Primary (frequency error, power, field strength, BW, ACLR, deviation, occupancy) and secondary observables
-5. **Capability Classification** — Compliance-Grade, Screening-Grade, Unsupported, Conditional Compliance-Grade
-6. **HackRF One Platform Assessment** — Hardware limitations, DC artifact, I/Q imbalance, upgrade paths
-7. **Node-Level DSP Pipeline** — 6-stage acquisition-to-reporting pipeline with estimation algorithms
-8. **Array-Level Coordination** — Inter-node calibration, timing, fusion rules, degraded-mode operation
-9. **Uncertainty Budget** — GUM-compliant Type A/B uncertainty, combined/expanded uncertainty, decision rules
-10. **Compliance Decision Logic** — Simple threshold, guard-band (ISO 14253-1), shared-risk rules
+4. **FM Compliance Measurands** — Primary (frequency error, power, field strength, BW, ACLR, deviation, occupancy) and secondary observables; capability classification framework
+5. **Node-Level DSP Pipeline** — 6-stage acquisition-to-reporting pipeline with estimation algorithms
+6. **Array-Level Coordination** — Inter-node calibration, timing, fusion rules, degraded-mode operation
+7. **Baseline HackRF One Platform Assessment** — Hardware limitations, DC artifact, I/Q imbalance, upgrade paths
+8. **Reference Requirements** — Per-measurand compliance-grade requirements, jurisdiction-aware limits
+9. **Estimation Pipeline of Measurands** — Stage 1–6 estimator detail, notebook-derived math
+10. **Uncertainty Budget and Reporting** — GUM-compliant Type A/B uncertainty, combined/expanded uncertainty, decision rules
+11. **Compliance Decision Logic and Uncertainty Handling** — Simple threshold, guard-band (ISO 14253-1), shared-risk rules
 
 ## Key Technical Details
 

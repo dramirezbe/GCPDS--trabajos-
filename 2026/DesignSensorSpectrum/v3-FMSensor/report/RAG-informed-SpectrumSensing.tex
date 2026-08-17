@@ -95,8 +95,10 @@ The system targets compliance assessment under the following regulatory and tech
 
 \begin{itemize}
     \item FCC Part 73 (United States): Technical standards for FM broadcast service, including carrier frequency tolerance, occupied bandwidth, and emission mask requirements;
-    \item ANE Resoluci\'on 105 (applicable jurisdiction): National regulatory provisions governing FM broadcast technical parameters;
+    \item ANE Resoluci\'on 105 (Colombia): National regulatory provisions governing FM broadcast technical parameters;
     \item ITU-R BS.412: International technical standards for FM sound broadcasting;
+    \item ITU-R BS.450-4: Transmission standards for FM sound broadcasting at VHF (signal model, maximum deviation, stereophonic multiplex);
+    \item ITU-R SM.2152: Definitions of Software-Defined Radio (SDR), providing the terminology basis for the SDR architecture;
     \item ISO/IEC 17025: General requirements for the competence of testing and calibration laboratories, applicable to measurement traceability and uncertainty evaluation.
 \end{itemize}
 
@@ -106,7 +108,7 @@ For each deployment, the applicable regulatory basis shall be explicitly identif
 
 \begin{description}
 
-\item[Reconfigurability and Flexibility] The SDR platform shall support changes in monitoring objectives, signal-processing parameters, and compliance algorithms without hardware redesign. Functions such as demodulation, channelization, thresholding, occupancy analysis, and report generation shall be implemented in software to permit controlled adaptation to evolving regulatory requirements, extension to adjacent bands, and integration of validated processing methods. Any software or firmware change affecting measurement outputs shall be documented, version-controlled, and revalidated.
+\item[Reconfigurability and Flexibility] The SDR platform shall support changes in monitoring objectives, signal-processing parameters, and compliance algorithms without hardware redesign, consistent with the ITU-R SM.2152 definition of software-defined radio, in which RF operating parameters such as frequency range, modulation type, and output power are set or altered by software. Functions such as demodulation, channelization, thresholding, occupancy analysis, and report generation shall be implemented in software to permit controlled adaptation to evolving regulatory requirements, extension to adjacent bands, and integration of validated processing methods. Any software or firmware change affecting measurement outputs shall be documented, version-controlled, and revalidated.
 
 \item[Cost and Deployability] The monitoring node shall be economically deployable at scale while preserving the performance required for regulatory use. Low-cost SDR hardware and embedded processing platforms may be used, provided they do not compromise frequency accuracy, calibration validity, or operational reliability. The final architecture shall be justified on the basis of both technical adequacy and total deployment cost.
 
@@ -116,7 +118,7 @@ For each deployment, the applicable regulatory basis shall be explicitly identif
 
 \item[Multi-Channel Monitoring Capacity] The DSP pipeline shall support real-time demodulation and compliance analysis of multiple FM broadcast channels within the instantaneous observation bandwidth and tuning constraints of the SDR front-end and processing platform. The minimum sustained concurrent channel count shall be established through benchmarking on the deployment hardware. Validation shall document processor utilization, memory consumption, storage throughput, end-to-end latency, and the maximum sustainable channel count without sample loss or measurement degradation.
 
-\item[Measurement Integrity, Calibration, and Traceability] The monitoring architecture shall preserve the metrological integrity of all reported measurands. The receive chain, including antenna, RF front-end, SDR, timing reference, and processing stages, shall support calibration, periodic verification, documented uncertainty, and reproducible performance across deployed nodes. All reported measurands, compliance decisions, alerts, and archived evidence shall be traceable to the acquisition record, receiver configuration, timing reference, calibration state, processing configuration, uncertainty characterization, and applicable regulatory rule. Any change affecting the measurement chain shall require revalidation of the corresponding calibration and reporting functions.
+\item[Measurement Integrity, Calibration, and Traceability] The monitoring architecture shall preserve the metrological integrity of all reported measurands. The receive chain, including antenna, RF front-end, SDR, timing reference, and processing stages, shall support calibration, periodic verification, documented uncertainty, and reproducible performance across deployed nodes, in accordance with the metrological-traceability and equipment-calibration requirements of ISO/IEC 17025:2017 (clauses 6.5 and 6.4.6). All reported measurands, compliance decisions, alerts, and archived evidence shall be traceable to the acquisition record, receiver configuration, timing reference, calibration state, processing configuration, uncertainty characterization, and applicable regulatory rule. Any change affecting the measurement chain shall require revalidation of the corresponding calibration and reporting functions.
 
 \end{description}
 
@@ -138,9 +140,9 @@ The architecture resulting from these design considerations is summarized in Fig
 
 \begin{description}
 
-\item[RF Front-End (Hardware Layer)] The monitoring node employs a SDR receiver as the antenna-coupled RF front end for operation in the VHF-II broadcast band (87.5--108~MHz). This stage captures incident RF energy, tunes the band of interest, and produces digitized complex baseband samples for downstream processing. A VHF-II antenna interfaces to the SDR input, and an LNA may be added when required to compensate for feedline loss or weak received signals. The suitability of this front end is governed by instantaneous bandwidth, dynamic range, frequency-reference accuracy and stability, noise figure, and gain configuration, since these parameters bound the fidelity of derived compliance measurands.
+\item[RF Front-End (Hardware Layer)] The monitoring node employs a SDR receiver as the antenna-coupled RF front end for operation in the VHF-II broadcast band, spanning 87.5--108~MHz (the ITU Region 2 planning band), of which the regulated FM broadcast service band occupies 88--108~MHz. This stage captures incident RF energy, tunes the band of interest, and produces digitized complex baseband samples for downstream processing. A VHF-II antenna interfaces to the SDR input, and an LNA may be added when required to compensate for feedline loss or weak received signals. The suitability of this front end is governed by instantaneous bandwidth, dynamic range, frequency-reference accuracy and stability, noise figure, and gain configuration, since these parameters bound the fidelity of derived compliance measurands.
 
-\item[Signal Acquisition and Digitization] The SDR streams raw complex baseband (I/Q) samples to the embedded host processor through a high-speed USB interface. These samples represent the instantaneous tuned observation bandwidth and permit simultaneous inspection of multiple contiguous FM broadcast channels within a single acquisition window, reducing the need for sequential retuning. The selected sample rate shall be validated on the target platform to ensure sustained operation without dropped samples, taking into account USB throughput, host buffering, and processing load.
+\item[Signal Acquisition and Digitization] The SDR streams raw complex baseband (I/Q) samples to the embedded host processor through a high-speed USB interface. These samples represent the instantaneous tuned observation bandwidth and permit simultaneous inspection of multiple contiguous FM broadcast channels within a single acquisition window, on the applicable 100~kHz (ANE channel plan) or 200~kHz (FCC channelization) raster, reducing the need for sequential retuning. The selected sample rate shall be validated on the target platform to ensure sustained operation without dropped samples, taking into account USB throughput, host buffering, and processing load.
 
 \item[Software Processing Engine] The software processing engine implements the end-to-end DSP pipeline for FM broadcast compliance monitoring. Its functions may include spectrum estimation, channelization, carrier detection, demodulation, occupancy assessment, feature extraction, alarm generation, and compliance-metric evaluation. The primary output of this layer is not user-traffic recovery, but reported measurands, decision outcomes, and supporting evidence suitable for regulatory review.
 
@@ -230,7 +232,7 @@ For SDR-based FM broadcast monitoring, a measurand is a defined physical or deri
 Primary compliance measurands are those used directly to assess technical conformity under the applicable regulatory framework. They may include:
 
 \begin{itemize}
-    \item carrier frequency or frequency offset relative to the assigned channel (carrier frequency error: $\pm(0.5 + 2 \times f \times 10^{-5})$~kHz);
+    \item carrier frequency or frequency offset relative to the assigned channel (carrier frequency error: $\pm 2$~kHz under the ANE FM technical plan and under 47 CFR \S73.1545(b) for stations above 10~W transmitter output power; $\pm 3$~kHz at 10~W or less);
     \item calibrated received power or spectral power at a defined reference plane within the observation bandwidth ($\pm 2.5$~dB);
     \item field strength, when supported by antenna-factor characterization and end-to-end calibration of the receive chain ($\pm 3.5$~dB);
     \item occupied bandwidth and related spectral-containment indicators;
@@ -276,7 +278,7 @@ Carrier frequency error ($\Delta f_c$) &
 Difference between the estimated channel center frequency and the assigned frequency of the monitored FM station. &
 Hz &
 Spectral peak, centroid, or model-based estimation referenced to the node frequency standard. Calibration dependency: High; depends on frequency-reference accuracy, offset calibration, and drift compensation ($^*$). &
-Periodic and event-triggered. Assigned-frequency tolerance specified by the applicable regulator or station license. \\
+Periodic and event-triggered. Assigned-frequency tolerance: ANE FM technical plan ($\pm 2$~kHz); 47 CFR \S73.1545(b) ($\pm 2000$~Hz above 10~W; $\pm 3000$~Hz at 10~W or less). \\
 
 Calibrated received power ($P_{rx}(B)$) &
 Power measured at a defined receiver reference plane over a stated bandwidth $B$ after gain-state and frequency-response correction. &
@@ -288,25 +290,25 @@ Field strength ($E$) &
 Electric field strength at the monitoring antenna location, inferred from the calibrated receive chain and antenna factor. &
 dB$\mu$V/m &
 Conversion from calibrated received level using antenna factor, cable loss, and front-end corrections. Calibration dependency: Very high; valid only when antenna factor and end-to-end chain calibration are available. &
-Periodic. Applicable field-strength rule, coordination criterion, or service-limit criterion adopted by the jurisdiction. \\
+Periodic. Applicable field-strength rule adopted by the jurisdiction (e.g., 47 CFR \S73.315: $\ge$70~dBu over the principal community; BS.412-9 Table~1 planning minima). \\
 
 Occupied bandwidth ($B_{occ}$) &
 Width of the frequency band containing a specified percentage of the total integrated mean emission power. &
 kHz &
 Direct $\beta\%$ occupied bandwidth measurement on the recorded spectrum. Calibration dependency: Moderate; depends on frequency-response flatness, RBW/FFT configuration, and interference control within the analysis span. &
-Periodic. Occupied-bandwidth or spectral-containment rule defined by the governing standard or license condition. \\
+Periodic. Spectral-containment rule: 47 CFR \S73.317(b) (mask compliance deems occupied bandwidth $\le$240~kHz); ANE FM technical plan limits stereo signals to 256~kHz. \\
 
 Adjacent-channel / out-of-band emission level ($L_{adj}, L_{OOB}$) &
 Emission level measured in adjacent-channel or out-of-band regions, reported either relative to the in-band reference level or at the calibrated receiver reference plane. &
 dBc or dBm &
 Spectral integration or peak-envelope evaluation in predefined offset bands relative to the assigned carrier. Calibration dependency: High; requires dynamic-range validation, front-end linearity, and spectral calibration. &
-Periodic and event-triggered. Emission-mask or attenuation rule adopted by the regulator, evaluated for the stated offset region and reference level. \\
+Periodic and event-triggered. Emission-mask rule adopted by the regulator (47 CFR \S73.317(c)--(d); ANE FM technical plan non-essential-emissions mask), evaluated for the stated offset region and reference level. \\
 
 Peak deviation / multiplex-related indicator ($\Delta f_{max}$, $P_{MPX}$) &
 Maximum instantaneous frequency deviation and, where required, a multiplex-related modulation quantity derived from the FM baseband or demodulated composite signal. &
 kHz, dBr, or other adopted MPX metric &
 FM demodulation followed by deviation estimation and multiplex-power measurement using the adopted method. Calibration dependency: High; depends on demodulator linearity, deviation calibration, and composite baseband conditioning. &
-Windowed estimate with periodic summary. Applicable deviation or multiplex-power rule under the adopted monitoring procedure. \\
+Windowed estimate with periodic summary. Deviation and multiplex-power limits (BS.450-4: maximum $\pm 75$~kHz; BS.412-9 \S2.5.1: 60~s multiplex-power criterion) under the adopted monitoring procedure. \\
 
 Channel occupancy over time ($O_T$) &
 Fraction of the observation interval during which the channel is declared occupied according to a documented detection rule. &
@@ -323,7 +325,7 @@ Rolling summary. Occupancy definition and decision rule established by the monit
 
 The SDR monitoring system shall classify each measurand based on hardware-constrained measurement quality. This classification dictates permissible regulatory use and defines required validation, calibration, and uncertainty characterization.
 
-Three capability classes are defined:
+The following capability classes are defined:
 
 \begin{description}
 
@@ -342,7 +344,7 @@ Three capability classes are defined:
 Every reported measurand shall include in its metadata record:
 
 \begin{itemize}
-    \item The capability class under which it was acquired (compliance-grade, screening-grade, unsupported),
+    \item The capability class under which it was acquired (compliance-grade, screening-grade, conditional compliance-grade, unsupported),
     \item Hardware platform identifier and configuration (ADC resolution, gain state, reference source),
     \item Applicable calibration tier(s) and calibration record identifier,
     \item Measurement uncertainty or, for screening-grade results, an explicit uncertainty disclaimer,
@@ -354,7 +356,7 @@ Screening-grade measurands shall be flagged in all reports and databases as \tex
 
 \subsection*{Uncertainty Budget and Reporting}
 
-All measurements intended for regulatory compliance use shall be accompanied by a documented uncertainty evaluation in accordance with the Guide to the Expression of Uncertainty in Measurement (GUM). The uncertainty budget shall account for all known sources of random and systematic error, shall be traceable to the calibration hierarchy defined above, and shall be reported alongside the measurand value in all compliance records and evidence archives.
+All measurements intended for regulatory compliance use shall be accompanied by a documented uncertainty evaluation in accordance with the Guide to the Expression of Uncertainty in Measurement (GUM, JCGM 100:2008). The uncertainty budget shall account for all known sources of random and systematic error, shall be traceable to the calibration hierarchy defined above, and shall be reported alongside the measurand value in all compliance records and evidence archives.
 
 Uncertainty Classification, the associated Uncertainty-Aware Compliance Decisions, and Periodic Re-Evaluation Requirements are detailed later in this document.
 
@@ -475,7 +477,7 @@ Its principal functions are:
     \item Controlled access and retrieval: provision of structured mechanisms for querying, visualizing, and exporting stored results in accordance with the monitoring policy and access-control model.
 \end{itemize}
 
-The estimation background of the processing pipeline is specified for each Compliance Measurand in the Appendix.
+The estimation background of the processing pipeline is specified for each Compliance Measurand in Section~\ref{sec:estimation}.
 
 \section{Array-Level Coordination for Distributed Regulatory Monitoring}
 
@@ -491,7 +493,7 @@ In a distributed regulatory monitoring deployment, the sensor array shall be tre
 
 \item[Sensor health coordination] The array management layer shall continuously supervise node health using both hardware and measurement-quality indicators. These shall include SDR connectivity, sample-loss status, gain state, clipping, DC contamination, I/Q residuals, thermal alarms, storage availability, network reachability, calibration validity, synchronization state, and reference-lock state. Health supervision shall classify each node as at least one of the following: operational for compliance use, operational for screening only, degraded, or unavailable. Array-level conclusions shall only use nodes whose health state is compatible with the uncertainty and decision rule of the associated measurand.
 
-\item[Cross-node consistency checks] When multiple nodes observe the same licensed emission or event, the system shall perform cross-node consistency analysis before issuing a fused regulatory conclusion. The consistency checks shall compare overlapping measurands after correcting for known site, antenna, and propagation differences. At minimum, the framework should evaluate consistency of carrier-frequency estimate, event time, occupancy declaration, and any jointly used spectral or modulation indicator. Persistent disagreement beyond the expected uncertainty budget shall trigger one of three outcomes: exclusion of the outlying node, classification of the event as uncertain, or escalation for operator review. Cross-node agreement shall strengthen confidence, but disagreement shall never be silently averaged away.
+\item[Cross-node consistency checks] When multiple nodes observe the same licensed emission or event, the system shall perform cross-node consistency analysis before issuing a fused regulatory conclusion. The consistency checks shall compare overlapping measurands after correcting for known site, antenna, and propagation differences. At minimum, the framework should evaluate consistency of carrier-frequency estimate, event time, occupancy declaration, and any jointly used spectral or modulation indicator. Persistent disagreement beyond the expected uncertainty budget shall trigger one of three outcomes: exclusion of the outlying node, classification of the event as uncertain, or escalation for operator review. Cross-node agreement shall strengthen confidence, but disagreement shall never be silently averaged away. This procedure is consistent with the validity-of-results monitoring concept of ISO/IEC 17025:2017, clause 7.7 (monitoring performance by comparison with results of other laboratories).
 
 \item[Contribution of multiple nodes to one regulatory conclusion] The framework shall define a formal fusion rule for converting node-level results into an array-level conclusion. That rule shall specify:
 \begin{enumerate}
@@ -515,7 +517,7 @@ For example, the array may adopt a rule in which a regulatory alert is issued on
 
 The HackRF One was selected for large-scale deployment on the basis of cost and reconfigurability. Its use as a primary sensor node entails a trade-off between cost-efficiency and metrological rigour that must be explicitly characterised before any compliance determination is made.
 
-Regulatory standards (e.g., FCC Part 73, ANE Resoluci\'on 105) often mandate out-of-band emission attenuation exceeding 80~dB, whereas the HackRF One's 8-bit ADC offers a theoretical dynamic range of only $\approx 48$~dB ($6.02 \times 8 + 1.76$~dB). In regulatory monitoring, the Effective Number of Bits (ENOB) is more critical than nominal bit depth: thermal noise, non-linearity, and input-power-dependent compression typically reduce practical resolution to $\approx 7$ bits ($\approx 42$~dB), with further degradation at the band edges of the 20~MHz observation window. This limitation renders ACLR measurements and any measurand dependent on high dynamic range unreliable without external filtering and strict gain-staging.
+Regulatory emission masks (FCC Part 73 \S73.317(b)--(d); ANE Resoluci\'on 105, Anexo~2) impose stepped out-of-band attenuation: 25~dB at 120--240~kHz offset, 35~dB at 240--600~kHz, and the lesser of $43 + 10\log_{10} P$~(W) or 80~dB beyond 600~kHz under FCC rules (the ANE plan applies the same $43 + 10\log_{10} P$ expression beyond 600~kHz without the 80~dB cap), whereas the HackRF One's 8-bit ADC offers a theoretical dynamic range of only $\approx 50$~dB ($6.02 \times 8 + 1.76$~dB). In regulatory monitoring, the Effective Number of Bits (ENOB) is more critical than nominal bit depth: thermal noise, non-linearity, and input-power-dependent compression typically reduce practical resolution to $\approx 7$ bits ($\approx 42$~dB), with further degradation at the band edges of the 20~MHz observation window. This limitation renders ACLR measurements and any measurand dependent on high dynamic range unreliable without external filtering and strict gain-staging.
 
 To maintain metrological integrity, strict gain-staging protocols are required. Peak signal levels shall be maintained at least 6~dB below full scale to prevent clipping. In distributed deployments where the signal environment varies across nodes, this requires either manual gain profiling at each site or verified AGC with mandatory state logging. If AGC is employed, its state shall be recorded and timestamped for every sample block; measurements acquired without this metadata shall not be used for calibrated received power reporting and shall be flagged as invalid in the acquisition record.
 
@@ -596,7 +598,7 @@ Occupied Bandwidth & Conditional Compliance &
 Mandatory preconditions --- all must be satisfied and attested by calibration certificate: (1)~FFT size, window function, and percentile method documented and version-controlled. (2)~Frequency-response flatness validated by Tier 3 calibration across the full analysis span, with residual ripple $< 0.5$~dB. (3)~RBW equivalent characterised and recorded in measurement metadata. (4)~Interference control within analysis span verified against a defined co-channel rejection criterion. (5)~I/Q imbalance correction residual verified $<-40$~dBc at the target channel frequency; results exceeding this threshold shall trigger \texttt{IQ\_RESIDUAL} and invalidate bandwidth estimates. (6)~Cross-validation against reference instrumentation (minimum one traceable signal generator sweep) completed and archived prior to first compliance-use deployment. \\
 
 Adjacent-Channel / Out-of-Band Emission & Unsupported &
-Disqualifying limitations: SFDR of 50--55~dBc is insufficient for regulatory emission masks requiring $>70$~dB attenuation; the gap cannot be closed by calibration. Reclassification requires an external preselector or SAW filter and a 14--16 bit ADC front-end; both are required, not optional. \\
+Disqualifying limitations: SFDR of 50--55~dBc is insufficient for the far-offset mask attenuation ($43 + 10\log_{10} P$ or 80~dB beyond 600~kHz); the gap cannot be closed by calibration. Reclassification requires an external preselector or SAW filter and a 14--16 bit ADC front-end; both are required, not optional. \\
 
 Peak Deviation / Multiplex Power & Screening &
 FM demodulator linearity and deviation calibration required. Multiplex-power estimation valid only when baseband conditioning (de-emphasis, pilot extraction) is validated against a reference modulation analyser. Pilot and RDS sub-carrier magnitudes shall be verified independently. \\
@@ -626,7 +628,7 @@ Table~\ref{tab:hardware} presents the theoretical versus practical hardware perf
 \bottomrule
 \endfoot
 
-Dynamic range (ENOB-limited) & 48.2~dB (8-bit) & 35--45~dB ($\approx 7$ bit effective) &
+Dynamic range (ENOB-limited) & 49.9~dB (8-bit, $6.02 \times 8 + 1.76$) & 35--45~dB ($\approx 7$ bit effective) &
 Insufficient for high-attenuation mask checks. Primary impact: ACLR, field strength. \\
 
 SFDR & $\approx 48$~dBFS & 50--55~dBc &
@@ -657,7 +659,7 @@ The following requirements apply to each measurand when compliance-grade or Cond
 \begin{itemize}
     \item \textbf{Reference clock traceability.} The SDR master clock shall be disciplined by a GPS-Disciplined Oscillator (GPSDO) or equivalent traceable reference providing a fractional frequency accuracy of $\pm 1 \times 10^{-9}$ or better. An external Rubidium oscillator is acceptable only when it is itself GPS-steered or carries a current calibration certificate traceable to a national frequency standard; a free-running Rubidium standard does not satisfy this requirement.
     \item \textbf{Estimation algorithm.} Carrier centre frequency shall be estimated using the Stage 5 pipeline specified later in this document (parabolic interpolation primary, power centroid and edge midpoint as supporting estimators). The power-weighted centroid may be used as the primary estimator only when the peak-parabolic method is flagged invalid by the Stage 5 validity logic.
-    \item \textbf{Guard-band decision logic.} The Guard-Band rule (\eqref{eq:guardband}) shall be applied using the 2~kHz carrier-frequency tolerance specified by FCC Part 73 or the applicable jurisdictional limit. If $|f_{cal} - f_{target}| + U \leq T$, the result is compliant; if $|f_{cal} - f_{target}| - U > T$, non-compliant; otherwise uncertain and subject to the escalation procedure in Table~\ref{tab:decision-rules}.
+    \item \textbf{Guard-band decision logic.} The Guard-Band rule (\eqref{eq:guardband}) shall be applied using the carrier-frequency tolerance applicable to the jurisdiction: $\pm 2000$~Hz ($>10$~W) / $\pm 3000$~Hz ($\le 10$~W) per 47 CFR \S73.1545(b), or $\pm 2$~kHz under the ANE FM technical plan. If $|f_{cal} - f_{target}| + U \leq T$, the result is compliant; if $|f_{cal} - f_{target}| - U > T$, non-compliant; otherwise uncertain and subject to the escalation procedure in Table~\ref{tab:decision-rules}.
     \item \textbf{Uncertainty-driven escalation.} As specified in Table~\ref{tab:decision-rules}, results in the uncertain zone shall trigger a repeated measurement cycle with $4\times$ extended averaging. If the result remains uncertain after three attempts, it shall be logged as \texttt{UNRESOLVED} and escalated to operator review.
     \item \textbf{Reference drift monitoring.} The GPSDO lock state and 1~PPS timing validity shall be recorded continuously. Any measurement acquired during a GPSDO unlock event shall be flagged \texttt{UNCALIBRATED\_REFERENCE} and classified as screening-grade. Temperature of the SDR front-end shall be logged as a diagnostic field; if the node operates without a disciplined reference (e.g., during holdover), the estimated frequency drift based on the TCXO drift profile shall be recorded as an additional Type B uncertainty contribution.
 \end{itemize}
@@ -667,7 +669,7 @@ The following requirements apply to each measurand when compliance-grade or Cond
 \begin{itemize}
     \item \textbf{Reference plane traceability.} The receive chain shall undergo Tier 1 laboratory calibration establishing absolute gain accuracy at the defined reference plane (antenna port or SDR input bulkhead). Tier 2 field verification shall confirm that the node has not drifted beyond acceptable limits relative to the Tier 1 state; Tier 2 alone does not establish absolute traceability.
     \item \textbf{Shared-risk decision logic.} Expanded uncertainty $U$ ($k=2$) shall be computed in real time. Values falling within the $U$-interval of the applicable ERP or received-power limit shall be flagged for verification using a calibrated mobile unit or a compliance-grade co-located node, per Table~\ref{tab:decision-rules}.
-    \item \textbf{Integration method.} Calibrated received power shall be computed as the RMS-weighted PSD integral over the defined analysis bandwidth $B$ (nominally 200~kHz for FM broadcast), after gain-state and frequency-response correction.
+    \item \textbf{Integration method.} Calibrated received power shall be computed as the RMS-weighted PSD integral over the defined analysis bandwidth $B$ (nominally 200~kHz under FCC channelization; 100~kHz under the ANE channel plan), after gain-state and frequency-response correction.
 \end{itemize}
 
 \subsection*{Field Strength (upgraded or augmented platforms only)}
@@ -692,15 +694,15 @@ The following requirements apply to each measurand when compliance-grade or Cond
 \begin{itemize}
     \item \textbf{Scope.} ACLR is classified Unsupported on the baseline HackRF One. The following requirements apply only to platforms satisfying the reclassification criteria stated in Table~\ref{tab:capability} (ACLR row).
     \item \textbf{SFDR margin gate.} Before any ACLR measurement is reported, the system shall verify that the platform's in-situ SFDR exceeds the applicable regulatory mask limit by at least 15~dB. If this condition is not met, the measurement shall be suppressed and flagged \texttt{UNSUPPORTED}.
-    \item \textbf{Integration bandwidth.} The integration window shall be defined as 200~kHz centred on the adjacent or alternate channel carrier, consistent with the FM channel plan.
+    \item \textbf{Integration bandwidth.} The integration window shall be defined as 200~kHz (FCC channelization) or 100~kHz (ANE channel plan) centred on the adjacent or alternate channel carrier. For Colombian deployments, the applicable adjacent-channel threshold is the ANE protection ratio (25~dB at $\pm 100$~kHz; 7~dB at $\pm 200$~kHz for station classes A/B/C/D).
     \item \textbf{Uncertain results.} Uncertain ACLR results shall not support a non-compliance determination. Escalation shall follow the array-level coordination procedure in Section~5 using a higher-dynamic-range validation node where available.
 \end{itemize}
 
 \subsection*{Peak Deviation and Multiplex Power}
 
 \begin{itemize}
-    \item \textbf{Demodulation bandwidth.} FM demodulation shall use a minimum IF bandwidth of 400~kHz to capture high-order sidebands. This requirement is consistent with the measurement method defined in ITU-R BS.412 for the applicable deviation and multiplex power indicators.
-    \item \textbf{MPX power reference.} Integration of the multiplex signal power shall be reported in dBr relative to the 0~dBr reference level, defined as the power of the composite MPX signal at 75~kHz peak deviation of a 1~kHz sine tone, with the 19~kHz stereo pilot present at its nominal level. This definition shall be recorded in the measurement procedure.
+    \item \textbf{Demodulation bandwidth.} FM demodulation shall use a minimum IF bandwidth of 400~kHz to capture high-order sidebands. This is an internal engineering requirement of this specification; ITU-R BS.412 does not prescribe a receiver IF bandwidth.
+    \item \textbf{MPX power reference.} Integration of the multiplex signal power shall be reported in dBr relative to the 0~dBr reference level, defined as the power of the composite MPX signal at 75~kHz peak deviation of a 1~kHz sine tone, with the 19~kHz stereo pilot present at its nominal level. This is an adopted procedure definition of this specification for reporting purposes; it is distinct from the multiplex-power criterion of ITU-R BS.412 \S2.5.1, which limits the power of the complete multiplex signal integrated over any 60~s interval to that of a single tone causing $\pm 19$~kHz peak deviation. Both definitions shall be recorded in the measurement procedure.
     \item \textbf{Sub-carrier verification.} The 19~kHz pilot tone and 57~kHz RDS sub-carrier shall be independently verified in magnitude. Results shall be reported relative to the main carrier level and stored as supporting evidence.
 \end{itemize}
 
@@ -713,6 +715,7 @@ The following requirements apply to each measurand when compliance-grade or Cond
 \end{itemize}
 
 \section{Estimation Pipeline of Measurands}
+\label{sec:estimation}
 
 \subsection*{Reference Carrier-Frequency Estimation Procedure}
 
@@ -1166,6 +1169,8 @@ where $x_{ref}$ is the regulatory reference point (e.g., assigned carrier freque
 It shall not be applied when $U \geq 0.1\,T$ without documented justification and explicit authority from the responsible regulatory body.
 
 \subsection*{Conservative Guard-Band Rule (ISO 14253-1)}
+
+The Guard-Band rule below follows the conformity-assessment framework of ISO 14253-1; the equivalent decision rule is also described in JCGM~106:2012 and ISO/IEC~Guide~98-4, which the laboratory shall consult for the associated risk of false accept and false reject. The decision rule employed shall be documented per ISO/IEC~17025:2017, clause 7.8.6.
 
 \begin{equation}
 \text{Decision} =

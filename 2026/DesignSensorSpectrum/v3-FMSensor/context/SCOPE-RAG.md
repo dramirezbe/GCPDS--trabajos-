@@ -19,11 +19,11 @@ Purpose: map each ingested document to the sections of the specification it supp
 | `47_CFR_Part_73.pdf` | 2,611 | FCC Part 73 — US radio broadcast technical standards. Covers FM technical definitions (§73.310), frequency deviation/tolerance (§73.1545), occupied bandwidth (§73.317), stereophonic sound (§73.297), blanketing interference (§73.318), emission masks, station classes, power limits. |
 
 **Relevant to:**
-- §4 FM Compliance Measurands — frequency tolerance (±2 kHz), occupied bandwidth (99%), emission mask thresholds
-- §6 HackRF Assessment — regulatory standards requiring >80 dB out-of-band attenuation
-- §8 Reference Requirements — carrier-frequency tolerance (2 kHz per FCC Part 73), guard-band decision logic
-- §10 Uncertainty Budget — compliance thresholds for decision rules
-- §11 Compliance Decision Logic — measurand-specific threshold values
+- Section 3 FM Compliance Measurands — frequency tolerance (±2 kHz), occupied bandwidth (99%), emission mask thresholds
+- Section 6 HackRF Assessment — regulatory standards requiring >80 dB out-of-band attenuation
+- Section 7 Reference Requirements — carrier-frequency tolerance (2 kHz per FCC Part 73), guard-band decision logic
+- Section 9 Uncertainty Budget — compliance thresholds for decision rules
+- Section 10 Compliance Decision Logic — measurand-specific threshold values
 
 ### Regulatory — Colombia (ANE)
 
@@ -34,9 +34,9 @@ Purpose: map each ingested document to the sections of the specification it supp
 | `ANE_0406_2026.pdf` | 157 | ANE Resolución 0406 (2026) — Latest modification to Anexo 2 of Resolución 105. Updated FM frequency allocations. |
 
 **Relevant to:**
-- §4 FM Compliance Measurands — Colombian-specific technical parameters and thresholds
-- §6 HackRF Assessment — Colombian regulatory requirements context
-- §8 Reference Requirements — jurisdictional limits for carrier frequency tolerance
+- Section 3 FM Compliance Measurands — Colombian-specific technical parameters and thresholds
+- Section 6 HackRF Assessment — Colombian regulatory requirements context
+- Section 7 Reference Requirements — jurisdictional limits for carrier frequency tolerance
 
 ### ITU-R Standards — Broadcasting
 
@@ -47,13 +47,13 @@ Purpose: map each ingested document to the sections of the specification it supp
 | `BS.1698-1.pdf` | 453 | ITU-R BS.1698-1 — Evaluating EMF from terrestrial broadcasting for human exposure to non-ionizing radiation. Reference curves, VHF/UHF measurement methods. |
 
 **BS.450-4 relevant to:**
-- §4 FM Compliance Measurands — peak deviation, multiplex power definitions
-- §8 Reference Requirements — MPX power reference (75 kHz deviation, 1 kHz tone, 19 kHz pilot), demodulation bandwidth (400 kHz)
-- §9 Estimation Pipeline — FM demodulation, composite baseband recovery, pilot/RDS verification
+- Section 3 FM Compliance Measurands — peak deviation, multiplex power definitions
+- Section 7 Reference Requirements — MPX power reference (75 kHz deviation, 1 kHz tone, 19 kHz pilot), demodulation bandwidth (400 kHz)
+- Section 8 Estimation Pipeline — FM demodulation, composite baseband recovery, pilot/RDS verification
 
 **BS.412-9 relevant to:**
-- §4 FM Compliance Measurands — field strength thresholds, protection ratios
-- §8 Reference Requirements — demodulation bandwidth reference (400 kHz per BS.412)
+- Section 3 FM Compliance Measurands — field strength thresholds, protection ratios
+- Section 7 Reference Requirements — demodulation bandwidth reference (400 kHz per BS.412)
 
 **BS.1698-1 relevant to:** NONE — human exposure assessment, outside scope of broadcast compliance monitoring
 
@@ -66,7 +66,7 @@ Purpose: map each ingested document to the sections of the specification it supp
 | `M.2242.pdf` | 163 | ITU-R M.2242 — Cognitive radio systems specific for IMT systems. CRS architecture for mobile networks, spectrum balancing, cognitive pilot channel. |
 
 **SM.2152 relevant to:**
-- §2 System-Level Requirements — SDR terminology and definitions
+- Section 1 System-Level Requirements — SDR terminology and definitions
 
 **M.2225 relevant to:** NONE — land mobile service, not broadcasting
 **M.2242 relevant to:** NONE — IMT-specific, not relevant to FM broadcast monitoring
@@ -78,10 +78,10 @@ Purpose: map each ingested document to the sections of the specification it supp
 | `ISO_IEC_17025_2017.pdf` | 185 | ISO/IEC 17025:2017 — Laboratory competence requirements. Metrological traceability, measurement uncertainty (Type A/B), calibration chains, proficiency testing, decision rules for conformity assessment. |
 
 **Relevant to:**
-- §4 FM Compliance Measurands — measurement traceability, uncertainty framework
-- §8 Reference Requirements — calibration tier requirements, traceability to SI
-- §10 Uncertainty Budget — GUM-compliant Type A/B evaluation, combined/expanded uncertainty, Welch-Satterthwaite, periodic re-evaluation triggers
-- §11 Compliance Decision Logic — decision rules (guard-band per ISO 14253-1), conformity assessment framework
+- Section 3 FM Compliance Measurands — measurement traceability, uncertainty framework
+- Section 7 Reference Requirements — calibration tier requirements, traceability to SI
+- Section 9 Uncertainty Budget — GUM-compliant Type A/B evaluation, combined/expanded uncertainty, Welch-Satterthwaite, periodic re-evaluation triggers
+- Section 10 Compliance Decision Logic — decision rules (guard-band per ISO 14253-1), conformity assessment framework
 
 ### Other
 
