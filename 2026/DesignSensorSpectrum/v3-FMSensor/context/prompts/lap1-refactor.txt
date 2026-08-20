@@ -5,6 +5,7 @@ Rules for this task:
 Task:
 - Plan a refactor of @report/RAG-informed-SpectrumSensing.tex (note: the file, not "RAG-informed" as a concept)
 - Perform all corresponding queries needed to improve each section of the document
-- As a rule for the agent builder: explain in the plan that the builder must go section by section, improving content without expanding it — only changing design/structure rules, and only where necessary
+- As a rule for the agent builder: explain in the plan that the builder must go section by section, improving content without expanding it — 
+only changing design/structure rules, and only where necessary
 - As another rule for the builder: it must wait for human review (HITL) after finishing each section's changes, before moving to the next
 - Also create a second new file named PLAN_CHECKPOINTS.md, explaining what was changed and why for each section, referencing the source document used
